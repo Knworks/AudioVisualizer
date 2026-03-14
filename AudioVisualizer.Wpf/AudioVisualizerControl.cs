@@ -66,6 +66,11 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         private VisualizerRenderData? m_CurrentRenderData;
 
+        /// <summary>
+        /// 直近の描画に使用するブラシです。
+        /// </summary>
+        private Brush m_CurrentRenderBrush = Brushes.DeepSkyBlue;
+
         #endregion
 
         #region プロパティ
@@ -203,7 +208,7 @@ namespace AudioVisualizer.Wpf
         /// <summary>
         /// テスト確認用の現在描画ブラシを取得します。
         /// </summary>
-        internal Brush CurrentRenderBrush => CreateRenderBrush();
+        internal Brush CurrentRenderBrush => m_CurrentRenderBrush;
 
         #endregion
 
@@ -355,6 +360,7 @@ namespace AudioVisualizer.Wpf
             m_DefaultEffect = defaultEffect ?? throw new ArgumentNullException(nameof(defaultEffect));
             m_Renderer = renderer ?? throw new ArgumentNullException(nameof(renderer));
             m_AudioInputProvider.FrameProduced += OnFrameProduced;
+            RefreshRenderBrush();
         }
 
         #endregion
@@ -368,7 +374,7 @@ namespace AudioVisualizer.Wpf
         protected override void OnRender(DrawingContext drawingContext)
         {
             base.OnRender(drawingContext);
-            m_Renderer.Render(drawingContext, m_CurrentRenderData, new Size(ActualWidth, ActualHeight), CreateRenderBrush());
+            m_Renderer.Render(drawingContext, m_CurrentRenderData, new Size(ActualWidth, ActualHeight), m_CurrentRenderBrush);
         }
 
         /// <summary>
@@ -475,6 +481,7 @@ namespace AudioVisualizer.Wpf
         private static void OnAppearanceChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
         {
             var control = (AudioVisualizerControl)dependencyObject;
+            control.RefreshRenderBrush();
             control.InvalidateVisual();
         }
 
@@ -543,6 +550,9 @@ namespace AudioVisualizer.Wpf
         private void StopCapture()
         {
             m_AudioInputProvider.Stop();
+            m_CurrentFrame = null;
+            m_CurrentRenderData = null;
+            InvalidateVisual();
         }
 
         /// <summary>
@@ -637,6 +647,14 @@ namespace AudioVisualizer.Wpf
             }
 
             return gradientBrush;
+        }
+
+        /// <summary>
+        /// 現在のブラシ設定から描画用ブラシを再生成して保持します。
+        /// </summary>
+        private void RefreshRenderBrush()
+        {
+            m_CurrentRenderBrush = CreateRenderBrush();
         }
 
         /// <summary>

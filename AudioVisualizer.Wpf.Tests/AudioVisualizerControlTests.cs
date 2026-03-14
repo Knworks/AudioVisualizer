@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -379,6 +380,36 @@ namespace AudioVisualizer.Wpf.Tests
         }
 
         /// <summary>
+        /// AudioVisualizerControl が描画ブラシを再利用し、外観変更時だけ再生成することを確認します。
+        /// ■入力
+        /// ・1. ブラシ未変更の CurrentRenderBrush 連続参照
+        /// ・2. PrimaryBrush と SecondaryBrush の変更
+        /// ■確認内容
+        /// ・1. 未変更時は同じ Brush インスタンスを返す
+        /// ・2. 外観変更後は別の Brush インスタンスへ更新される
+        /// </summary>
+        [Test]
+        public void Given_CurrentRenderBrush_When_AppearanceDoesNotChange_Then_BrushInstanceIsReused()
+        {
+            // 準備
+            var control = new AudioVisualizerControl(new FakeAudioInputProvider(), new SpectrumBarEffect(), new BarSpectrumRenderer());
+            var initialBrush = control.CurrentRenderBrush;
+
+            // 実行
+            var repeatedBrush = control.CurrentRenderBrush;
+            control.PrimaryBrush = Brushes.OrangeRed;
+            control.SecondaryBrush = Brushes.Gold;
+            var updatedBrush = control.CurrentRenderBrush;
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(ReferenceEquals(initialBrush, repeatedBrush), Is.True);
+                Assert.That(ReferenceEquals(initialBrush, updatedBrush), Is.False);
+            });
+        }
+
+        /// <summary>
         /// AudioVisualizerControl が別スレッドからのフレーム通知を Dispatcher 経由で反映できることを確認します。
         /// ■入力
         /// ・1. 別スレッドから RaiseFrame する偽入力プロバイダー
@@ -654,6 +685,68 @@ namespace AudioVisualizer.Wpf.Tests
         }
 
         /// <summary>
+        /// BarSpectrumRenderer が極小描画領域でも正のバーを最小 1px で可視化することを確認します。
+        /// ■入力
+        /// ・1. 正の高さを持つ 2 本の BarSpectrumRenderData
+        /// ・2. 幅 2、高さ 2 の描画領域
+        /// ■確認内容
+        /// ・1. 各 Rect の幅と高さが 1 以上になる
+        /// ・2. すべての Rect が描画領域内に収まる
+        /// </summary>
+        [Test]
+        public void Given_PositiveBarsInTinyRenderSize_When_CreateBarRectangles_Then_MinimumVisibleRectanglesAreGenerated()
+        {
+            // 準備
+            var renderer = new BarSpectrumRenderer();
+            var renderData = new BarSpectrumRenderData(
+                "bars",
+                DateTimeOffset.UtcNow,
+                new[]
+                {
+                    new BarRenderItem(0.0, 0.2, 0.3, 0.3),
+                    new BarRenderItem(0.6, 0.2, 0.6, 0.6),
+                });
+
+            // 実行
+            var result = renderer.CreateBarRectangles(renderData, new Size(2, 2));
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(result, Has.Count.EqualTo(2));
+                Assert.That(result[0].Width, Is.GreaterThanOrEqualTo(1.0));
+                Assert.That(result[0].Height, Is.GreaterThanOrEqualTo(1.0));
+                Assert.That(result[1].Width, Is.GreaterThanOrEqualTo(1.0));
+                Assert.That(result[1].Height, Is.GreaterThanOrEqualTo(1.0));
+                Assert.That(result.All(static rect => rect.X >= 0 && rect.Y >= 0 && rect.Right <= 2 && rect.Bottom <= 2), Is.True);
+            });
+        }
+
+        /// <summary>
+        /// BarSpectrumRenderer が同じレンダーデータとサイズでは矩形計算結果を再利用することを確認します。
+        /// ■入力
+        /// ・1. 同じ BarSpectrumRenderData
+        /// ・2. 同じ描画領域サイズで 2 回の CreateBarRectangles 呼び出し
+        /// ■確認内容
+        /// ・1. 2 回の返却値が同一インスタンスになる
+        /// </summary>
+        [Test]
+        public void Given_SameRenderDataAndSize_When_CreateBarRectanglesRepeatedly_Then_CachedResultIsReused()
+        {
+            // 準備
+            var renderer = new BarSpectrumRenderer();
+            var renderData = new BarSpectrumRenderData("bars", DateTimeOffset.UtcNow, new[] { new BarRenderItem(0.1, 0.2, 0.5, 0.5) });
+            var renderSize = new Size(100, 50);
+
+            // 実行
+            var firstResult = renderer.CreateBarRectangles(renderData, renderSize);
+            var secondResult = renderer.CreateBarRectangles(renderData, renderSize);
+
+            // 検証
+            Assert.That(ReferenceEquals(firstResult, secondResult), Is.True);
+        }
+
+        /// <summary>
         /// BarSpectrumRenderer が不正な描画サイズでは矩形を生成しないことを確認します。
         /// ■入力
         /// ・1. 幅 0、高さ 0 の描画領域
@@ -786,6 +879,37 @@ namespace AudioVisualizer.Wpf.Tests
                     Throws.Nothing);
                 Assert.That(provider.StartCallCount, Is.EqualTo(0));
                 Assert.That(provider.StopCallCount, Is.EqualTo(0));
+            });
+        }
+
+        /// <summary>
+        /// AudioVisualizerControl が停止時に保持中の描画データをクリアして破綻を残さないことを確認します。
+        /// ■入力
+        /// ・1. フレーム受信済みで IsActive = true の AudioVisualizerControl
+        /// ・2. IsActive = false への変更
+        /// ■確認内容
+        /// ・1. CurrentRenderData が null になる
+        /// ・2. 停止要求が 1 回呼ばれる
+        /// </summary>
+        [Test]
+        public void Given_ControlWithRenderData_When_Deactivating_Then_RenderDataIsCleared()
+        {
+            // 準備
+            var provider = new FakeAudioInputProvider();
+            var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer())
+            {
+                IsActive = true,
+            };
+            provider.RaiseFrame(new VisualizerFrame(new[] { 0.3, 0.7 }, new[] { 0.0, 0.0 }, 0.7, DateTimeOffset.UtcNow));
+
+            // 実行
+            control.IsActive = false;
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(control.CurrentRenderData, Is.Null);
+                Assert.That(provider.StopCallCount, Is.EqualTo(1));
             });
         }
 

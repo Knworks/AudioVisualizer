@@ -11,6 +11,25 @@ namespace AudioVisualizer.Wpf.Rendering
     /// </summary>
     internal sealed class BarSpectrumRenderer
     {
+        #region フィールド
+
+        /// <summary>
+        /// 直近に矩形化したバー型レンダーデータです。
+        /// </summary>
+        private BarSpectrumRenderData? m_LastRenderData;
+
+        /// <summary>
+        /// 直近に矩形化した描画領域サイズです。
+        /// </summary>
+        private Size m_LastRenderSize;
+
+        /// <summary>
+        /// 直近に生成した実描画用矩形一覧です。
+        /// </summary>
+        private IReadOnlyList<Rect>? m_LastRectangles;
+
+        #endregion
+
         #region 公開メソッド
 
         /// <summary>
@@ -51,23 +70,46 @@ namespace AudioVisualizer.Wpf.Rendering
         {
             ArgumentNullException.ThrowIfNull(renderData);
 
-            var rectangles = new List<Rect>(renderData.Bars.Count);
-            if (renderSize.Width <= 0 || renderSize.Height <= 0)
+            if (ReferenceEquals(m_LastRenderData, renderData) &&
+                m_LastRenderSize.Equals(renderSize) &&
+                m_LastRectangles is not null)
             {
-                return rectangles;
+                return m_LastRectangles;
             }
 
+            if (renderSize.Width <= 0 || renderSize.Height <= 0)
+            {
+                m_LastRenderData = renderData;
+                m_LastRenderSize = renderSize;
+                m_LastRectangles = Array.Empty<Rect>();
+                return m_LastRectangles;
+            }
+
+            var rectangles = new Rect[renderData.Bars.Count];
             for (var index = 0; index < renderData.Bars.Count; index++)
             {
                 var bar = renderData.Bars[index];
                 var width = Math.Max(0, bar.Width * renderSize.Width);
+                if (bar.Height > 0 && width > 0 && width < 1.0)
+                {
+                    width = Math.Min(renderSize.Width, 1.0);
+                }
+
                 var height = Math.Max(0, bar.Height * renderSize.Height);
-                var x = bar.X * renderSize.Width;
-                var y = renderSize.Height - height;
-                rectangles.Add(new Rect(x, y, width, height));
+                if (bar.Height > 0 && height > 0 && height < 1.0)
+                {
+                    height = Math.Min(renderSize.Height, 1.0);
+                }
+
+                var x = Math.Clamp(bar.X * renderSize.Width, 0, Math.Max(0, renderSize.Width - width));
+                var y = Math.Clamp(renderSize.Height - height, 0, Math.Max(0, renderSize.Height - height));
+                rectangles[index] = new Rect(x, y, width, height);
             }
 
-            return rectangles;
+            m_LastRenderData = renderData;
+            m_LastRenderSize = renderSize;
+            m_LastRectangles = rectangles;
+            return m_LastRectangles;
         }
 
         #endregion

@@ -9,8 +9,7 @@
     Title="AudioVisualizer SampleApp"
     Width="960"
     Height="640"
-    MinWidth="720"
-    MinHeight="480"
+
     d:DataContext="{d:DesignInstance Type=viewModels:MainWindowViewModel,
                                      IsDesignTimeCreatable=False}"
     mc:Ignorable="d">

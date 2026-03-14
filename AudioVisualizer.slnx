@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="AudioVisualizer.Core.Tests/AudioVisualizer.Core.Tests.csproj" Id="8186d3e3-ad6e-4e1f-b70d-b98aee9b2693" />
+  <Project Path="AudioVisualizer.Core/AudioVisualizer.Core.csproj" />
+  <Project Path="AudioVisualizer.SampleApp/AudioVisualizer.SampleApp.csproj" />
+  <Project Path="AudioVisualizer.Wpf.Tests/AudioVisualizer.Wpf.Tests.csproj" />
+  <Project Path="AudioVisualizer.Wpf/AudioVisualizer.Wpf.csproj" />
+</Solution>

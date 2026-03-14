@@ -37,7 +37,7 @@ namespace AudioVisualizer.SampleApp.Tests
                 Assert.That(sut.SelectedDeviceId, Is.EqualTo("render-1"));
                 Assert.That(sut.BarCount, Is.EqualTo(52));
                 Assert.That(sut.Sensitivity, Is.EqualTo(5.0).Within(1e-10));
-                Assert.That(sut.Smoothing, Is.EqualTo(0.65).Within(1e-10));
+                Assert.That(sut.Smoothing, Is.EqualTo(0.55).Within(1e-10));
                 Assert.That(sut.SelectedSpectrumProfile, Is.EqualTo(SpectrumProfile.Balanced));
                 Assert.That(sut.SpectrumProfileOptions.Select(option => option.Value), Is.EqualTo(new[] { SpectrumProfile.Balanced, SpectrumProfile.Raw, SpectrumProfile.HighBoost }));
                 Assert.That(sut.StatusMessage, Is.Empty);
@@ -458,6 +458,24 @@ namespace AudioVisualizer.SampleApp.Tests
             public AudioDeviceInfo? GetDefaultDevice(InputSource inputSource)
             {
                 return GetDevices(inputSource).FirstOrDefault(device => device.IsDefault);
+            }
+
+            #endregion
+
+            #region イベントハンドラ
+
+            /// <summary>
+            /// テスト対象では既定デバイス変更通知を使用しないため、購読だけを受け付けます。
+            /// </summary>
+            event EventHandler<DefaultAudioDeviceChangedEventArgs>? IAudioDeviceService.DefaultDeviceChanged
+            {
+                add
+                {
+                }
+
+                remove
+                {
+                }
             }
 
             #endregion

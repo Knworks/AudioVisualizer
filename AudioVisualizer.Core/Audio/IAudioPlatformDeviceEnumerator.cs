@@ -6,8 +6,17 @@ namespace AudioVisualizer.Core.Audio
     /// <summary>
     /// OS 依存の音声デバイス列挙を抽象化する内部契約です。
     /// </summary>
-    internal interface IAudioPlatformDeviceEnumerator
+internal interface IAudioPlatformDeviceEnumerator
     {
+        #region イベントハンドラ
+
+        /// <summary>
+        /// OS の既定音声デバイスが切り替わったときに発生します。
+        /// </summary>
+        event EventHandler<DefaultAudioDeviceChangedEventArgs>? DefaultDeviceChanged;
+
+        #endregion
+
         #region 公開メソッド
 
         /// <summary>

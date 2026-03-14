@@ -95,6 +95,164 @@ namespace AudioVisualizer.Core.Tests
         }
 
         /// <summary>
+        /// SystemOutputAudioInputProvider が既定デバイス利用中に既定再生デバイス変更通知を受けると再接続することを確認します。
+        /// ■入力
+        /// ・1. UseDefaultDevice = true の VisualizerSettings
+        /// ・2. 既定再生デバイスを render-1 から render-2 に切り替える FakeAudioDeviceService
+        /// ■確認内容
+        /// ・1. キャプチャ生成が 2 回呼ばれる
+        /// ・2. 2 回目は新しい既定デバイス render-2 が使われる
+        /// ・3. 既存セッションへ Stop が 1 回呼ばれる
+        /// </summary>
+        [Test]
+        public void Given_DefaultDeviceMode_When_DefaultRenderDeviceChanges_Then_CaptureRestartsWithNewDefaultDevice()
+        {
+            // 準備
+            var captureSession = new FakeAudioCaptureSession();
+            var captureFactory = new FakeAudioCaptureFactory(captureSession);
+            var renderDevice1 = new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true);
+            var renderDevice2 = new AudioDeviceInfo("render-2", "Headphones", InputSource.SystemOutput, false);
+            var deviceService = new FakeAudioDeviceService(
+                renderDevices: new[] { renderDevice1, renderDevice2 },
+                microphoneDevices: Array.Empty<AudioDeviceInfo>(),
+                defaultRenderDevice: renderDevice1,
+                defaultMicrophoneDevice: null);
+            using var sut = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), deviceService, captureFactory);
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
+
+            // 実行
+            var startResult = sut.Start(settings);
+            deviceService.SetDefaultDevice(InputSource.SystemOutput, renderDevice2);
+            deviceService.RaiseDefaultDeviceChanged(InputSource.SystemOutput, "render-2");
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(startResult.Succeeded, Is.True);
+                Assert.That(captureFactory.CreateCallCount, Is.EqualTo(2));
+                Assert.That(captureFactory.LastDeviceId, Is.EqualTo("render-2"));
+                Assert.That(captureSession.StopCallCount, Is.EqualTo(1));
+                Assert.That(sut.IsCapturing, Is.True);
+            });
+        }
+
+        /// <summary>
+        /// SystemOutputAudioInputProvider が明示デバイス利用中は既定デバイス変更通知で再接続しないことを確認します。
+        /// ■入力
+        /// ・1. UseDefaultDevice = false の VisualizerSettings
+        /// ・2. 既定再生デバイス変更通知
+        /// ■確認内容
+        /// ・1. キャプチャ生成回数が増えない
+        /// ・2. 既存セッションへ Stop が呼ばれない
+        /// </summary>
+        [Test]
+        public void Given_ExplicitDeviceMode_When_DefaultRenderDeviceChanges_Then_CaptureDoesNotRestart()
+        {
+            // 準備
+            var captureSession = new FakeAudioCaptureSession();
+            var captureFactory = new FakeAudioCaptureFactory(captureSession);
+            var renderDevice1 = new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true);
+            var renderDevice2 = new AudioDeviceInfo("render-2", "Headphones", InputSource.SystemOutput, false);
+            var deviceService = new FakeAudioDeviceService(
+                renderDevices: new[] { renderDevice1, renderDevice2 },
+                microphoneDevices: Array.Empty<AudioDeviceInfo>(),
+                defaultRenderDevice: renderDevice1,
+                defaultMicrophoneDevice: null);
+            using var sut = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), deviceService, captureFactory);
+            var settings = new VisualizerSettings(InputSource.SystemOutput, "render-1", false, true, 1.0, 0.5, 8);
+
+            // 実行
+            var startResult = sut.Start(settings);
+            deviceService.SetDefaultDevice(InputSource.SystemOutput, renderDevice2);
+            deviceService.RaiseDefaultDeviceChanged(InputSource.SystemOutput, "render-2");
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(startResult.Succeeded, Is.True);
+                Assert.That(captureFactory.CreateCallCount, Is.EqualTo(1));
+                Assert.That(captureFactory.LastDeviceId, Is.EqualTo("render-1"));
+                Assert.That(captureSession.StopCallCount, Is.EqualTo(0));
+                Assert.That(sut.IsCapturing, Is.True);
+            });
+        }
+
+        /// <summary>
+        /// SystemOutputAudioInputProvider が同一既定デバイス通知では再接続しないことを確認します。
+        /// ■入力
+        /// ・1. UseDefaultDevice = true の VisualizerSettings
+        /// ・2. 現在接続中と同じデバイス識別子の既定デバイス変更通知
+        /// ■確認内容
+        /// ・1. キャプチャ生成回数が増えない
+        /// ・2. 既存セッションへ Stop が呼ばれない
+        /// </summary>
+        [Test]
+        public void Given_DefaultDeviceMode_When_DefaultDeviceChangeKeepsSameDeviceId_Then_CaptureDoesNotRestart()
+        {
+            // 準備
+            var captureSession = new FakeAudioCaptureSession();
+            var captureFactory = new FakeAudioCaptureFactory(captureSession);
+            var renderDevice = new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true);
+            var deviceService = new FakeAudioDeviceService(
+                renderDevices: new[] { renderDevice },
+                microphoneDevices: Array.Empty<AudioDeviceInfo>(),
+                defaultRenderDevice: renderDevice,
+                defaultMicrophoneDevice: null);
+            using var sut = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), deviceService, captureFactory);
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
+
+            // 実行
+            var startResult = sut.Start(settings);
+            deviceService.RaiseDefaultDeviceChanged(InputSource.SystemOutput, "render-1");
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(startResult.Succeeded, Is.True);
+                Assert.That(captureFactory.CreateCallCount, Is.EqualTo(1));
+                Assert.That(captureSession.StopCallCount, Is.EqualTo(0));
+            });
+        }
+
+        /// <summary>
+        /// SystemOutputAudioInputProvider が別入力種別の既定デバイス変更通知を無視することを確認します。
+        /// ■入力
+        /// ・1. SystemOutput で開始済みの UseDefaultDevice = true の VisualizerSettings
+        /// ・2. Microphone の既定デバイス変更通知
+        /// ■確認内容
+        /// ・1. キャプチャ生成回数が増えない
+        /// ・2. 既存セッションへ Stop が呼ばれない
+        /// </summary>
+        [Test]
+        public void Given_DefaultDeviceMode_When_DefaultDeviceChangeTargetsOtherInputSource_Then_CaptureDoesNotRestart()
+        {
+            // 準備
+            var captureSession = new FakeAudioCaptureSession();
+            var captureFactory = new FakeAudioCaptureFactory(captureSession);
+            var renderDevice = new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true);
+            var microphoneDevice = new AudioDeviceInfo("mic-1", "Microphone", InputSource.Microphone, true);
+            var deviceService = new FakeAudioDeviceService(
+                renderDevices: new[] { renderDevice },
+                microphoneDevices: new[] { microphoneDevice },
+                defaultRenderDevice: renderDevice,
+                defaultMicrophoneDevice: microphoneDevice);
+            using var sut = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), deviceService, captureFactory);
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
+
+            // 実行
+            var startResult = sut.Start(settings);
+            deviceService.RaiseDefaultDeviceChanged(InputSource.Microphone, "mic-1");
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(startResult.Succeeded, Is.True);
+                Assert.That(captureFactory.CreateCallCount, Is.EqualTo(1));
+                Assert.That(captureSession.StopCallCount, Is.EqualTo(0));
+            });
+        }
+
+        /// <summary>
         /// SystemOutputAudioInputProvider が開始失敗時に停止状態を維持することを確認します。
         /// ■入力
         /// ・1. CreateCapture で例外を送出する FakeAudioCaptureFactory
@@ -125,6 +283,46 @@ namespace AudioVisualizer.Core.Tests
                 Assert.That(result.Succeeded, Is.False);
                 Assert.That(result.ErrorMessage, Is.Not.Null.And.Not.Empty);
                 Assert.That(sut.IsCapturing, Is.False);
+            });
+        }
+
+        /// <summary>
+        /// SystemOutputAudioInputProvider が開始失敗後でも次回開始を再試行できることを確認します。
+        /// ■入力
+        /// ・1. 初回だけ例外を送出する FakeAudioCaptureFactory
+        /// ・2. 同じ VisualizerSettings で 2 回 Start を呼ぶ
+        /// ■確認内容
+        /// ・1. 1 回目は失敗結果を返す
+        /// ・2. 2 回目は成功結果を返す
+        /// ・3. 2 回目の後に IsCapturing が true になる
+        /// </summary>
+        [Test]
+        public void Given_TransientStartFailure_When_StartingAgain_Then_CaptureCanRetrySuccessfully()
+        {
+            // 準備
+            var captureSession = new FakeAudioCaptureSession();
+            var captureFactory = new FakeAudioCaptureFactory(captureSession);
+            captureFactory.SetNextException(new InvalidOperationException("boom"));
+            var defaultRenderDevice = new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true);
+            var deviceService = new FakeAudioDeviceService(
+                renderDevices: new[] { defaultRenderDevice },
+                microphoneDevices: Array.Empty<AudioDeviceInfo>(),
+                defaultRenderDevice: defaultRenderDevice,
+                defaultMicrophoneDevice: null);
+            using var sut = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), deviceService, captureFactory);
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
+
+            // 実行
+            var firstResult = sut.Start(settings);
+            var secondResult = sut.Start(settings);
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(firstResult.Succeeded, Is.False);
+                Assert.That(secondResult.Succeeded, Is.True);
+                Assert.That(captureFactory.CreateCallCount, Is.EqualTo(2));
+                Assert.That(sut.IsCapturing, Is.True);
             });
         }
 
@@ -393,7 +591,7 @@ namespace AudioVisualizer.Core.Tests
             /// <summary>
             /// 生成時に送出する例外です。
             /// </summary>
-            private readonly Exception? m_Exception;
+            private Exception? m_Exception;
 
             #endregion
 
@@ -453,10 +651,21 @@ namespace AudioVisualizer.Core.Tests
                 LastDeviceId = deviceId;
                 if (m_Exception is not null)
                 {
-                    throw m_Exception;
+                    var exception = m_Exception;
+                    m_Exception = null;
+                    throw exception;
                 }
 
                 return m_CaptureSession!;
+            }
+
+            /// <summary>
+            /// 次回の CreateCapture 呼び出しで送出する例外を設定します。
+            /// </summary>
+            /// <param name="exception">送出する例外です。</param>
+            public void SetNextException(Exception exception)
+            {
+                m_Exception = exception ?? throw new ArgumentNullException(nameof(exception));
             }
 
             #endregion
@@ -482,12 +691,12 @@ namespace AudioVisualizer.Core.Tests
             /// <summary>
             /// 既定の再生デバイスです。
             /// </summary>
-            private readonly AudioDeviceInfo? m_DefaultRenderDevice;
+            private AudioDeviceInfo? m_DefaultRenderDevice;
 
             /// <summary>
             /// 既定のマイクデバイスです。
             /// </summary>
-            private readonly AudioDeviceInfo? m_DefaultMicrophoneDevice;
+            private AudioDeviceInfo? m_DefaultMicrophoneDevice;
 
             #endregion
 
@@ -544,6 +753,49 @@ namespace AudioVisualizer.Core.Tests
                     InputSource.Microphone => m_DefaultMicrophoneDevice,
                     _ => throw new ArgumentOutOfRangeException(nameof(inputSource), inputSource, "未対応の入力種別です。"),
                 };
+            }
+
+            #endregion
+
+            #region イベントハンドラ
+
+            /// <summary>
+            /// 既定音声デバイスが切り替わったときに発生します。
+            /// </summary>
+            public event EventHandler<DefaultAudioDeviceChangedEventArgs>? DefaultDeviceChanged;
+
+            #endregion
+
+            #region 公開メソッド
+
+            /// <summary>
+            /// 指定入力種別の既定デバイスを更新します。
+            /// </summary>
+            /// <param name="inputSource">更新対象の入力種別です。</param>
+            /// <param name="deviceInfo">新しい既定デバイスです。</param>
+            public void SetDefaultDevice(InputSource inputSource, AudioDeviceInfo? deviceInfo)
+            {
+                switch (inputSource)
+                {
+                    case InputSource.SystemOutput:
+                        m_DefaultRenderDevice = deviceInfo;
+                        break;
+                    case InputSource.Microphone:
+                        m_DefaultMicrophoneDevice = deviceInfo;
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(inputSource), inputSource, "未対応の入力種別です。");
+                }
+            }
+
+            /// <summary>
+            /// 任意の既定デバイス変更通知を発生させます。
+            /// </summary>
+            /// <param name="inputSource">通知対象の入力種別です。</param>
+            /// <param name="deviceId">新しい既定デバイス識別子です。</param>
+            public void RaiseDefaultDeviceChanged(InputSource inputSource, string deviceId)
+            {
+                DefaultDeviceChanged?.Invoke(this, new DefaultAudioDeviceChangedEventArgs(inputSource, deviceId));
             }
 
             #endregion

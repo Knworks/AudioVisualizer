@@ -6,8 +6,17 @@ namespace AudioVisualizer.Core.Audio
     /// <summary>
     /// 音声デバイス一覧と既定デバイス情報を取得する公開サービス契約です。
     /// </summary>
-    public interface IAudioDeviceService
+public interface IAudioDeviceService
     {
+        #region イベントハンドラ
+
+        /// <summary>
+        /// OS の既定音声デバイスが切り替わったときに発生します。
+        /// </summary>
+        event EventHandler<DefaultAudioDeviceChangedEventArgs>? DefaultDeviceChanged;
+
+        #endregion
+
         #region 公開メソッド
 
         /// <summary>

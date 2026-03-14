@@ -7,7 +7,7 @@ namespace AudioVisualizer.Core.Audio
     /// <summary>
     /// Windows の音声デバイス一覧と既定デバイス情報を取得する公開サービスです。
     /// </summary>
-    public sealed class WindowsAudioDeviceService : IAudioDeviceService
+public sealed class WindowsAudioDeviceService : IAudioDeviceService, IDisposable
     {
         #region フィールド
 
@@ -35,11 +35,33 @@ namespace AudioVisualizer.Core.Audio
         internal WindowsAudioDeviceService(IAudioPlatformDeviceEnumerator deviceEnumerator)
         {
             m_DeviceEnumerator = deviceEnumerator ?? throw new ArgumentNullException(nameof(deviceEnumerator));
+            m_DeviceEnumerator.DefaultDeviceChanged += OnDefaultDeviceChanged;
         }
 
         #endregion
 
+        #region イベントハンドラ
+
+        /// <summary>
+        /// OS の既定音声デバイスが切り替わったときに発生します。
+        /// </summary>
+        public event EventHandler<DefaultAudioDeviceChangedEventArgs>? DefaultDeviceChanged;
+
+        #endregion
+
         #region 公開メソッド
+
+        /// <summary>
+        /// 通知購読と OS 依存リソースを解放します。
+        /// </summary>
+        public void Dispose()
+        {
+            m_DeviceEnumerator.DefaultDeviceChanged -= OnDefaultDeviceChanged;
+            if (m_DeviceEnumerator is IDisposable disposableDeviceEnumerator)
+            {
+                disposableDeviceEnumerator.Dispose();
+            }
+        }
 
         /// <summary>
         /// 指定した入力種別に対応する利用可能デバイス一覧を取得します。
@@ -75,6 +97,20 @@ namespace AudioVisualizer.Core.Audio
             }
 
             return CreateDeviceInfo(defaultDevice, inputSource, defaultDevice);
+        }
+
+        #endregion
+
+        #region イベントハンドラ
+
+        /// <summary>
+        /// 内部列挙子の既定デバイス変更通知を公開イベントへ転送します。
+        /// </summary>
+        /// <param name="sender">通知送信元です。</param>
+        /// <param name="e">既定デバイス変更情報です。</param>
+        private void OnDefaultDeviceChanged(object? sender, DefaultAudioDeviceChangedEventArgs e)
+        {
+            DefaultDeviceChanged?.Invoke(this, e);
         }
 
         #endregion

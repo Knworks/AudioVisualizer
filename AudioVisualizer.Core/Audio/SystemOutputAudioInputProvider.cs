@@ -36,6 +36,16 @@ namespace AudioVisualizer.Core.Audio
         /// </summary>
         private VisualizerSettings? m_CurrentSettings;
 
+        /// <summary>
+        /// 現在接続している音声デバイス識別子です。
+        /// </summary>
+        private string? m_CurrentDeviceId;
+
+        /// <summary>
+        /// 注入されたデバイスサービスを破棄するかどうかを示す値です。
+        /// </summary>
+        private readonly bool m_OwnsAudioDeviceService;
+
         #endregion
 
         #region プロパティ
@@ -53,7 +63,7 @@ namespace AudioVisualizer.Core.Audio
         /// <see cref="SystemOutputAudioInputProvider"/> クラスの新しいインスタンスを初期化します。
         /// </summary>
         public SystemOutputAudioInputProvider()
-            : this(new AudioFrameAnalyzer(), new WindowsAudioDeviceService(), new WasapiAudioCaptureFactory())
+            : this(new AudioFrameAnalyzer(), new WindowsAudioDeviceService(), new WasapiAudioCaptureFactory(), true)
         {
         }
 
@@ -62,7 +72,7 @@ namespace AudioVisualizer.Core.Audio
         /// </summary>
         /// <param name="frameAnalyzer">PCM サンプルをフレームへ変換する解析サービスです。</param>
         public SystemOutputAudioInputProvider(IAudioFrameAnalyzer frameAnalyzer)
-            : this(frameAnalyzer, new WindowsAudioDeviceService(), new WasapiAudioCaptureFactory())
+            : this(frameAnalyzer, new WindowsAudioDeviceService(), new WasapiAudioCaptureFactory(), true)
         {
         }
 
@@ -73,10 +83,28 @@ namespace AudioVisualizer.Core.Audio
         /// <param name="audioDeviceService">利用可能デバイス一覧と既定デバイスを取得するサービスです。</param>
         /// <param name="captureFactory">音声入力キャプチャを生成するファクトリです。</param>
         internal SystemOutputAudioInputProvider(IAudioFrameAnalyzer frameAnalyzer, IAudioDeviceService audioDeviceService, IAudioCaptureFactory captureFactory)
+            : this(frameAnalyzer, audioDeviceService, captureFactory, false)
+        {
+        }
+
+        /// <summary>
+        /// <see cref="SystemOutputAudioInputProvider"/> クラスの新しいインスタンスを初期化します。
+        /// </summary>
+        /// <param name="frameAnalyzer">PCM サンプルをフレームへ変換する解析サービスです。</param>
+        /// <param name="audioDeviceService">利用可能デバイス一覧と既定デバイスを取得するサービスです。</param>
+        /// <param name="captureFactory">音声入力キャプチャを生成するファクトリです。</param>
+        /// <param name="ownsAudioDeviceService">デバイスサービスの破棄責務をこのインスタンスが持つかどうかを示します。</param>
+        private SystemOutputAudioInputProvider(
+            IAudioFrameAnalyzer frameAnalyzer,
+            IAudioDeviceService audioDeviceService,
+            IAudioCaptureFactory captureFactory,
+            bool ownsAudioDeviceService)
         {
             m_FrameAnalyzer = frameAnalyzer ?? throw new ArgumentNullException(nameof(frameAnalyzer));
             m_AudioDeviceService = audioDeviceService ?? throw new ArgumentNullException(nameof(audioDeviceService));
             m_CaptureFactory = captureFactory ?? throw new ArgumentNullException(nameof(captureFactory));
+            m_OwnsAudioDeviceService = ownsAudioDeviceService;
+            m_AudioDeviceService.DefaultDeviceChanged += OnDefaultDeviceChanged;
         }
 
         #endregion
@@ -89,6 +117,11 @@ namespace AudioVisualizer.Core.Audio
         public void Dispose()
         {
             Stop();
+            m_AudioDeviceService.DefaultDeviceChanged -= OnDefaultDeviceChanged;
+            if (m_OwnsAudioDeviceService && m_AudioDeviceService is IDisposable disposableAudioDeviceService)
+            {
+                disposableAudioDeviceService.Dispose();
+            }
         }
 
         /// <summary>
@@ -115,6 +148,7 @@ namespace AudioVisualizer.Core.Audio
 
                 m_CaptureSession = captureSession;
                 m_CurrentSettings = settings;
+                m_CurrentDeviceId = targetDevice.DeviceId;
                 IsCapturing = true;
                 return AudioInputStartResult.Success();
             }
@@ -122,6 +156,7 @@ namespace AudioVisualizer.Core.Audio
             {
                 ReleaseCaptureSession();
                 m_CurrentSettings = null;
+                m_CurrentDeviceId = null;
                 IsCapturing = false;
                 return AudioInputStartResult.Failed("音声入力の開始に失敗しました。");
             }
@@ -140,6 +175,7 @@ namespace AudioVisualizer.Core.Audio
             {
                 ReleaseCaptureSession();
                 m_CurrentSettings = null;
+                m_CurrentDeviceId = null;
                 IsCapturing = false;
             }
         }
@@ -152,6 +188,31 @@ namespace AudioVisualizer.Core.Audio
         /// 新しい解析済みフレームが生成されたときに発生します。
         /// </summary>
         public event EventHandler<VisualizerFrameEventArgs>? FrameProduced;
+
+        /// <summary>
+        /// 既定音声デバイスの変更通知を受け取り、必要時だけ再接続します。
+        /// </summary>
+        /// <param name="sender">通知送信元です。</param>
+        /// <param name="e">既定デバイス変更情報です。</param>
+        private void OnDefaultDeviceChanged(object? sender, DefaultAudioDeviceChangedEventArgs e)
+        {
+            if (!IsCapturing || m_CurrentSettings is null || !m_CurrentSettings.UseDefaultDevice)
+            {
+                return;
+            }
+
+            if (m_CurrentSettings.InputSource != e.InputSource)
+            {
+                return;
+            }
+
+            if (string.Equals(m_CurrentDeviceId, e.DeviceId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _ = Start(m_CurrentSettings);
+        }
 
         /// <summary>
         /// キャプチャ済み PCM サンプルを受け取り、解析済みフレーム通知へ変換します。

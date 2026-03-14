@@ -132,6 +132,40 @@ namespace AudioVisualizer.Core.Tests
         }
 
         /// <summary>
+        /// WindowsAudioDeviceService が内部列挙子の既定デバイス変更通知を公開イベントへ転送することを確認します。
+        /// ■入力
+        /// ・1. 既定デバイス変更通知を発行できる FakeAudioPlatformDeviceEnumerator
+        /// ・2. Microphone の既定デバイス変更通知
+        /// ■確認内容
+        /// ・1. DefaultDeviceChanged が 1 回発火する
+        /// ・2. InputSource と DeviceId が通知値と一致する
+        /// </summary>
+        [Test]
+        public void Given_DefaultDeviceChangedByEnumerator_When_ServiceSubscribed_Then_EventIsForwarded()
+        {
+            // 準備
+            var enumerator = new FakeAudioPlatformDeviceEnumerator(
+                renderDevices: Array.Empty<AudioDeviceSnapshot>(),
+                captureDevices: new[] { new AudioDeviceSnapshot("capture-2", "Headset Mic") },
+                defaultRenderDevice: null,
+                defaultCaptureDevice: new AudioDeviceSnapshot("capture-1", "Microphone"));
+            using var sut = new WindowsAudioDeviceService(enumerator);
+            DefaultAudioDeviceChangedEventArgs? raisedEventArgs = null;
+            sut.DefaultDeviceChanged += (_, eventArgs) => raisedEventArgs = eventArgs;
+
+            // 実行
+            enumerator.RaiseDefaultDeviceChanged(InputSource.Microphone, "capture-2");
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(raisedEventArgs, Is.Not.Null);
+                Assert.That(raisedEventArgs!.InputSource, Is.EqualTo(InputSource.Microphone));
+                Assert.That(raisedEventArgs.DeviceId, Is.EqualTo("capture-2"));
+            });
+        }
+
+        /// <summary>
         /// WindowsAudioDeviceService が null 列挙子を拒否することを確認します。
         /// ■入力
         /// ・1. deviceEnumerator = null
@@ -161,6 +195,22 @@ namespace AudioVisualizer.Core.Tests
                 Assert.That(() => new AudioDeviceSnapshot("", "Speakers"), Throws.TypeOf<ArgumentException>());
                 Assert.That(() => new AudioDeviceSnapshot("device-1", ""), Throws.TypeOf<ArgumentException>());
             });
+        }
+
+        /// <summary>
+        /// DefaultAudioDeviceChangedEventArgs が空のデバイス識別子を拒否することを確認します。
+        /// ■入力
+        /// ・1. deviceId に空文字を指定する
+        /// ■確認内容
+        /// ・1. ArgumentException が送出される
+        /// </summary>
+        [Test]
+        public void Given_InvalidDefaultDeviceChangedArgsInput_When_Creating_Then_ThrowsArgumentException()
+        {
+            // 準備と実行と検証
+            Assert.That(
+                () => new DefaultAudioDeviceChangedEventArgs(InputSource.SystemOutput, string.Empty),
+                Throws.TypeOf<ArgumentException>());
         }
 
         #endregion
@@ -249,6 +299,29 @@ namespace AudioVisualizer.Core.Tests
                     InputSource.Microphone => m_DefaultCaptureDevice,
                     _ => throw new ArgumentOutOfRangeException(nameof(inputSource), inputSource, "未対応の入力種別です。"),
                 };
+            }
+
+            #endregion
+
+            #region イベントハンドラ
+
+            /// <summary>
+            /// 既定音声デバイスが切り替わったときに発生します。
+            /// </summary>
+            public event EventHandler<DefaultAudioDeviceChangedEventArgs>? DefaultDeviceChanged;
+
+            #endregion
+
+            #region 公開メソッド
+
+            /// <summary>
+            /// 任意の既定デバイス変更通知を発生させます。
+            /// </summary>
+            /// <param name="inputSource">通知対象の入力種別です。</param>
+            /// <param name="deviceId">新しい既定デバイス識別子です。</param>
+            public void RaiseDefaultDeviceChanged(InputSource inputSource, string deviceId)
+            {
+                DefaultDeviceChanged?.Invoke(this, new DefaultAudioDeviceChangedEventArgs(inputSource, deviceId));
             }
 
             #endregion

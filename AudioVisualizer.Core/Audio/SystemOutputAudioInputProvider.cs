@@ -5,7 +5,7 @@ using AudioVisualizer.Core.Models;
 namespace AudioVisualizer.Core.Audio
 {
     /// <summary>
-    /// システム再生音を取得し、解析済みフレームを生成する入力プロバイダーです。
+    /// システム再生音またはマイク入力を取得し、解析済みフレームを生成する入力プロバイダーです。
     /// </summary>
     public sealed class SystemOutputAudioInputProvider : IAudioInputProvider, IDisposable
     {
@@ -17,9 +17,14 @@ namespace AudioVisualizer.Core.Audio
         private readonly IAudioFrameAnalyzer m_FrameAnalyzer;
 
         /// <summary>
-        /// システム再生音キャプチャを生成するファクトリです。
+        /// 音声入力キャプチャを生成するファクトリです。
         /// </summary>
         private readonly IAudioCaptureFactory m_CaptureFactory;
+
+        /// <summary>
+        /// 利用可能デバイス一覧と既定デバイスを取得するサービスです。
+        /// </summary>
+        private readonly IAudioDeviceService m_AudioDeviceService;
 
         /// <summary>
         /// 現在利用中の音声キャプチャ実体です。
@@ -48,7 +53,7 @@ namespace AudioVisualizer.Core.Audio
         /// <see cref="SystemOutputAudioInputProvider"/> クラスの新しいインスタンスを初期化します。
         /// </summary>
         public SystemOutputAudioInputProvider()
-            : this(new AudioFrameAnalyzer(), new WasapiLoopbackCaptureFactory())
+            : this(new AudioFrameAnalyzer(), new WindowsAudioDeviceService(), new WasapiAudioCaptureFactory())
         {
         }
 
@@ -57,7 +62,7 @@ namespace AudioVisualizer.Core.Audio
         /// </summary>
         /// <param name="frameAnalyzer">PCM サンプルをフレームへ変換する解析サービスです。</param>
         public SystemOutputAudioInputProvider(IAudioFrameAnalyzer frameAnalyzer)
-            : this(frameAnalyzer, new WasapiLoopbackCaptureFactory())
+            : this(frameAnalyzer, new WindowsAudioDeviceService(), new WasapiAudioCaptureFactory())
         {
         }
 
@@ -65,10 +70,12 @@ namespace AudioVisualizer.Core.Audio
         /// <see cref="SystemOutputAudioInputProvider"/> クラスの新しいインスタンスを初期化します。
         /// </summary>
         /// <param name="frameAnalyzer">PCM サンプルをフレームへ変換する解析サービスです。</param>
-        /// <param name="captureFactory">システム再生音キャプチャを生成するファクトリです。</param>
-        internal SystemOutputAudioInputProvider(IAudioFrameAnalyzer frameAnalyzer, IAudioCaptureFactory captureFactory)
+        /// <param name="audioDeviceService">利用可能デバイス一覧と既定デバイスを取得するサービスです。</param>
+        /// <param name="captureFactory">音声入力キャプチャを生成するファクトリです。</param>
+        internal SystemOutputAudioInputProvider(IAudioFrameAnalyzer frameAnalyzer, IAudioDeviceService audioDeviceService, IAudioCaptureFactory captureFactory)
         {
             m_FrameAnalyzer = frameAnalyzer ?? throw new ArgumentNullException(nameof(frameAnalyzer));
+            m_AudioDeviceService = audioDeviceService ?? throw new ArgumentNullException(nameof(audioDeviceService));
             m_CaptureFactory = captureFactory ?? throw new ArgumentNullException(nameof(captureFactory));
         }
 
@@ -85,7 +92,7 @@ namespace AudioVisualizer.Core.Audio
         }
 
         /// <summary>
-        /// システム再生音の取得を開始します。
+        /// 指定設定に従って音声入力の取得を開始します。
         /// </summary>
         /// <param name="settings">開始に使用する設定です。</param>
         /// <returns>開始処理の結果です。</returns>
@@ -93,15 +100,16 @@ namespace AudioVisualizer.Core.Audio
         {
             ArgumentNullException.ThrowIfNull(settings);
 
-            if (settings.InputSource != InputSource.SystemOutput)
+            var targetDevice = ResolveTargetDevice(settings);
+            if (targetDevice is null)
             {
-                return AudioInputStartResult.Failed("システム再生音以外の入力元はまだサポートしていません。");
+                return AudioInputStartResult.Failed("指定された音声デバイスが見つかりません。");
             }
 
             try
             {
                 Stop();
-                var captureSession = m_CaptureFactory.CreateSystemOutputCapture();
+                var captureSession = m_CaptureFactory.CreateCapture(settings.InputSource, targetDevice.DeviceId);
                 captureSession.SamplesCaptured += OnSamplesCaptured;
                 captureSession.Start();
 
@@ -115,7 +123,7 @@ namespace AudioVisualizer.Core.Audio
                 ReleaseCaptureSession();
                 m_CurrentSettings = null;
                 IsCapturing = false;
-                return AudioInputStartResult.Failed("システム再生音の開始に失敗しました。");
+                return AudioInputStartResult.Failed("音声入力の開始に失敗しました。");
             }
         }
 
@@ -179,6 +187,33 @@ namespace AudioVisualizer.Core.Audio
             m_CaptureSession.SamplesCaptured -= OnSamplesCaptured;
             m_CaptureSession.Dispose();
             m_CaptureSession = null;
+        }
+
+        /// <summary>
+        /// 現在設定に対して実際に使用する音声デバイスを解決します。
+        /// </summary>
+        /// <param name="settings">開始に使用する設定です。</param>
+        /// <returns>解決できた音声デバイス。見つからない場合は <see langword="null"/>。</returns>
+        private AudioDeviceInfo? ResolveTargetDevice(VisualizerSettings settings)
+        {
+            ArgumentNullException.ThrowIfNull(settings);
+
+            if (settings.UseDefaultDevice)
+            {
+                return m_AudioDeviceService.GetDefaultDevice(settings.InputSource);
+            }
+
+            var devices = m_AudioDeviceService.GetDevices(settings.InputSource);
+            for (var index = 0; index < devices.Count; index++)
+            {
+                var device = devices[index];
+                if (string.Equals(device.DeviceId, settings.DeviceId, StringComparison.Ordinal))
+                {
+                    return device;
+                }
+            }
+
+            return null;
         }
 
         #endregion

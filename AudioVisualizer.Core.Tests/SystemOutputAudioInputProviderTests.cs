@@ -29,8 +29,13 @@ namespace AudioVisualizer.Core.Tests
             // 準備
             var captureSession = new FakeAudioCaptureSession();
             var captureFactory = new FakeAudioCaptureFactory(captureSession);
+            var deviceService = new FakeAudioDeviceService(
+                renderDevices: new[] { new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true) },
+                microphoneDevices: Array.Empty<AudioDeviceInfo>(),
+                defaultRenderDevice: new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true),
+                defaultMicrophoneDevice: null);
             var analyzer = new AudioFrameAnalyzer();
-            using var sut = new SystemOutputAudioInputProvider(analyzer, captureFactory);
+            using var sut = new SystemOutputAudioInputProvider(analyzer, deviceService, captureFactory);
             var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
             VisualizerFrame? producedFrame = null;
             sut.FrameProduced += (_, eventArgs) => producedFrame = eventArgs.Frame;
@@ -48,13 +53,51 @@ namespace AudioVisualizer.Core.Tests
                 Assert.That(producedFrame, Is.Not.Null);
                 Assert.That(producedFrame!.SpectrumValues.Count, Is.EqualTo(settings.BarCount));
                 Assert.That(captureSession.StopCallCount, Is.EqualTo(1));
+                Assert.That(captureFactory.LastInputSource, Is.EqualTo(InputSource.SystemOutput));
+                Assert.That(captureFactory.LastDeviceId, Is.EqualTo("render-1"));
+            });
+        }
+
+        /// <summary>
+        /// SystemOutputAudioInputProvider がマイク入力へ切り替えて開始できることを確認します。
+        /// ■入力
+        /// ・1. Microphone の VisualizerSettings
+        /// ・2. Microphone の既定デバイスを返す FakeAudioDeviceService
+        /// ■確認内容
+        /// ・1. Start が成功結果を返す
+        /// ・2. マイク入力種別でキャプチャ生成が呼ばれる
+        /// </summary>
+        [Test]
+        public void Given_MicrophoneSettings_When_Start_Then_MicrophoneCaptureIsCreated()
+        {
+            // 準備
+            var captureSession = new FakeAudioCaptureSession();
+            var captureFactory = new FakeAudioCaptureFactory(captureSession);
+            var deviceService = new FakeAudioDeviceService(
+                renderDevices: Array.Empty<AudioDeviceInfo>(),
+                microphoneDevices: new[] { new AudioDeviceInfo("mic-1", "Microphone", InputSource.Microphone, true) },
+                defaultRenderDevice: null,
+                defaultMicrophoneDevice: new AudioDeviceInfo("mic-1", "Microphone", InputSource.Microphone, true));
+            using var sut = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), deviceService, captureFactory);
+            var settings = new VisualizerSettings(InputSource.Microphone, null, true, true, 1.0, 0.5, 8);
+
+            // 実行
+            var result = sut.Start(settings);
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Succeeded, Is.True);
+                Assert.That(sut.IsCapturing, Is.True);
+                Assert.That(captureFactory.LastInputSource, Is.EqualTo(InputSource.Microphone));
+                Assert.That(captureFactory.LastDeviceId, Is.EqualTo("mic-1"));
             });
         }
 
         /// <summary>
         /// SystemOutputAudioInputProvider が開始失敗時に停止状態を維持することを確認します。
         /// ■入力
-        /// ・1. CreateSystemOutputCapture で例外を送出する FakeAudioCaptureFactory
+        /// ・1. CreateCapture で例外を送出する FakeAudioCaptureFactory
         /// ■確認内容
         /// ・1. Start が失敗結果を返す
         /// ・2. IsCapturing が false のままである
@@ -65,7 +108,12 @@ namespace AudioVisualizer.Core.Tests
         {
             // 準備
             var captureFactory = new FakeAudioCaptureFactory(new InvalidOperationException("boom"));
-            using var sut = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), captureFactory);
+            var deviceService = new FakeAudioDeviceService(
+                renderDevices: new[] { new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true) },
+                microphoneDevices: Array.Empty<AudioDeviceInfo>(),
+                defaultRenderDevice: new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true),
+                defaultMicrophoneDevice: null);
+            using var sut = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), deviceService, captureFactory);
             var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
 
             // 実行
@@ -81,20 +129,25 @@ namespace AudioVisualizer.Core.Tests
         }
 
         /// <summary>
-        /// SystemOutputAudioInputProvider が未対応入力元を拒否することを確認します。
+        /// SystemOutputAudioInputProvider が存在しない明示デバイス指定を拒否することを確認します。
         /// ■入力
-        /// ・1. InputSource = Microphone の VisualizerSettings
+        /// ・1. UseDefaultDevice = false, DeviceId = "missing-device" の VisualizerSettings
         /// ■確認内容
         /// ・1. Start が失敗結果を返す
         /// ・2. キャプチャファクトリが呼び出されない
         /// </summary>
         [Test]
-        public void Given_UnsupportedInputSource_When_Start_Then_FailureResultIsReturned()
+        public void Given_MissingExplicitDevice_When_Start_Then_FailureResultIsReturned()
         {
             // 準備
             var captureFactory = new FakeAudioCaptureFactory(new FakeAudioCaptureSession());
-            using var sut = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), captureFactory);
-            var settings = new VisualizerSettings(InputSource.Microphone, null, true, true, 1.0, 0.5, 8);
+            var deviceService = new FakeAudioDeviceService(
+                renderDevices: new[] { new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true) },
+                microphoneDevices: new[] { new AudioDeviceInfo("mic-1", "Microphone", InputSource.Microphone, true) },
+                defaultRenderDevice: new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true),
+                defaultMicrophoneDevice: new AudioDeviceInfo("mic-1", "Microphone", InputSource.Microphone, true));
+            using var sut = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), deviceService, captureFactory);
+            var settings = new VisualizerSettings(InputSource.Microphone, "missing-device", false, true, 1.0, 0.5, 8);
 
             // 実行
             var result = sut.Start(settings);
@@ -105,6 +158,44 @@ namespace AudioVisualizer.Core.Tests
                 Assert.That(result.Succeeded, Is.False);
                 Assert.That(sut.IsCapturing, Is.False);
                 Assert.That(captureFactory.CreateCallCount, Is.EqualTo(0));
+            });
+        }
+
+        /// <summary>
+        /// SystemOutputAudioInputProvider が明示デバイス指定で対象デバイスを使用することを確認します。
+        /// ■入力
+        /// ・1. UseDefaultDevice = false, DeviceId = "mic-2" の VisualizerSettings
+        /// ■確認内容
+        /// ・1. Start が成功結果を返す
+        /// ・2. 指定した DeviceId でキャプチャ生成が呼ばれる
+        /// </summary>
+        [Test]
+        public void Given_ExplicitDeviceId_When_Start_Then_RequestedDeviceIsUsed()
+        {
+            // 準備
+            var captureSession = new FakeAudioCaptureSession();
+            var captureFactory = new FakeAudioCaptureFactory(captureSession);
+            var deviceService = new FakeAudioDeviceService(
+                renderDevices: Array.Empty<AudioDeviceInfo>(),
+                microphoneDevices: new[]
+                {
+                    new AudioDeviceInfo("mic-1", "Microphone 1", InputSource.Microphone, true),
+                    new AudioDeviceInfo("mic-2", "Microphone 2", InputSource.Microphone, false),
+                },
+                defaultRenderDevice: null,
+                defaultMicrophoneDevice: new AudioDeviceInfo("mic-1", "Microphone 1", InputSource.Microphone, true));
+            using var sut = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), deviceService, captureFactory);
+            var settings = new VisualizerSettings(InputSource.Microphone, "mic-2", false, true, 1.0, 0.5, 8);
+
+            // 実行
+            var result = sut.Start(settings);
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Succeeded, Is.True);
+                Assert.That(captureFactory.LastInputSource, Is.EqualTo(InputSource.Microphone));
+                Assert.That(captureFactory.LastDeviceId, Is.EqualTo("mic-2"));
             });
         }
 
@@ -120,7 +211,10 @@ namespace AudioVisualizer.Core.Tests
         public void Given_NotStartedProvider_When_Stop_Then_StateRemainsStopped()
         {
             // 準備
-            using var sut = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), new FakeAudioCaptureFactory(new FakeAudioCaptureSession()));
+            using var sut = new SystemOutputAudioInputProvider(
+                new AudioFrameAnalyzer(),
+                new FakeAudioDeviceService(Array.Empty<AudioDeviceInfo>(), Array.Empty<AudioDeviceInfo>(), null, null),
+                new FakeAudioCaptureFactory(new FakeAudioCaptureSession()));
 
             // 実行と検証
             Assert.Multiple(() =>
@@ -169,7 +263,10 @@ namespace AudioVisualizer.Core.Tests
         public void Given_NoCurrentSettings_When_SamplesCaptured_Then_FrameIsNotProduced()
         {
             // 準備
-            using var sut = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), new FakeAudioCaptureFactory(new FakeAudioCaptureSession()));
+            using var sut = new SystemOutputAudioInputProvider(
+                new AudioFrameAnalyzer(),
+                new FakeAudioDeviceService(Array.Empty<AudioDeviceInfo>(), Array.Empty<AudioDeviceInfo>(), null, null),
+                new FakeAudioCaptureFactory(new FakeAudioCaptureSession()));
             var eventArgs = new AudioSamplesCapturedEventArgs(new[] { 0.1f, 0.2f }, 48000, 2, DateTimeOffset.UtcNow);
             var frameProduced = false;
             sut.FrameProduced += (_, _) => frameProduced = true;
@@ -307,6 +404,16 @@ namespace AudioVisualizer.Core.Tests
             /// </summary>
             public int CreateCallCount { get; private set; }
 
+            /// <summary>
+            /// 最後に要求された入力種別を取得します。
+            /// </summary>
+            public InputSource? LastInputSource { get; private set; }
+
+            /// <summary>
+            /// 最後に要求されたデバイス識別子を取得します。
+            /// </summary>
+            public string? LastDeviceId { get; private set; }
+
             #endregion
 
             #region 構築 / 消滅
@@ -334,18 +441,109 @@ namespace AudioVisualizer.Core.Tests
             #region 公開メソッド
 
             /// <summary>
-            /// システム再生音用キャプチャ実体を返すか、設定された例外を送出します。
+            /// 指定条件に応じた偽キャプチャ実体を返すか、設定された例外を送出します。
             /// </summary>
+            /// <param name="inputSource">要求された入力種別です。</param>
+            /// <param name="deviceId">要求されたデバイス識別子です。</param>
             /// <returns>偽のキャプチャ実体です。</returns>
-            public IAudioCaptureSession CreateSystemOutputCapture()
+            public IAudioCaptureSession CreateCapture(InputSource inputSource, string deviceId)
             {
                 CreateCallCount++;
+                LastInputSource = inputSource;
+                LastDeviceId = deviceId;
                 if (m_Exception is not null)
                 {
                     throw m_Exception;
                 }
 
                 return m_CaptureSession!;
+            }
+
+            #endregion
+        }
+
+        /// <summary>
+        /// 入力種別ごとのデバイス一覧と既定デバイスを返す偽のデバイスサービスです。
+        /// </summary>
+        private sealed class FakeAudioDeviceService : IAudioDeviceService
+        {
+            #region フィールド
+
+            /// <summary>
+            /// 再生デバイス一覧です。
+            /// </summary>
+            private readonly IReadOnlyList<AudioDeviceInfo> m_RenderDevices;
+
+            /// <summary>
+            /// マイクデバイス一覧です。
+            /// </summary>
+            private readonly IReadOnlyList<AudioDeviceInfo> m_MicrophoneDevices;
+
+            /// <summary>
+            /// 既定の再生デバイスです。
+            /// </summary>
+            private readonly AudioDeviceInfo? m_DefaultRenderDevice;
+
+            /// <summary>
+            /// 既定のマイクデバイスです。
+            /// </summary>
+            private readonly AudioDeviceInfo? m_DefaultMicrophoneDevice;
+
+            #endregion
+
+            #region 構築 / 消滅
+
+            /// <summary>
+            /// <see cref="FakeAudioDeviceService"/> クラスの新しいインスタンスを初期化します。
+            /// </summary>
+            /// <param name="renderDevices">再生デバイス一覧です。</param>
+            /// <param name="microphoneDevices">マイクデバイス一覧です。</param>
+            /// <param name="defaultRenderDevice">既定の再生デバイスです。</param>
+            /// <param name="defaultMicrophoneDevice">既定のマイクデバイスです。</param>
+            public FakeAudioDeviceService(
+                IReadOnlyList<AudioDeviceInfo> renderDevices,
+                IReadOnlyList<AudioDeviceInfo> microphoneDevices,
+                AudioDeviceInfo? defaultRenderDevice,
+                AudioDeviceInfo? defaultMicrophoneDevice)
+            {
+                m_RenderDevices = renderDevices;
+                m_MicrophoneDevices = microphoneDevices;
+                m_DefaultRenderDevice = defaultRenderDevice;
+                m_DefaultMicrophoneDevice = defaultMicrophoneDevice;
+            }
+
+            #endregion
+
+            #region 公開メソッド
+
+            /// <summary>
+            /// 指定入力種別に対応するデバイス一覧を返します。
+            /// </summary>
+            /// <param name="inputSource">取得対象の入力種別です。</param>
+            /// <returns>対応するデバイス一覧です。</returns>
+            public IReadOnlyList<AudioDeviceInfo> GetDevices(InputSource inputSource)
+            {
+                return inputSource switch
+                {
+                    InputSource.SystemOutput => m_RenderDevices,
+                    InputSource.Microphone => m_MicrophoneDevices,
+                    _ => throw new ArgumentOutOfRangeException(nameof(inputSource), inputSource, "未対応の入力種別です。"),
+                };
+            }
+
+            /// <summary>
+            /// 指定入力種別に対応する既定デバイスを返します。
+            /// </summary>
+            /// <param name="inputSource">取得対象の入力種別です。</param>
+            /// <returns>既定デバイス。存在しない場合は <see langword="null"/>。</returns>
+            public AudioDeviceInfo? GetDefaultDevice(InputSource inputSource)
+            {
+                return inputSource switch
+                {
+                    InputSource.SystemOutput => m_DefaultRenderDevice,
+                    InputSource.Microphone => m_DefaultMicrophoneDevice,
+                    _ => throw new ArgumentOutOfRangeException(nameof(inputSource), inputSource, "未対応の入力種別です。"),
+                };
             }
 
             #endregion

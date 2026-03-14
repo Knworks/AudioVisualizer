@@ -1,3 +1,5 @@
+using AudioVisualizer.Core.Models;
+
 namespace AudioVisualizer.Core.Audio
 {
     /// <summary>
@@ -8,10 +10,12 @@ namespace AudioVisualizer.Core.Audio
         #region 公開メソッド
 
         /// <summary>
-        /// システム再生音を取得するキャプチャ実体を生成します。
+        /// 指定した入力種別とデバイス識別子に対応するキャプチャ実体を生成します。
         /// </summary>
-        /// <returns>システム再生音用のキャプチャ実体です。</returns>
-        IAudioCaptureSession CreateSystemOutputCapture();
+        /// <param name="inputSource">入力種別です。</param>
+        /// <param name="deviceId">対象デバイスの識別子です。</param>
+        /// <returns>指定入力向けのキャプチャ実体です。</returns>
+        IAudioCaptureSession CreateCapture(InputSource inputSource, string deviceId);
 
         #endregion
     }

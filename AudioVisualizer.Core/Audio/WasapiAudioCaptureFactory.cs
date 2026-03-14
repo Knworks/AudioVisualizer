@@ -1,25 +1,37 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
+using AudioVisualizer.Core.Models;
+using NAudio.CoreAudioApi;
 using NAudio.Wasapi;
 using NAudio.Wave;
 
 namespace AudioVisualizer.Core.Audio
 {
     /// <summary>
-    /// NAudio の WASAPI ループバックキャプチャを生成します。
+    /// NAudio の WASAPI キャプチャを生成する内部ファクトリです。
     /// </summary>
     [ExcludeFromCodeCoverage]
-    internal sealed class WasapiLoopbackCaptureFactory : IAudioCaptureFactory
+    internal sealed class WasapiAudioCaptureFactory : IAudioCaptureFactory
     {
         #region 公開メソッド
 
         /// <summary>
-        /// システム再生音用の WASAPI ループバックキャプチャを生成します。
+        /// 指定した入力種別とデバイス識別子に対応するキャプチャ実体を生成します。
         /// </summary>
-        /// <returns>WASAPI ループバックキャプチャをラップしたキャプチャ実体です。</returns>
-        public IAudioCaptureSession CreateSystemOutputCapture()
+        /// <param name="inputSource">入力種別です。</param>
+        /// <param name="deviceId">対象デバイスの識別子です。</param>
+        /// <returns>指定入力向けのキャプチャ実体です。</returns>
+        public IAudioCaptureSession CreateCapture(InputSource inputSource, string deviceId)
         {
-            return new WasapiLoopbackCaptureSession(new WasapiLoopbackCapture());
+            using var deviceEnumerator = new MMDeviceEnumerator();
+            var device = deviceEnumerator.GetDevice(deviceId);
+
+            return inputSource switch
+            {
+                InputSource.SystemOutput => new WasapiCaptureSession(new WasapiLoopbackCapture(device)),
+                InputSource.Microphone => new WasapiCaptureSession(new WasapiCapture(device)),
+                _ => throw new ArgumentOutOfRangeException(nameof(inputSource), inputSource, "未対応の入力種別です。"),
+            };
         }
 
         #endregion
@@ -27,28 +39,34 @@ namespace AudioVisualizer.Core.Audio
         #region 内部クラス
 
         /// <summary>
-        /// NAudio のループバックキャプチャを内部契約へ適合させるラッパーです。
+        /// NAudio の WASAPI キャプチャを内部契約へ適合させるラッパーです。
         /// </summary>
-        private sealed class WasapiLoopbackCaptureSession : IAudioCaptureSession
+        private sealed class WasapiCaptureSession : IAudioCaptureSession
         {
             #region フィールド
 
             /// <summary>
-            /// 実際のシステム再生音キャプチャです。
+            /// 実際の WASAPI キャプチャです。
             /// </summary>
-            private readonly WasapiLoopbackCapture m_Capture;
+            private readonly IWaveIn m_Capture;
+
+            /// <summary>
+            /// PCM 変換に使用する音声フォーマットです。
+            /// </summary>
+            private readonly WaveFormat m_WaveFormat;
 
             #endregion
 
             #region 構築 / 消滅
 
             /// <summary>
-            /// <see cref="WasapiLoopbackCaptureSession"/> クラスの新しいインスタンスを初期化します。
+            /// <see cref="WasapiCaptureSession"/> クラスの新しいインスタンスを初期化します。
             /// </summary>
-            /// <param name="capture">ラップ対象の WASAPI ループバックキャプチャです。</param>
-            public WasapiLoopbackCaptureSession(WasapiLoopbackCapture capture)
+            /// <param name="capture">ラップ対象の WASAPI キャプチャです。</param>
+            public WasapiCaptureSession(IWaveIn capture)
             {
                 m_Capture = capture ?? throw new ArgumentNullException(nameof(capture));
+                m_WaveFormat = capture.WaveFormat;
                 m_Capture.DataAvailable += OnDataAvailable;
             }
 
@@ -66,7 +84,7 @@ namespace AudioVisualizer.Core.Audio
             }
 
             /// <summary>
-            /// システム再生音の録音を開始します。
+            /// 音声録音を開始します。
             /// </summary>
             public void Start()
             {
@@ -74,7 +92,7 @@ namespace AudioVisualizer.Core.Audio
             }
 
             /// <summary>
-            /// システム再生音の録音を停止します。
+            /// 音声録音を停止します。
             /// </summary>
             public void Stop()
             {
@@ -97,13 +115,13 @@ namespace AudioVisualizer.Core.Audio
             /// <param name="e">取得済み PCM バッファです。</param>
             private void OnDataAvailable(object? sender, WaveInEventArgs e)
             {
-                var samples = ConvertToSamples(e.Buffer, e.BytesRecorded, m_Capture.WaveFormat);
+                var samples = ConvertToSamples(e.Buffer, e.BytesRecorded, m_WaveFormat);
                 SamplesCaptured?.Invoke(
                     this,
                     new AudioSamplesCapturedEventArgs(
                         samples,
-                        m_Capture.WaveFormat.SampleRate,
-                        m_Capture.WaveFormat.Channels,
+                        m_WaveFormat.SampleRate,
+                        m_WaveFormat.Channels,
                         DateTimeOffset.UtcNow));
             }
 

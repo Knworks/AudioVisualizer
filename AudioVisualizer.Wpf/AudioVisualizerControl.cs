@@ -67,6 +67,8 @@ namespace AudioVisualizer.Wpf
 
         /// <summary>
         /// 音声入力元を取得または設定します。
+        /// `SystemOutput` は再生中のシステム音声、`Microphone` は録音入力を表します。
+        /// `IsActive = true` の間に変更すると、必要な場合だけ入力を再接続します。
         /// </summary>
         public InputSource InputSource
         {
@@ -76,6 +78,8 @@ namespace AudioVisualizer.Wpf
 
         /// <summary>
         /// 既定デバイスを使用するかどうかを取得または設定します。
+        /// `true` の場合は OS の既定デバイスを利用し、`DeviceId` は UI 上の保持値として扱います。
+        /// `false` の場合は `DeviceId` に指定した明示デバイスを使用します。
         /// </summary>
         public bool UseDefaultDevice
         {
@@ -85,6 +89,8 @@ namespace AudioVisualizer.Wpf
 
         /// <summary>
         /// 明示的に使用する音声デバイス識別子を取得または設定します。
+        /// `UseDefaultDevice = false` のときに実際の接続先として使用されます。
+        /// 空文字または <see langword="null"/> の場合は明示デバイスが未指定とみなし、開始は行いません。
         /// </summary>
         public string? DeviceId
         {
@@ -94,6 +100,8 @@ namespace AudioVisualizer.Wpf
 
         /// <summary>
         /// 音声取得と可視化を有効化するかどうかを取得または設定します。
+        /// `true` にすると現在の入力設定で開始し、`false` にすると停止します。
+        /// 設定変更だけを保持したい場合は `false` のまま各プロパティを更新します。
         /// </summary>
         public bool IsActive
         {
@@ -103,6 +111,8 @@ namespace AudioVisualizer.Wpf
 
         /// <summary>
         /// 利用する可視化エフェクトを取得または設定します。
+        /// <see langword="null"/> の場合は既定のバー表示エフェクトを使用します。
+        /// エフェクト変更は再接続を行わず、次回描画から反映されます。
         /// </summary>
         public new IVisualizerEffect? Effect
         {
@@ -112,6 +122,9 @@ namespace AudioVisualizer.Wpf
 
         /// <summary>
         /// 可視化の感度補正値を取得または設定します。
+        /// `1.0` が基準で、`1.0` より大きいほど小さな音でもバーが高く反応しやすくなります。
+        /// 例えば `1.6` 前後は動きを強めたい場合、`0.8` 前後は落ち着かせたい場合の目安です。
+        /// `0` 以下は無効です。
         /// </summary>
         public double Sensitivity
         {
@@ -121,6 +134,9 @@ namespace AudioVisualizer.Wpf
 
         /// <summary>
         /// 描画平滑化係数を取得または設定します。
+        /// `0.0` はほぼ生の反応で、値を大きくするほど前フレームを残してなめらかに見せます。
+        /// 例えば `0.2` から `0.4` は俊敏、`0.7` 以上はゆったりした追従感になります。
+        /// `0.0` から `1.0` の範囲だけを受け付けます。
         /// </summary>
         public double Smoothing
         {
@@ -130,6 +146,9 @@ namespace AudioVisualizer.Wpf
 
         /// <summary>
         /// バー描画本数を取得または設定します。
+        /// 値を増やすほど細かい表示になり、値を減らすほど 1 本ごとの動きが大きく見えやすくなります。
+        /// 例えば `24` から `32` は見やすさ重視、`48` 以上は密度重視の設定です。
+        /// `1` 以上の整数だけを受け付けます。
         /// </summary>
         public int BarCount
         {
@@ -139,6 +158,8 @@ namespace AudioVisualizer.Wpf
 
         /// <summary>
         /// 主描画色を取得または設定します。
+        /// 単色ブラシならバーの基調色として使用し、`SecondaryBrush` を指定した場合はグラデーションの下側色になります。
+        /// 未指定時は `Foreground`、さらに未指定なら既定色を使用します。
         /// </summary>
         public Brush? PrimaryBrush
         {
@@ -148,6 +169,8 @@ namespace AudioVisualizer.Wpf
 
         /// <summary>
         /// 補助描画色を取得または設定します。
+        /// 指定するとバー上部に向かうグラデーション色として使われ、未指定時は単色表示になります。
+        /// 描画色だけを変え、音声入力の再接続は発生しません。
         /// </summary>
         public Brush? SecondaryBrush
         {

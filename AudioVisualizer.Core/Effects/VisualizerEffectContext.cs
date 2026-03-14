@@ -12,21 +12,27 @@ namespace AudioVisualizer.Core.Effects
 
         /// <summary>
         /// 現在の音声入力元を取得します。
+        /// `SystemOutput` は再生中のシステム音声、`Microphone` は録音入力を表します。
         /// </summary>
         public InputSource InputSource { get; }
 
         /// <summary>
         /// 入力感度の倍率を取得します。
+        /// `1.0` が基準で、値を上げるほど小さな音も強く反映します。
+        /// エフェクト側ではバー高さや強度補正の係数として利用します。
         /// </summary>
         public double Sensitivity { get; }
 
         /// <summary>
         /// 平滑化係数を取得します。
+        /// `0.0` は即時反応、`1.0` に近いほど前回状態を強く残します。
+        /// エフェクトや描画側で補間係数として使う前提の値です。
         /// </summary>
         public double Smoothing { get; }
 
         /// <summary>
         /// バー型エフェクトで使用するバー本数を取得します。
+        /// 値を増やすほど高密度な表示、値を減らすほど大きく分かりやすい表示になります。
         /// </summary>
         public int BarCount { get; }
 
@@ -38,9 +44,9 @@ namespace AudioVisualizer.Core.Effects
         /// <see cref="VisualizerEffectContext"/> クラスの新しいインスタンスを初期化します。
         /// </summary>
         /// <param name="inputSource">現在の音声入力元です。</param>
-        /// <param name="sensitivity">入力感度の倍率です。</param>
-        /// <param name="smoothing">0.0 から 1.0 の範囲で指定する平滑化係数です。</param>
-        /// <param name="barCount">バー型エフェクトで使用するバー本数です。</param>
+        /// <param name="sensitivity">入力感度の倍率です。`1.0` が基準で、値を上げるほど小さな音も強く扱います。</param>
+        /// <param name="smoothing">`0.0` から `1.0` の範囲で指定する平滑化係数です。大きいほど表示がなめらかになります。</param>
+        /// <param name="barCount">バー型エフェクトで使用するバー本数です。多いほど細かく、少ないほど動きが目立ちやすくなります。</param>
         /// <exception cref="ArgumentOutOfRangeException">
         /// <paramref name="sensitivity"/>、<paramref name="smoothing"/>、<paramref name="barCount"/> が許容範囲外の場合にスローされます。
         /// </exception>

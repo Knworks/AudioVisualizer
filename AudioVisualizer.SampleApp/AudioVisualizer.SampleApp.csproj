@@ -8,4 +8,9 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\AudioVisualizer.Core\AudioVisualizer.Core.csproj" />
+    <ProjectReference Include="..\AudioVisualizer.Wpf\AudioVisualizer.Wpf.csproj" />
+  </ItemGroup>
+
 </Project>

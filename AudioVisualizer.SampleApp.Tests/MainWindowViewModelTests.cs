@@ -21,6 +21,7 @@ namespace AudioVisualizer.SampleApp.Tests
         /// ・2. デバイス一覧が SystemOutput 側で初期化される
         /// ・3. 既定デバイスの DeviceId が選択される
         /// ・4. 数値設定が既定値で初期化される
+        /// ・5. スペクトラム計算プロファイルが既定値で初期化される
         /// </summary>
         [Test]
         public void Given_DeviceService_When_CreatingViewModel_Then_SystemOutputDevicesAreLoaded()
@@ -37,6 +38,8 @@ namespace AudioVisualizer.SampleApp.Tests
                 Assert.That(sut.BarCount, Is.EqualTo(32));
                 Assert.That(sut.Sensitivity, Is.EqualTo(3.0).Within(1e-10));
                 Assert.That(sut.Smoothing, Is.EqualTo(0.25).Within(1e-10));
+                Assert.That(sut.SelectedSpectrumProfile, Is.EqualTo(SpectrumProfile.Balanced));
+                Assert.That(sut.SpectrumProfileOptions.Select(option => option.Value), Is.EqualTo(new[] { SpectrumProfile.Balanced, SpectrumProfile.Raw, SpectrumProfile.HighBoost }));
                 Assert.That(sut.StatusMessage, Is.Empty);
             });
         }
@@ -47,9 +50,11 @@ namespace AudioVisualizer.SampleApp.Tests
         /// ・1. BarCount = 48
         /// ・2. Sensitivity = 2.4
         /// ・3. Smoothing = 0.55
+        /// ・4. SelectedSpectrumProfile = HighBoost
         /// ■確認内容
         /// ・1. 変更後の数値設定が保持される
-        /// ・2. 同じ値の再設定でも状態が破綻しない
+        /// ・2. 変更後のスペクトラム計算プロファイルが保持される
+        /// ・3. 同じ値の再設定でも状態が破綻しない
         /// </summary>
         [Test]
         public void Given_RenderSettings_When_ChangingNumericProperties_Then_NewValuesAreRetained()
@@ -61,9 +66,11 @@ namespace AudioVisualizer.SampleApp.Tests
             sut.BarCount = 48;
             sut.Sensitivity = 2.4;
             sut.Smoothing = 0.55;
+            sut.SelectedSpectrumProfile = SpectrumProfile.HighBoost;
             sut.BarCount = 48;
             sut.Sensitivity = 2.4;
             sut.Smoothing = 0.55;
+            sut.SelectedSpectrumProfile = SpectrumProfile.HighBoost;
 
             // 検証
             Assert.Multiple(() =>
@@ -71,6 +78,7 @@ namespace AudioVisualizer.SampleApp.Tests
                 Assert.That(sut.BarCount, Is.EqualTo(48));
                 Assert.That(sut.Sensitivity, Is.EqualTo(2.4).Within(1e-10));
                 Assert.That(sut.Smoothing, Is.EqualTo(0.55).Within(1e-10));
+                Assert.That(sut.SelectedSpectrumProfile, Is.EqualTo(SpectrumProfile.HighBoost));
             });
         }
 

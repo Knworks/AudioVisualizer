@@ -36,6 +36,13 @@ namespace AudioVisualizer.Core.Effects
         /// </summary>
         public int BarCount { get; }
 
+        /// <summary>
+        /// スペクトラム値をバーへ割り当てる計算プロファイルを取得します。
+        /// `Raw` は元の分布、`Balanced` は見た目のバランス重視、`HighBoost` は高域強調です。
+        /// バーの偏りを抑えたい場合は `Balanced` か `HighBoost` を使用します。
+        /// </summary>
+        public SpectrumProfile SpectrumProfile { get; }
+
         #endregion
 
         #region 構築 / 消滅
@@ -47,10 +54,16 @@ namespace AudioVisualizer.Core.Effects
         /// <param name="sensitivity">入力感度の倍率です。`1.0` が基準で、値を上げるほど小さな音も強く扱います。</param>
         /// <param name="smoothing">`0.0` から `1.0` の範囲で指定する平滑化係数です。大きいほど表示がなめらかになります。</param>
         /// <param name="barCount">バー型エフェクトで使用するバー本数です。多いほど細かく、少ないほど動きが目立ちやすくなります。</param>
+        /// <param name="spectrumProfile">スペクトラム値をバーへ割り当てる計算プロファイルです。</param>
         /// <exception cref="ArgumentOutOfRangeException">
-        /// <paramref name="sensitivity"/>、<paramref name="smoothing"/>、<paramref name="barCount"/> が許容範囲外の場合にスローされます。
+        /// <paramref name="sensitivity"/>、<paramref name="smoothing"/>、<paramref name="barCount"/>、<paramref name="spectrumProfile"/> が許容範囲外の場合にスローされます。
         /// </exception>
-        public VisualizerEffectContext(InputSource inputSource, double sensitivity, double smoothing, int barCount)
+        public VisualizerEffectContext(
+            InputSource inputSource,
+            double sensitivity,
+            double smoothing,
+            int barCount,
+            SpectrumProfile spectrumProfile)
         {
             if (sensitivity <= 0)
             {
@@ -67,10 +80,16 @@ namespace AudioVisualizer.Core.Effects
                 throw new ArgumentOutOfRangeException(nameof(barCount), "Bar count must be greater than zero.");
             }
 
+            if (!Enum.IsDefined(spectrumProfile))
+            {
+                throw new ArgumentOutOfRangeException(nameof(spectrumProfile), "Spectrum profile is not supported.");
+            }
+
             InputSource = inputSource;
             Sensitivity = sensitivity;
             Smoothing = smoothing;
             BarCount = barCount;
+            SpectrumProfile = spectrumProfile;
         }
 
         #endregion

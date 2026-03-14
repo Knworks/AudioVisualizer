@@ -21,7 +21,7 @@ namespace AudioVisualizer.SampleApp.ViewModels
         /// <summary>
         /// SampleApp で初期表示するバー本数です。
         /// </summary>
-        private const int DefaultBarCount = 48;
+        private const int DefaultBarCount = 42;
 
         /// <summary>
         /// SampleApp で初期表示する感度です。
@@ -31,7 +31,12 @@ namespace AudioVisualizer.SampleApp.ViewModels
         /// <summary>
         /// SampleApp で初期表示する平滑化係数です。
         /// </summary>
-        private const double DefaultSmoothing = 0.55;
+        private const double DefaultSmoothing = 0.65;
+
+        /// <summary>
+        /// SampleApp で初期表示するスペクトラム計算プロファイルです。
+        /// </summary>
+        private const SpectrumProfile DefaultSpectrumProfile = SpectrumProfile.Balanced;
 
         #endregion
 
@@ -82,6 +87,11 @@ namespace AudioVisualizer.SampleApp.ViewModels
         /// </summary>
         private double m_Smoothing;
 
+        /// <summary>
+        /// 現在のスペクトラム計算プロファイル設定です。
+        /// </summary>
+        private SpectrumProfile m_SelectedSpectrumProfile;
+
         #endregion
 
         #region プロパティ
@@ -90,6 +100,11 @@ namespace AudioVisualizer.SampleApp.ViewModels
         /// 入力種別コンボボックスへ表示する選択肢一覧を取得します。
         /// </summary>
         public IReadOnlyList<InputSourceOption> InputSourceOptions { get; }
+
+        /// <summary>
+        /// スペクトラム計算プロファイルの選択肢一覧を取得します。
+        /// </summary>
+        public IReadOnlyList<SpectrumProfileOption> SpectrumProfileOptions { get; }
 
         /// <summary>
         /// 選択中の入力種別を取得または設定します。
@@ -258,6 +273,25 @@ namespace AudioVisualizer.SampleApp.ViewModels
         }
 
         /// <summary>
+        /// 可視化コントロールへ渡すスペクトラム計算プロファイルを取得または設定します。
+        /// `Balanced` は偏り緩和、`Raw` は元の分布、`HighBoost` は右側バーの強調に向きます。
+        /// </summary>
+        public SpectrumProfile SelectedSpectrumProfile
+        {
+            get => m_SelectedSpectrumProfile;
+            set
+            {
+                if (m_SelectedSpectrumProfile == value)
+                {
+                    return;
+                }
+
+                m_SelectedSpectrumProfile = value;
+                OnPropertyChanged();
+            }
+        }
+
+        /// <summary>
         /// 可視化開始コマンドを取得します。
         /// </summary>
         public ICommand StartCommand { get; }
@@ -289,11 +323,19 @@ namespace AudioVisualizer.SampleApp.ViewModels
             m_BarCount = DefaultBarCount;
             m_Sensitivity = DefaultSensitivity;
             m_Smoothing = DefaultSmoothing;
+            m_SelectedSpectrumProfile = DefaultSpectrumProfile;
 
             InputSourceOptions = new[]
             {
                 new InputSourceOption(InputSource.SystemOutput, "システム再生音"),
                 new InputSourceOption(InputSource.Microphone, "マイク"),
+            };
+
+            SpectrumProfileOptions = new[]
+            {
+                new SpectrumProfileOption(SpectrumProfile.Balanced, "Balanced: 偏りを緩和"),
+                new SpectrumProfileOption(SpectrumProfile.Raw, "Raw: 既定の分布"),
+                new SpectrumProfileOption(SpectrumProfile.HighBoost, "HighBoost: 高域を強調"),
             };
 
             StartCommand = new DelegateCommand(Start, () => !IsActive);

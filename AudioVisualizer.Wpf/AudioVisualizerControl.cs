@@ -32,6 +32,11 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         private const int DefaultBarCount = 32;
 
+        /// <summary>
+        /// 公開プロパティの既定スペクトラム計算プロファイルです。
+        /// </summary>
+        private const SpectrumProfile DefaultSpectrumProfile = SpectrumProfile.Balanced;
+
         #endregion
 
         #region フィールド
@@ -157,6 +162,18 @@ namespace AudioVisualizer.Wpf
         }
 
         /// <summary>
+        /// スペクトラム値をバーへ割り当てる計算プロファイルを取得または設定します。
+        /// `Balanced` は低域の偏りを緩和する推奨設定、`Raw` は元の分布、`HighBoost` は右側の動きを強調したい場合の設定です。
+        /// 例えば左端だけが大きく動く場合は `Balanced`、さらに派手に動かしたい場合は `HighBoost` が目安です。
+        /// 変更時は再接続せず、次回描画から反映します。
+        /// </summary>
+        public SpectrumProfile SpectrumProfile
+        {
+            get => (SpectrumProfile)GetValue(SpectrumProfileProperty);
+            set => SetValue(SpectrumProfileProperty, value);
+        }
+
+        /// <summary>
         /// 主描画色を取得または設定します。
         /// 単色ブラシならバーの基調色として使用し、`SecondaryBrush` を指定した場合はグラデーションの下側色になります。
         /// 未指定時は `Foreground`、さらに未指定なら既定色を使用します。
@@ -274,6 +291,17 @@ namespace AudioVisualizer.Wpf
                 typeof(AudioVisualizerControl),
                 new FrameworkPropertyMetadata(DefaultBarCount, OnVisualizationSettingChanged),
                 IsValidBarCount);
+
+        /// <summary>
+        /// スペクトラム計算プロファイルの依存関係プロパティです。
+        /// </summary>
+        public static readonly DependencyProperty SpectrumProfileProperty =
+            DependencyProperty.Register(
+                nameof(SpectrumProfile),
+                typeof(SpectrumProfile),
+                typeof(AudioVisualizerControl),
+                new FrameworkPropertyMetadata(DefaultSpectrumProfile, OnVisualizationSettingChanged),
+                IsValidSpectrumProfile);
 
         /// <summary>
         /// 主描画色の依存関係プロパティです。
@@ -481,6 +509,16 @@ namespace AudioVisualizer.Wpf
         }
 
         /// <summary>
+        /// SpectrumProfile の入力値妥当性を検証します。
+        /// </summary>
+        /// <param name="value">検証対象値です。</param>
+        /// <returns>有効値の場合は <see langword="true"/>。</returns>
+        private static bool IsValidSpectrumProfile(object value)
+        {
+            return value is SpectrumProfile spectrumProfile && Enum.IsDefined(spectrumProfile);
+        }
+
+        /// <summary>
         /// 音声入力開始を試行します。
         /// </summary>
         private void StartCapture()
@@ -570,7 +608,7 @@ namespace AudioVisualizer.Wpf
         /// <returns>現在設定を反映したエフェクト実行コンテキストです。</returns>
         private VisualizerEffectContext CreateEffectContext()
         {
-            return new VisualizerEffectContext(InputSource, Sensitivity, Smoothing, BarCount);
+            return new VisualizerEffectContext(InputSource, Sensitivity, Smoothing, BarCount, SpectrumProfile);
         }
 
         /// <summary>

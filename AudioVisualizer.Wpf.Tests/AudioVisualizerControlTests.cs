@@ -235,14 +235,14 @@ namespace AudioVisualizer.Wpf.Tests
         /// AudioVisualizerControl が描画設定変更を再接続なしで次回描画へ反映することを確認します。
         /// ■入力
         /// ・1. RecordingVisualizerEffect を指定した AudioVisualizerControl
-        /// ・2. Sensitivity、Smoothing、BarCount の変更
+        /// ・2. Sensitivity、Smoothing、BarCount、SpectrumProfile の変更
         /// ■確認内容
         /// ・1. 音声入力の再開始と停止が追加で呼ばれない
         /// ・2. 最新の VisualizerEffectContext が変更値を保持する
         /// ・3. CurrentRenderData のバー本数が変更値を反映する
         /// </summary>
         [Test]
-        public void Given_RenderSettings_When_ChangingSensitivitySmoothingAndBarCount_Then_NextRenderUsesUpdatedContext()
+        public void Given_RenderSettings_When_ChangingSensitivitySmoothingBarCountAndSpectrumProfile_Then_NextRenderUsesUpdatedContext()
         {
             // 準備
             var provider = new FakeAudioInputProvider();
@@ -258,6 +258,7 @@ namespace AudioVisualizer.Wpf.Tests
             control.Sensitivity = 1.4;
             control.Smoothing = 0.25;
             control.BarCount = 12;
+            control.SpectrumProfile = SpectrumProfile.HighBoost;
 
             // 検証
             Assert.Multiple(() =>
@@ -268,6 +269,7 @@ namespace AudioVisualizer.Wpf.Tests
                 Assert.That(effect.LastContext!.Sensitivity, Is.EqualTo(1.4).Within(1e-10));
                 Assert.That(effect.LastContext.Smoothing, Is.EqualTo(0.25).Within(1e-10));
                 Assert.That(effect.LastContext.BarCount, Is.EqualTo(12));
+                Assert.That(effect.LastContext.SpectrumProfile, Is.EqualTo(SpectrumProfile.HighBoost));
                 Assert.That(((BarSpectrumRenderData)control.CurrentRenderData!).Bars.Count, Is.EqualTo(12));
             });
         }
@@ -416,7 +418,7 @@ namespace AudioVisualizer.Wpf.Tests
             // 準備
             var effect = new SpectrumBarEffect();
             var frame = new VisualizerFrame(new[] { 0.2, 0.5, 1.4 }, new[] { 0.0, 0.0, 0.0 }, 1.0, DateTimeOffset.UtcNow);
-            var context = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.5, 3);
+            var context = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.5, 3, SpectrumProfile.Raw);
 
             // 実行
             var result = (BarSpectrumRenderData)effect.BuildRenderData(frame, context);
@@ -443,7 +445,7 @@ namespace AudioVisualizer.Wpf.Tests
             // 準備
             var effect = new SpectrumBarEffect();
             var frame = new VisualizerFrame(Array.Empty<double>(), Array.Empty<double>(), 0.0, DateTimeOffset.UtcNow);
-            var context = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.5, 3);
+            var context = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.5, 3, SpectrumProfile.Raw);
 
             // 実行
             var result = (BarSpectrumRenderData)effect.BuildRenderData(frame, context);
@@ -467,7 +469,7 @@ namespace AudioVisualizer.Wpf.Tests
             // 準備
             var effect = new SpectrumBarEffect();
             var frame = new VisualizerFrame(new[] { 0.4 }, new[] { 0.0 }, 0.4, DateTimeOffset.UtcNow);
-            var context = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.5, 4);
+            var context = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.5, 4, SpectrumProfile.Raw);
 
             // 実行
             var result = (BarSpectrumRenderData)effect.BuildRenderData(frame, context);
@@ -479,6 +481,68 @@ namespace AudioVisualizer.Wpf.Tests
                 Assert.That(result.Bars[0].Height, Is.EqualTo(0.4).Within(1e-10));
                 Assert.That(result.Bars[3].Height, Is.EqualTo(0.4).Within(1e-10));
             });
+        }
+
+        /// <summary>
+        /// SpectrumBarEffect が Balanced プロファイルで高域側のバーを持ち上げることを確認します。
+        /// ■入力
+        /// ・1. 左側が強く右側が弱い SpectrumValues を持つ VisualizerFrame
+        /// ・2. Raw、Balanced、HighBoost の VisualizerEffectContext
+        /// ■確認内容
+        /// ・1. Balanced の右端バーが Raw より高くなる
+        /// ・2. Balanced の中央バー群も Raw より高くなる
+        /// ・3. Balanced の右端バーは HighBoost より低い
+        /// ・4. Balanced でも左端バー優勢は維持される
+        /// </summary>
+        [Test]
+        public void Given_BiasedSpectrum_When_UsingBalancedProfile_Then_HighBandsAreLiftedModerately()
+        {
+            // 準備
+            var effect = new SpectrumBarEffect();
+            var frame = new VisualizerFrame(new[] { 1.0, 0.2, 0.05, 0.02, 0.03, 0.06, 0.09, 0.12 }, new[] { 0.0, 0.0 }, 1.0, DateTimeOffset.UtcNow);
+            var rawContext = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.0, 4, SpectrumProfile.Raw);
+            var balancedContext = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.0, 4, SpectrumProfile.Balanced);
+            var highBoostContext = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.0, 4, SpectrumProfile.HighBoost);
+
+            // 実行
+            var rawResult = (BarSpectrumRenderData)effect.BuildRenderData(frame, rawContext);
+            var balancedResult = (BarSpectrumRenderData)effect.BuildRenderData(frame, balancedContext);
+            var highBoostResult = (BarSpectrumRenderData)effect.BuildRenderData(frame, highBoostContext);
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(balancedResult.Bars[^1].Height, Is.GreaterThan(rawResult.Bars[^1].Height));
+                Assert.That(balancedResult.Bars[1].Height, Is.GreaterThan(rawResult.Bars[1].Height));
+                Assert.That(balancedResult.Bars[2].Height, Is.GreaterThan(rawResult.Bars[2].Height));
+                Assert.That(balancedResult.Bars[^1].Height, Is.LessThan(highBoostResult.Bars[^1].Height));
+                Assert.That(balancedResult.Bars[0].Height, Is.GreaterThan(balancedResult.Bars[^1].Height));
+            });
+        }
+
+        /// <summary>
+        /// SpectrumBarEffect が HighBoost プロファイルで Balanced より高域を強く持ち上げることを確認します。
+        /// ■入力
+        /// ・1. 左側が強く右側が弱い SpectrumValues を持つ VisualizerFrame
+        /// ・2. Balanced と HighBoost の VisualizerEffectContext
+        /// ■確認内容
+        /// ・1. HighBoost の右端バーが Balanced より高くなる
+        /// </summary>
+        [Test]
+        public void Given_BiasedSpectrum_When_UsingHighBoostProfile_Then_HighBandsAreLiftedMoreThanBalanced()
+        {
+            // 準備
+            var effect = new SpectrumBarEffect();
+            var frame = new VisualizerFrame(new[] { 1.0, 0.2, 0.05, 0.02, 0.03, 0.06, 0.09, 0.12 }, new[] { 0.0, 0.0 }, 1.0, DateTimeOffset.UtcNow);
+            var balancedContext = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.0, 4, SpectrumProfile.Balanced);
+            var highBoostContext = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.0, 4, SpectrumProfile.HighBoost);
+
+            // 実行
+            var balancedResult = (BarSpectrumRenderData)effect.BuildRenderData(frame, balancedContext);
+            var highBoostResult = (BarSpectrumRenderData)effect.BuildRenderData(frame, highBoostContext);
+
+            // 検証
+            Assert.That(highBoostResult.Bars[^1].Height, Is.GreaterThan(balancedResult.Bars[^1].Height));
         }
 
         /// <summary>

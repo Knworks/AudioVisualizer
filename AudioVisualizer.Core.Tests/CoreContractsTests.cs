@@ -300,6 +300,7 @@ namespace AudioVisualizer.Core.Tests
         /// ・1. sensitivity = 0
         /// ・2. smoothing = 範囲外の値
         /// ・3. barCount = 0
+        /// ・4. spectrumProfile = 未定義値
         /// ■確認内容
         /// ・1. それぞれ ArgumentOutOfRangeException が送出される
         /// </summary>
@@ -307,9 +308,10 @@ namespace AudioVisualizer.Core.Tests
         public void Given_InvalidContextValues_When_CreatingVisualizerEffectContext_Then_ThrowsArgumentOutOfRangeException()
         {
             // 準備
-            static void ActSensitivity() => _ = new VisualizerEffectContext(InputSource.SystemOutput, 0, 0.5, 16);
-            static void ActSmoothing() => _ = new VisualizerEffectContext(InputSource.SystemOutput, 1, 1.2, 16);
-            static void ActBarCount() => _ = new VisualizerEffectContext(InputSource.SystemOutput, 1, 0.5, 0);
+            static void ActSensitivity() => _ = new VisualizerEffectContext(InputSource.SystemOutput, 0, 0.5, 16, SpectrumProfile.Raw);
+            static void ActSmoothing() => _ = new VisualizerEffectContext(InputSource.SystemOutput, 1, 1.2, 16, SpectrumProfile.Raw);
+            static void ActBarCount() => _ = new VisualizerEffectContext(InputSource.SystemOutput, 1, 0.5, 0, SpectrumProfile.Raw);
+            static void ActSpectrumProfile() => _ = new VisualizerEffectContext(InputSource.SystemOutput, 1, 0.5, 16, (SpectrumProfile)999);
 
             // 実行と検証
             Assert.Multiple(() =>
@@ -317,6 +319,7 @@ namespace AudioVisualizer.Core.Tests
                 Assert.That(ActSensitivity, Throws.TypeOf<ArgumentOutOfRangeException>());
                 Assert.That(ActSmoothing, Throws.TypeOf<ArgumentOutOfRangeException>());
                 Assert.That(ActBarCount, Throws.TypeOf<ArgumentOutOfRangeException>());
+                Assert.That(ActSpectrumProfile, Throws.TypeOf<ArgumentOutOfRangeException>());
             });
         }
 
@@ -324,7 +327,7 @@ namespace AudioVisualizer.Core.Tests
         /// VisualizerEffectContext の正常生成を確認します。
         /// ■入力
         /// ・1. inputSource = Microphone
-        /// ・2. sensitivity = 1.5, smoothing = 0.65, barCount = 24
+        /// ・2. sensitivity = 1.5, smoothing = 0.65, barCount = 24, spectrumProfile = Balanced
         /// ■確認内容
         /// ・1. 各プロパティへ入力値が保持される
         /// </summary>
@@ -332,7 +335,7 @@ namespace AudioVisualizer.Core.Tests
         public void Given_ValidContextValues_When_CreatingVisualizerEffectContext_Then_PropertiesAreAssigned()
         {
             // 準備と実行
-            var result = new VisualizerEffectContext(InputSource.Microphone, 1.5, 0.65, 24);
+            var result = new VisualizerEffectContext(InputSource.Microphone, 1.5, 0.65, 24, SpectrumProfile.Balanced);
 
             // 検証
             Assert.Multiple(() =>
@@ -341,6 +344,7 @@ namespace AudioVisualizer.Core.Tests
                 Assert.That(result.Sensitivity, Is.EqualTo(1.5));
                 Assert.That(result.Smoothing, Is.EqualTo(0.65));
                 Assert.That(result.BarCount, Is.EqualTo(24));
+                Assert.That(result.SpectrumProfile, Is.EqualTo(SpectrumProfile.Balanced));
             });
         }
 
@@ -366,7 +370,7 @@ namespace AudioVisualizer.Core.Tests
                 new[] { InputSource.SystemOutput });
             var effect = new FakeVisualizerEffect(metadata);
             var frame = new VisualizerFrame(new[] { 0.2, 0.4 }, 0.4, DateTimeOffset.UtcNow);
-            var context = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.5, 16);
+            var context = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.5, 16, SpectrumProfile.Raw);
 
             // 実行
             var result = effect.BuildRenderData(frame, context);

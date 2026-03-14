@@ -118,9 +118,20 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                        <TextBlock FontWeight="SemiBold" Text="SpectrumProfile" />
+                        <ComboBox
+                            Margin="0,8,0,0"
+                            DisplayMemberPath="DisplayName"
+                            ItemsSource="{Binding SpectrumProfileOptions}"
+                            SelectedValue="{Binding SelectedSpectrumProfile, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            SelectedValuePath="Value" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Margin="0,0,16,0">
                         <TextBlock FontWeight="SemiBold" Text="BarCount" />
                         <Slider
                             Margin="0,8,0,0"
@@ -135,7 +146,7 @@
                             Text="{Binding BarCount, StringFormat=現在値: {0}}" />
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                    <StackPanel Grid.Column="2" Margin="0,0,16,0">
                         <TextBlock FontWeight="SemiBold" Text="Sensitivity" />
                         <Slider
                             Margin="0,8,0,0"
@@ -150,7 +161,7 @@
                             Text="{Binding Sensitivity, StringFormat=現在値: {0:F2}}" />
                     </StackPanel>
 
-                    <StackPanel Grid.Column="2">
+                    <StackPanel Grid.Column="3">
                         <TextBlock FontWeight="SemiBold" Text="Smoothing" />
                         <Slider
                             Margin="0,8,0,0"
@@ -190,6 +201,7 @@
                 SecondaryBrush="#FF38BDF8"
                 Sensitivity="{Binding Sensitivity}"
                 Smoothing="{Binding Smoothing}"
+                SpectrumProfile="{Binding SelectedSpectrumProfile}"
                 UseDefaultDevice="{Binding UseDefaultDevice}" />
         </Border>
 
@@ -197,7 +209,7 @@
             Grid.Row="3"
             Margin="4,12,4,0"
             Foreground="#FF475569"
-            Text="入力種別、デバイス、既定デバイス利用に加えて、BarCount、Sensitivity、Smoothing もリアルタイムに変更できる利用例です。"
+            Text="入力種別、デバイス、既定デバイス利用に加えて、SpectrumProfile、BarCount、Sensitivity、Smoothing もリアルタイムに変更できる利用例です。"
             TextWrapping="Wrap" />
     </Grid>
 </Window>

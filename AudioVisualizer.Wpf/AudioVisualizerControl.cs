@@ -18,17 +18,17 @@ namespace AudioVisualizer.Wpf
         #region 定数
 
         /// <summary>
-        /// 最小実装で使用する既定感度です。
+        /// 公開プロパティの既定感度です。
         /// </summary>
         private const double DefaultSensitivity = 1.0;
 
         /// <summary>
-        /// 最小実装で使用する既定平滑化係数です。
+        /// 公開プロパティの既定平滑化係数です。
         /// </summary>
-        private const double DefaultSmoothing = 0.5;
+        private const double DefaultSmoothing = 0.82;
 
         /// <summary>
-        /// 最小実装で使用する既定バー本数です。
+        /// 公開プロパティの既定バー本数です。
         /// </summary>
         private const int DefaultBarCount = 32;
 
@@ -84,6 +84,15 @@ namespace AudioVisualizer.Wpf
         }
 
         /// <summary>
+        /// 明示的に使用する音声デバイス識別子を取得または設定します。
+        /// </summary>
+        public string? DeviceId
+        {
+            get => (string?)GetValue(DeviceIdProperty);
+            set => SetValue(DeviceIdProperty, value);
+        }
+
+        /// <summary>
         /// 音声取得と可視化を有効化するかどうかを取得または設定します。
         /// </summary>
         public bool IsActive
@@ -102,9 +111,59 @@ namespace AudioVisualizer.Wpf
         }
 
         /// <summary>
+        /// 可視化の感度補正値を取得または設定します。
+        /// </summary>
+        public double Sensitivity
+        {
+            get => (double)GetValue(SensitivityProperty);
+            set => SetValue(SensitivityProperty, value);
+        }
+
+        /// <summary>
+        /// 描画平滑化係数を取得または設定します。
+        /// </summary>
+        public double Smoothing
+        {
+            get => (double)GetValue(SmoothingProperty);
+            set => SetValue(SmoothingProperty, value);
+        }
+
+        /// <summary>
+        /// バー描画本数を取得または設定します。
+        /// </summary>
+        public int BarCount
+        {
+            get => (int)GetValue(BarCountProperty);
+            set => SetValue(BarCountProperty, value);
+        }
+
+        /// <summary>
+        /// 主描画色を取得または設定します。
+        /// </summary>
+        public Brush? PrimaryBrush
+        {
+            get => (Brush?)GetValue(PrimaryBrushProperty);
+            set => SetValue(PrimaryBrushProperty, value);
+        }
+
+        /// <summary>
+        /// 補助描画色を取得または設定します。
+        /// </summary>
+        public Brush? SecondaryBrush
+        {
+            get => (Brush?)GetValue(SecondaryBrushProperty);
+            set => SetValue(SecondaryBrushProperty, value);
+        }
+
+        /// <summary>
         /// テスト確認用の現在レンダーデータを取得します。
         /// </summary>
         internal VisualizerRenderData? CurrentRenderData => m_CurrentRenderData;
+
+        /// <summary>
+        /// テスト確認用の現在描画ブラシを取得します。
+        /// </summary>
+        internal Brush CurrentRenderBrush => CreateRenderBrush();
 
         #endregion
 
@@ -131,6 +190,16 @@ namespace AudioVisualizer.Wpf
                 new FrameworkPropertyMetadata(true, OnConnectionSettingChanged));
 
         /// <summary>
+        /// 明示デバイス識別子の依存関係プロパティです。
+        /// </summary>
+        public static readonly DependencyProperty DeviceIdProperty =
+            DependencyProperty.Register(
+                nameof(DeviceId),
+                typeof(string),
+                typeof(AudioVisualizerControl),
+                new FrameworkPropertyMetadata(null, OnConnectionSettingChanged));
+
+        /// <summary>
         /// 開始・停止状態の依存関係プロパティです。
         /// </summary>
         public static readonly DependencyProperty IsActiveProperty =
@@ -149,6 +218,59 @@ namespace AudioVisualizer.Wpf
                 typeof(IVisualizerEffect),
                 typeof(AudioVisualizerControl),
                 new FrameworkPropertyMetadata(null, OnEffectChanged));
+
+        /// <summary>
+        /// 感度補正値の依存関係プロパティです。
+        /// </summary>
+        public static readonly DependencyProperty SensitivityProperty =
+            DependencyProperty.Register(
+                nameof(Sensitivity),
+                typeof(double),
+                typeof(AudioVisualizerControl),
+                new FrameworkPropertyMetadata(DefaultSensitivity, OnVisualizationSettingChanged),
+                IsValidSensitivity);
+
+        /// <summary>
+        /// 平滑化係数の依存関係プロパティです。
+        /// </summary>
+        public static readonly DependencyProperty SmoothingProperty =
+            DependencyProperty.Register(
+                nameof(Smoothing),
+                typeof(double),
+                typeof(AudioVisualizerControl),
+                new FrameworkPropertyMetadata(DefaultSmoothing, OnVisualizationSettingChanged),
+                IsValidSmoothing);
+
+        /// <summary>
+        /// バー本数の依存関係プロパティです。
+        /// </summary>
+        public static readonly DependencyProperty BarCountProperty =
+            DependencyProperty.Register(
+                nameof(BarCount),
+                typeof(int),
+                typeof(AudioVisualizerControl),
+                new FrameworkPropertyMetadata(DefaultBarCount, OnVisualizationSettingChanged),
+                IsValidBarCount);
+
+        /// <summary>
+        /// 主描画色の依存関係プロパティです。
+        /// </summary>
+        public static readonly DependencyProperty PrimaryBrushProperty =
+            DependencyProperty.Register(
+                nameof(PrimaryBrush),
+                typeof(Brush),
+                typeof(AudioVisualizerControl),
+                new FrameworkPropertyMetadata(null, OnAppearanceChanged));
+
+        /// <summary>
+        /// 補助描画色の依存関係プロパティです。
+        /// </summary>
+        public static readonly DependencyProperty SecondaryBrushProperty =
+            DependencyProperty.Register(
+                nameof(SecondaryBrush),
+                typeof(Brush),
+                typeof(AudioVisualizerControl),
+                new FrameworkPropertyMetadata(null, OnAppearanceChanged));
 
         #endregion
 
@@ -186,7 +308,7 @@ namespace AudioVisualizer.Wpf
 
         #endregion
 
-        #region 公開メソッド
+        #region オーバーライド
 
         /// <summary>
         /// 現在保持しているレンダーデータを描画します。
@@ -195,7 +317,17 @@ namespace AudioVisualizer.Wpf
         protected override void OnRender(DrawingContext drawingContext)
         {
             base.OnRender(drawingContext);
-            m_Renderer.Render(drawingContext, m_CurrentRenderData, new Size(ActualWidth, ActualHeight), Foreground ?? Brushes.DeepSkyBlue);
+            m_Renderer.Render(drawingContext, m_CurrentRenderData, new Size(ActualWidth, ActualHeight), CreateRenderBrush());
+        }
+
+        /// <summary>
+        /// 描画領域サイズ変更時に再描画を要求します。
+        /// </summary>
+        /// <param name="sizeInfo">サイズ変更情報です。</param>
+        protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
+        {
+            base.OnRenderSizeChanged(sizeInfo);
+            InvalidateVisual();
         }
 
         #endregion
@@ -235,6 +367,11 @@ namespace AudioVisualizer.Wpf
                 return;
             }
 
+            if (e.Property == DeviceIdProperty && control.UseDefaultDevice)
+            {
+                return;
+            }
+
             control.RestartCapture();
         }
 
@@ -268,11 +405,64 @@ namespace AudioVisualizer.Wpf
         }
 
         /// <summary>
+        /// 可視化設定変更時に現在フレームのレンダーデータを再生成します。
+        /// </summary>
+        /// <param name="dependencyObject">変更対象のコントロールです。</param>
+        /// <param name="e">変更イベントデータです。</param>
+        private static void OnVisualizationSettingChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
+        {
+            var control = (AudioVisualizerControl)dependencyObject;
+            control.UpdateRenderData();
+            control.InvalidateVisual();
+        }
+
+        /// <summary>
+        /// 描画色変更時に再描画だけを要求します。
+        /// </summary>
+        /// <param name="dependencyObject">変更対象のコントロールです。</param>
+        /// <param name="e">変更イベントデータです。</param>
+        private static void OnAppearanceChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
+        {
+            var control = (AudioVisualizerControl)dependencyObject;
+            control.InvalidateVisual();
+        }
+
+        /// <summary>
+        /// Sensitivity の入力値妥当性を検証します。
+        /// </summary>
+        /// <param name="value">検証対象値です。</param>
+        /// <returns>有効値の場合は <see langword="true"/>。</returns>
+        private static bool IsValidSensitivity(object value)
+        {
+            return value is double sensitivity && sensitivity > 0;
+        }
+
+        /// <summary>
+        /// Smoothing の入力値妥当性を検証します。
+        /// </summary>
+        /// <param name="value">検証対象値です。</param>
+        /// <returns>有効値の場合は <see langword="true"/>。</returns>
+        private static bool IsValidSmoothing(object value)
+        {
+            return value is double smoothing && smoothing >= 0 && smoothing <= 1;
+        }
+
+        /// <summary>
+        /// BarCount の入力値妥当性を検証します。
+        /// </summary>
+        /// <param name="value">検証対象値です。</param>
+        /// <returns>有効値の場合は <see langword="true"/>。</returns>
+        private static bool IsValidBarCount(object value)
+        {
+            return value is int barCount && barCount > 0;
+        }
+
+        /// <summary>
         /// 音声入力開始を試行します。
         /// </summary>
         private void StartCapture()
         {
-            var settings = CreateSettings();
+            var settings = CreateCaptureSettings();
             if (settings is null)
             {
                 return;
@@ -307,14 +497,21 @@ namespace AudioVisualizer.Wpf
         /// 現在の依存関係プロパティから Core の設定を生成します。
         /// </summary>
         /// <returns>開始可能な場合の設定。開始不可なら <see langword="null"/>。</returns>
-        private VisualizerSettings? CreateSettings()
+        private VisualizerSettings? CreateCaptureSettings()
         {
-            if (!UseDefaultDevice)
+            if (!UseDefaultDevice && string.IsNullOrWhiteSpace(DeviceId))
             {
                 return null;
             }
 
-            return new VisualizerSettings(InputSource, null, true, IsActive, DefaultSensitivity, DefaultSmoothing, DefaultBarCount);
+            return new VisualizerSettings(
+                InputSource,
+                DeviceId,
+                UseDefaultDevice,
+                IsActive,
+                DefaultSensitivity,
+                0.0,
+                Math.Max(DefaultBarCount, BarCount));
         }
 
         /// <summary>
@@ -340,8 +537,95 @@ namespace AudioVisualizer.Wpf
             }
 
             var effect = Effect ?? m_DefaultEffect;
-            var context = new VisualizerEffectContext(InputSource, DefaultSensitivity, DefaultSmoothing, DefaultBarCount);
-            m_CurrentRenderData = effect.BuildRenderData(m_CurrentFrame, context);
+            var rawRenderData = effect.BuildRenderData(m_CurrentFrame, CreateEffectContext());
+            m_CurrentRenderData = ApplySmoothing(m_CurrentRenderData, rawRenderData);
+        }
+
+        /// <summary>
+        /// 現在の公開プロパティからエフェクト用コンテキストを生成します。
+        /// </summary>
+        /// <returns>現在設定を反映したエフェクト実行コンテキストです。</returns>
+        private VisualizerEffectContext CreateEffectContext()
+        {
+            return new VisualizerEffectContext(InputSource, Sensitivity, Smoothing, BarCount);
+        }
+
+        /// <summary>
+        /// 現在の描画設定から実際に使用するブラシを生成します。
+        /// </summary>
+        /// <returns>描画に使用するブラシです。</returns>
+        private Brush CreateRenderBrush()
+        {
+            var primaryBrush = PrimaryBrush ?? Foreground ?? Brushes.DeepSkyBlue;
+            if (SecondaryBrush is null)
+            {
+                return primaryBrush;
+            }
+
+            var gradientBrush = new LinearGradientBrush
+            {
+                StartPoint = new Point(0.5, 1.0),
+                EndPoint = new Point(0.5, 0.0),
+            };
+            gradientBrush.GradientStops.Add(new GradientStop(GetBrushColor(primaryBrush, Colors.DeepSkyBlue), 1.0));
+            gradientBrush.GradientStops.Add(new GradientStop(GetBrushColor(SecondaryBrush, Colors.White), 0.0));
+
+            if (gradientBrush.CanFreeze)
+            {
+                gradientBrush.Freeze();
+            }
+
+            return gradientBrush;
+        }
+
+        /// <summary>
+        /// バー描画データ同士を平滑化係数で補間します。
+        /// </summary>
+        /// <param name="currentRenderData">現在描画中のレンダーデータです。</param>
+        /// <param name="nextRenderData">次に描画するレンダーデータです。</param>
+        /// <returns>平滑化適用後のレンダーデータです。</returns>
+        private VisualizerRenderData ApplySmoothing(VisualizerRenderData? currentRenderData, VisualizerRenderData nextRenderData)
+        {
+            if (Smoothing <= 0 ||
+                currentRenderData is not BarSpectrumRenderData currentBarRenderData ||
+                nextRenderData is not BarSpectrumRenderData nextBarRenderData)
+            {
+                return nextRenderData;
+            }
+
+            var smoothedBars = new BarRenderItem[nextBarRenderData.Bars.Count];
+            for (var index = 0; index < nextBarRenderData.Bars.Count; index++)
+            {
+                var nextBar = nextBarRenderData.Bars[index];
+                if (index >= currentBarRenderData.Bars.Count)
+                {
+                    smoothedBars[index] = nextBar;
+                    continue;
+                }
+
+                var currentBar = currentBarRenderData.Bars[index];
+                var smoothedHeight = (currentBar.Height * Smoothing) + (nextBar.Height * (1.0 - Smoothing));
+                var smoothedLevel = (currentBar.Level * Smoothing) + (nextBar.Level * (1.0 - Smoothing));
+                smoothedBars[index] = new BarRenderItem(nextBar.X, nextBar.Width, smoothedHeight, smoothedLevel);
+            }
+
+            return new BarSpectrumRenderData(nextBarRenderData.EffectId, nextBarRenderData.Timestamp, smoothedBars);
+        }
+
+        /// <summary>
+        /// ブラシから代表色を抽出します。
+        /// </summary>
+        /// <param name="brush">色抽出対象のブラシです。</param>
+        /// <param name="fallbackColor">色抽出に失敗した場合の代替色です。</param>
+        /// <returns>抽出した色です。</returns>
+        private static Color GetBrushColor(Brush brush, Color fallbackColor)
+        {
+            return brush switch
+            {
+                SolidColorBrush solidColorBrush => solidColorBrush.Color,
+                GradientBrush gradientBrush when gradientBrush.GradientStops.Count > 0 => gradientBrush.GradientStops[0].Color,
+                _ => fallbackColor,
+            };
         }
 
         #endregion

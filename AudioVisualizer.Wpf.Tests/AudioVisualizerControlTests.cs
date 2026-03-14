@@ -56,6 +56,7 @@ namespace AudioVisualizer.Wpf.Tests
             // 実行
             control.InputSource = InputSource.Microphone;
             control.UseDefaultDevice = false;
+            control.DeviceId = "mic-1";
 
             // 検証
             Assert.That(provider.StartCallCount, Is.EqualTo(0));
@@ -98,23 +99,28 @@ namespace AudioVisualizer.Wpf.Tests
         /// ・2. Start が再度呼ばれる
         /// </summary>
         [Test]
-        public void Given_ActiveControl_When_InputSourceChanges_Then_InputRestarts()
+        public void Given_ActiveControl_When_ConnectionSettingsChange_Then_InputRestartsOnlyForRelevantChanges()
         {
             // 準備
             var provider = new FakeAudioInputProvider();
             var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer())
             {
+                UseDefaultDevice = false,
+                DeviceId = "render-1",
                 IsActive = true,
             };
 
             // 実行
             control.InputSource = InputSource.Microphone;
+            control.DeviceId = "mic-2";
+            control.UseDefaultDevice = true;
+            control.DeviceId = "ignored-device";
 
             // 検証
             Assert.Multiple(() =>
             {
-                Assert.That(provider.StartCallCount, Is.EqualTo(2));
-                Assert.That(provider.StopCallCount, Is.EqualTo(1));
+                Assert.That(provider.StartCallCount, Is.EqualTo(4));
+                Assert.That(provider.StopCallCount, Is.EqualTo(3));
             });
         }
 
@@ -134,13 +140,18 @@ namespace AudioVisualizer.Wpf.Tests
             var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer())
             {
                 UseDefaultDevice = false,
+                DeviceId = null,
             };
 
             // 実行
             control.IsActive = true;
 
             // 検証
-            Assert.That(provider.StartCallCount, Is.EqualTo(0));
+            Assert.Multiple(() =>
+            {
+                Assert.That(provider.StartCallCount, Is.EqualTo(0));
+                Assert.That(provider.LastSettings, Is.Null);
+            });
         }
 
         /// <summary>
@@ -216,7 +227,151 @@ namespace AudioVisualizer.Wpf.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(control.CurrentRenderData, Is.TypeOf<BarSpectrumRenderData>());
-                Assert.That(((BarSpectrumRenderData)control.CurrentRenderData!).Bars.Count, Is.EqualTo(3));
+                Assert.That(((BarSpectrumRenderData)control.CurrentRenderData!).Bars.Count, Is.EqualTo(control.BarCount));
+            });
+        }
+
+        /// <summary>
+        /// AudioVisualizerControl が描画設定変更を再接続なしで次回描画へ反映することを確認します。
+        /// ■入力
+        /// ・1. RecordingVisualizerEffect を指定した AudioVisualizerControl
+        /// ・2. Sensitivity、Smoothing、BarCount の変更
+        /// ■確認内容
+        /// ・1. 音声入力の再開始と停止が追加で呼ばれない
+        /// ・2. 最新の VisualizerEffectContext が変更値を保持する
+        /// ・3. CurrentRenderData のバー本数が変更値を反映する
+        /// </summary>
+        [Test]
+        public void Given_RenderSettings_When_ChangingSensitivitySmoothingAndBarCount_Then_NextRenderUsesUpdatedContext()
+        {
+            // 準備
+            var provider = new FakeAudioInputProvider();
+            var effect = new RecordingVisualizerEffect();
+            var control = new AudioVisualizerControl(provider, effect, new BarSpectrumRenderer())
+            {
+                IsActive = true,
+            };
+            provider.RaiseFrame(new VisualizerFrame(new[] { 0.2, 0.4, 0.6 }, new[] { 0.0, 0.0, 0.0 }, 0.6, DateTimeOffset.UtcNow));
+            provider.ResetCounters();
+
+            // 実行
+            control.Sensitivity = 1.4;
+            control.Smoothing = 0.25;
+            control.BarCount = 12;
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(provider.StartCallCount, Is.EqualTo(0));
+                Assert.That(provider.StopCallCount, Is.EqualTo(0));
+                Assert.That(effect.LastContext, Is.Not.Null);
+                Assert.That(effect.LastContext!.Sensitivity, Is.EqualTo(1.4).Within(1e-10));
+                Assert.That(effect.LastContext.Smoothing, Is.EqualTo(0.25).Within(1e-10));
+                Assert.That(effect.LastContext.BarCount, Is.EqualTo(12));
+                Assert.That(((BarSpectrumRenderData)control.CurrentRenderData!).Bars.Count, Is.EqualTo(12));
+            });
+        }
+
+        /// <summary>
+        /// AudioVisualizerControl が平滑化中にバー本数が増えた場合でも追加バーをそのまま反映できることを確認します。
+        /// ■入力
+        /// ・1. 初期 BarCount = 2 の AudioVisualizerControl
+        /// ・2. BarCount = 4 への変更
+        /// ■確認内容
+        /// ・1. CurrentRenderData のバー本数が 4 本になる
+        /// ・2. 追加されたバーも 0 より大きい高さを持つ
+        /// </summary>
+        [Test]
+        public void Given_SmoothedRenderData_When_BarCountIncreases_Then_NewBarsAreAddedWithoutReconnect()
+        {
+            // 準備
+            var provider = new FakeAudioInputProvider();
+            var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer())
+            {
+                IsActive = true,
+                BarCount = 2,
+                Smoothing = 0.5,
+            };
+            provider.RaiseFrame(new VisualizerFrame(new[] { 0.2, 0.8 }, new[] { 0.0, 0.0 }, 0.8, DateTimeOffset.UtcNow));
+
+            // 実行
+            control.BarCount = 4;
+
+            // 検証
+            var bars = ((BarSpectrumRenderData)control.CurrentRenderData!).Bars;
+            Assert.Multiple(() =>
+            {
+                Assert.That(bars.Count, Is.EqualTo(4));
+                Assert.That(bars[2].Height, Is.GreaterThan(0.0));
+                Assert.That(bars[3].Height, Is.GreaterThan(0.0));
+            });
+        }
+
+        /// <summary>
+        /// AudioVisualizerControl がブラシ変更時に再接続せず描画色だけを更新することを確認します。
+        /// ■入力
+        /// ・1. IsActive = true の AudioVisualizerControl
+        /// ・2. PrimaryBrush と SecondaryBrush の変更
+        /// ■確認内容
+        /// ・1. 音声入力の再開始と停止が追加で呼ばれない
+        /// ・2. 現在描画ブラシがグラデーションブラシになる
+        /// </summary>
+        [Test]
+        public void Given_ActiveControl_When_BrushesChange_Then_OnlyAppearanceIsUpdated()
+        {
+            // 準備
+            var provider = new FakeAudioInputProvider();
+            var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer())
+            {
+                IsActive = true,
+            };
+            provider.ResetCounters();
+
+            // 実行
+            control.PrimaryBrush = Brushes.OrangeRed;
+            control.SecondaryBrush = Brushes.Gold;
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(provider.StartCallCount, Is.EqualTo(0));
+                Assert.That(provider.StopCallCount, Is.EqualTo(0));
+                Assert.That(control.CurrentRenderBrush, Is.TypeOf<LinearGradientBrush>());
+                Assert.That(((LinearGradientBrush)control.CurrentRenderBrush).GradientStops[0].Color, Is.EqualTo(Colors.OrangeRed));
+                Assert.That(((LinearGradientBrush)control.CurrentRenderBrush).GradientStops[1].Color, Is.EqualTo(Colors.Gold));
+            });
+        }
+
+        /// <summary>
+        /// AudioVisualizerControl が特殊ブラシ指定でも代表色と代替色で描画ブラシを構成できることを確認します。
+        /// ■入力
+        /// ・1. PrimaryBrush に DrawingBrush
+        /// ・2. SecondaryBrush に LinearGradientBrush
+        /// ■確認内容
+        /// ・1. 現在描画ブラシがグラデーションブラシになる
+        /// ・2. PrimaryBrush は代替色 DeepSkyBlue として扱われる
+        /// ・3. SecondaryBrush は先頭グラデーション色が使われる
+        /// </summary>
+        [Test]
+        public void Given_CustomBrushTypes_When_BuildingRenderBrush_Then_FallbackAndGradientColorsAreUsed()
+        {
+            // 準備
+            var provider = new FakeAudioInputProvider();
+            var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer());
+            var secondaryBrush = new LinearGradientBrush();
+            secondaryBrush.GradientStops.Add(new GradientStop(Colors.MediumPurple, 0.0));
+            secondaryBrush.GradientStops.Add(new GradientStop(Colors.White, 1.0));
+
+            // 実行
+            control.PrimaryBrush = new DrawingBrush();
+            control.SecondaryBrush = secondaryBrush;
+
+            // 検証
+            var currentBrush = (LinearGradientBrush)control.CurrentRenderBrush;
+            Assert.Multiple(() =>
+            {
+                Assert.That(currentBrush.GradientStops[0].Color, Is.EqualTo(Colors.DeepSkyBlue));
+                Assert.That(currentBrush.GradientStops[1].Color, Is.EqualTo(Colors.MediumPurple));
             });
         }
 
@@ -295,6 +450,35 @@ namespace AudioVisualizer.Wpf.Tests
 
             // 検証
             Assert.That(result.Bars, Is.Empty);
+        }
+
+        /// <summary>
+        /// SpectrumBarEffect が単一スペクトラム値を複数バーへ展開できることを確認します。
+        /// ■入力
+        /// ・1. 1 個の SpectrumValues を持つ VisualizerFrame
+        /// ・2. barCount = 4 の VisualizerEffectContext
+        /// ■確認内容
+        /// ・1. 4 本のバーが生成される
+        /// ・2. すべての Height が同じ値になる
+        /// </summary>
+        [Test]
+        public void Given_SingleSpectrumValue_When_BuildRenderData_Then_ValueIsExpandedToAllBars()
+        {
+            // 準備
+            var effect = new SpectrumBarEffect();
+            var frame = new VisualizerFrame(new[] { 0.4 }, new[] { 0.0 }, 0.4, DateTimeOffset.UtcNow);
+            var context = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.5, 4);
+
+            // 実行
+            var result = (BarSpectrumRenderData)effect.BuildRenderData(frame, context);
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Bars.Count, Is.EqualTo(4));
+                Assert.That(result.Bars[0].Height, Is.EqualTo(0.4).Within(1e-10));
+                Assert.That(result.Bars[3].Height, Is.EqualTo(0.4).Within(1e-10));
+            });
         }
 
         /// <summary>
@@ -435,6 +619,39 @@ namespace AudioVisualizer.Wpf.Tests
                 Throws.Nothing);
         }
 
+        /// <summary>
+        /// AudioVisualizerControl がサイズ変更時に再接続せず再描画できることを確認します。
+        /// ■入力
+        /// ・1. IsActive = true の AudioVisualizerControl
+        /// ・2. RenderSize の変更通知
+        /// ■確認内容
+        /// ・1. 音声入力の再開始と停止が追加で呼ばれない
+        /// ・2. サイズ変更処理が例外を送出しない
+        /// </summary>
+        [Test]
+        public void Given_ActiveControl_When_RenderSizeChanges_Then_InputDoesNotRestart()
+        {
+            // 準備
+            var provider = new FakeAudioInputProvider();
+            var control = new TestableAudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer())
+            {
+                Width = 120,
+                Height = 48,
+                IsActive = true,
+            };
+            provider.ResetCounters();
+
+            // 実行と検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(
+                    () => control.InvokeOnRenderSizeChanged(new SizeChangedInfo(control, new Size(120, 48), true, true)),
+                    Throws.Nothing);
+                Assert.That(provider.StartCallCount, Is.EqualTo(0));
+                Assert.That(provider.StopCallCount, Is.EqualTo(0));
+            });
+        }
+
         #endregion
 
         #region 内部処理
@@ -483,6 +700,11 @@ namespace AudioVisualizer.Wpf.Tests
             /// </summary>
             public bool IsCapturing { get; private set; }
 
+            /// <summary>
+            /// 直近の開始設定を取得します。
+            /// </summary>
+            public VisualizerSettings? LastSettings { get; private set; }
+
             #endregion
 
             #region 公開メソッド
@@ -496,6 +718,7 @@ namespace AudioVisualizer.Wpf.Tests
             {
                 StartCallCount++;
                 IsCapturing = true;
+                LastSettings = settings;
                 return AudioInputStartResult.Success();
             }
 
@@ -518,6 +741,15 @@ namespace AudioVisualizer.Wpf.Tests
             }
 
             /// <summary>
+            /// 開始・停止回数をリセットします。
+            /// </summary>
+            public void ResetCounters()
+            {
+                StartCallCount = 0;
+                StopCallCount = 0;
+            }
+
+            /// <summary>
             /// 指定した解析済みフレームの通知を発生させます。
             /// </summary>
             /// <param name="frame">通知対象の解析済みフレームです。</param>
@@ -534,6 +766,55 @@ namespace AudioVisualizer.Wpf.Tests
             /// 新しい解析済みフレームが生成されたときに発生します。
             /// </summary>
             public event EventHandler<VisualizerFrameEventArgs>? FrameProduced;
+
+            #endregion
+        }
+
+        /// <summary>
+        /// 渡された VisualizerEffectContext を記録する検証用エフェクトです。
+        /// </summary>
+        private sealed class RecordingVisualizerEffect : IVisualizerEffect
+        {
+            #region プロパティ
+
+            /// <summary>
+            /// エフェクトのメタデータを取得します。
+            /// </summary>
+            public EffectMetadata Metadata { get; } = new(
+                "recording",
+                "Recording",
+                "1.0.0",
+                "Tests",
+                "テスト用にコンテキストを記録するエフェクトです。",
+                new[] { InputSource.SystemOutput, InputSource.Microphone });
+
+            /// <summary>
+            /// 直近に受け取った実行コンテキストを取得します。
+            /// </summary>
+            public VisualizerEffectContext? LastContext { get; private set; }
+
+            #endregion
+
+            #region 公開メソッド
+
+            /// <summary>
+            /// 渡されたコンテキストを記録し、バー型レンダーデータを返します。
+            /// </summary>
+            /// <param name="frame">解析済みフレームです。</param>
+            /// <param name="context">実行コンテキストです。</param>
+            /// <returns>コンテキストのバー本数を反映したレンダーデータです。</returns>
+            public VisualizerRenderData BuildRenderData(VisualizerFrame frame, VisualizerEffectContext context)
+            {
+                LastContext = context;
+
+                var bars = new BarRenderItem[context.BarCount];
+                for (var index = 0; index < context.BarCount; index++)
+                {
+                    bars[index] = new BarRenderItem(index / (double)Math.Max(1, context.BarCount), 0.8 / Math.Max(1, context.BarCount), 0.5, 0.5);
+                }
+
+                return new BarSpectrumRenderData(Metadata.Id, frame.Timestamp, bars);
+            }
 
             #endregion
         }
@@ -587,6 +868,15 @@ namespace AudioVisualizer.Wpf.Tests
             public void InvokeOnRender(DrawingContext drawingContext)
             {
                 OnRender(drawingContext);
+            }
+
+            /// <summary>
+            /// テストから OnRenderSizeChanged を呼び出します。
+            /// </summary>
+            /// <param name="sizeChangedInfo">サイズ変更情報です。</param>
+            public void InvokeOnRenderSizeChanged(SizeChangedInfo sizeChangedInfo)
+            {
+                OnRenderSizeChanged(sizeChangedInfo);
             }
 
             #endregion

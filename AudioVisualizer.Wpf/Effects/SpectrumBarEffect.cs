@@ -48,9 +48,9 @@ namespace AudioVisualizer.Wpf.Effects
             ArgumentNullException.ThrowIfNull(frame);
             ArgumentNullException.ThrowIfNull(context);
 
-            var barCount = Math.Min(context.BarCount, frame.SpectrumValues.Count);
+            var barCount = context.BarCount;
             var bars = new List<BarRenderItem>(barCount);
-            if (barCount == 0)
+            if (barCount == 0 || frame.SpectrumValues.Count == 0)
             {
                 return new BarSpectrumRenderData(Metadata.Id, frame.Timestamp, bars);
             }
@@ -61,11 +61,41 @@ namespace AudioVisualizer.Wpf.Effects
 
             for (var index = 0; index < barCount; index++)
             {
-                var level = Math.Clamp(frame.SpectrumValues[index], 0.0, 1.0);
+                var level = Math.Clamp(SampleSpectrumValue(frame.SpectrumValues, index, barCount) * context.Sensitivity, 0.0, 1.0);
                 bars.Add(new BarRenderItem((slotWidth * index) + xOffset, actualBarWidth, level, level));
             }
 
             return new BarSpectrumRenderData(Metadata.Id, frame.Timestamp, bars);
+        }
+
+        #endregion
+
+        #region 内部処理
+
+        /// <summary>
+        /// 任意本数の描画用にスペクトラム値を再サンプリングします。
+        /// </summary>
+        /// <param name="spectrumValues">元のスペクトラム値です。</param>
+        /// <param name="targetIndex">取得対象のバー位置です。</param>
+        /// <param name="targetCount">描画対象のバー本数です。</param>
+        /// <returns>再サンプリング後のスペクトラム値です。</returns>
+        private static double SampleSpectrumValue(IReadOnlyList<double> spectrumValues, int targetIndex, int targetCount)
+        {
+            if (targetCount <= 1 || spectrumValues.Count == 1)
+            {
+                return spectrumValues[0];
+            }
+
+            var position = targetIndex * (spectrumValues.Count - 1.0) / (targetCount - 1.0);
+            var lowerIndex = (int)Math.Floor(position);
+            var upperIndex = Math.Min(spectrumValues.Count - 1, lowerIndex + 1);
+            if (lowerIndex == upperIndex)
+            {
+                return spectrumValues[lowerIndex];
+            }
+
+            var weight = position - lowerIndex;
+            return (spectrumValues[lowerIndex] * (1.0 - weight)) + (spectrumValues[upperIndex] * weight);
         }
 
         #endregion

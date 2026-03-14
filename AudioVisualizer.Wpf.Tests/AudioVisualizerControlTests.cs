@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -543,6 +544,78 @@ namespace AudioVisualizer.Wpf.Tests
 
             // 検証
             Assert.That(highBoostResult.Bars[^1].Height, Is.GreaterThan(balancedResult.Bars[^1].Height));
+        }
+
+        /// <summary>
+        /// SpectrumBarEffect の内部サンプリングが未定義の SpectrumProfile 指定時に Balanced と同じ補正を適用することを確認します。
+        /// ■入力
+        /// ・1. 4 要素の SpectrumValues
+        /// ・2. 未定義の SpectrumProfile
+        /// ■確認内容
+        /// ・1. サンプリング結果が Balanced の結果と一致する
+        /// </summary>
+        [Test]
+        public void Given_InvalidSpectrumProfile_When_SamplingSpectrumValue_Then_BalancedFallbackIsUsed()
+        {
+            // 準備
+            var methodInfo = typeof(SpectrumBarEffect).GetMethod("SampleSpectrumValue", BindingFlags.Static | BindingFlags.NonPublic);
+            var spectrumValues = new[] { 1.0, 0.4, 0.1, 0.05 };
+
+            // 実行
+            var invalidResult = (double)methodInfo!.Invoke(null, new object[] { spectrumValues, 2, 4, (SpectrumProfile)999 })!;
+            var balancedResult = (double)methodInfo.Invoke(null, new object[] { spectrumValues, 2, 4, SpectrumProfile.Balanced })!;
+
+            // 検証
+            Assert.That(invalidResult, Is.EqualTo(balancedResult).Within(1e-10));
+        }
+
+        /// <summary>
+        /// SpectrumBarEffect が Balanced プロファイルでバー本数 1 の場合は先頭スペクトラム値をそのまま使うことを確認します。
+        /// ■入力
+        /// ・1. 複数 SpectrumValues を持つ VisualizerFrame
+        /// ・2. BarCount = 1 の Balanced VisualizerEffectContext
+        /// ■確認内容
+        /// ・1. 生成されるバーは 1 本になる
+        /// ・2. その高さが先頭スペクトラム値と一致する
+        /// </summary>
+        [Test]
+        public void Given_BalancedProfileWithSingleBar_When_BuildRenderData_Then_FirstSpectrumValueIsUsed()
+        {
+            // 準備
+            var effect = new SpectrumBarEffect();
+            var frame = new VisualizerFrame(new[] { 0.35, 0.9, 0.4 }, new[] { 0.0, 0.0 }, 0.9, DateTimeOffset.UtcNow);
+            var context = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.0, 1, SpectrumProfile.Balanced);
+
+            // 実行
+            var result = (BarSpectrumRenderData)effect.BuildRenderData(frame, context);
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Bars.Count, Is.EqualTo(1));
+                Assert.That(result.Bars[0].Height, Is.EqualTo(0.35).Within(1e-10));
+            });
+        }
+
+        /// <summary>
+        /// SpectrumBarEffect の帯域平均ヘルパーが同一インデックス範囲では単一値を返すことを確認します。
+        /// ■入力
+        /// ・1. 3 要素の SpectrumValues
+        /// ・2. startPosition = 1.0、endPosition = 1.0
+        /// ■確認内容
+        /// ・1. インデックス 1 の値をそのまま返す
+        /// </summary>
+        [Test]
+        public void Given_SameAverageRange_When_InvokingSampleAverageSpectrumValue_Then_SingleValueIsReturned()
+        {
+            // 準備
+            var methodInfo = typeof(SpectrumBarEffect).GetMethod("SampleAverageSpectrumValue", BindingFlags.Static | BindingFlags.NonPublic);
+
+            // 実行
+            var result = (double)methodInfo!.Invoke(null, new object[] { new[] { 0.1, 0.45, 0.9 }, 1.0, 1.0 })!;
+
+            // 検証
+            Assert.That(result, Is.EqualTo(0.45).Within(1e-10));
         }
 
         /// <summary>

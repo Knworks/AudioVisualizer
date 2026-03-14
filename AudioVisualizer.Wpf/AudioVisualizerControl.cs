@@ -163,8 +163,8 @@ namespace AudioVisualizer.Wpf
 
         /// <summary>
         /// スペクトラム値をバーへ割り当てる計算プロファイルを取得または設定します。
-        /// `Balanced` は低域の偏りを緩和する推奨設定、`Raw` は元の分布、`HighBoost` は右側の動きを強調したい場合の設定です。
-        /// 例えば左端だけが大きく動く場合は `Balanced`、さらに派手に動かしたい場合は `HighBoost` が目安です。
+        /// `Balanced` は低域の偏りを緩和しつつ中央の反応も見やすくする推奨設定、`Raw` は元の分布、`HighBoost` は右側の動きを強調したい場合の設定です。
+        /// 例えば左端だけが大きく動く場合や中央が薄い場合は `Balanced`、さらに派手に動かしたい場合は `HighBoost` が目安です。
         /// 変更時は再接続せず、次回描画から反映します。
         /// </summary>
         public SpectrumProfile SpectrumProfile

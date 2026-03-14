@@ -19,27 +19,27 @@ namespace AudioVisualizer.Wpf.Effects
 
         /// <summary>
         /// Balanced プロファイルで使用する位置補正係数です。
-        /// `1.0` に近いほど元の分布を残し、少しだけ高域側の割当を広げます。
+        /// 中域を見やすくするため、Balanced では帯域割当を少し広めに調整します。
         /// </summary>
         private const double BalancedPositionExponent = 0.8;
 
         /// <summary>
         /// Balanced プロファイルで使用する圧縮係数です。
-        /// 小さい成分を控えめに持ち上げ、HighBoost ほど強くは補正しません。
+        /// 中域の小さな成分も見やすくするため、控えめに圧縮します。
         /// </summary>
-        private const double BalancedCompressionExponent = 0.82;
+        private const double BalancedCompressionExponent = 0.8;
 
         /// <summary>
         /// Balanced プロファイルで使用する高域補正倍率です。
-        /// 高域の見え方を少し改善するための穏やかなゲインです。
+        /// 高域の見え方を少し改善するための控えめなゲインです。
         /// </summary>
-        private const double BalancedHighBandGain = 0.3;
+        private const double BalancedHighBandGain = 0.1;
 
         /// <summary>
         /// Balanced プロファイルで使用する中域補正倍率です。
-        /// 中域が沈み込みやすい音源でも、真ん中のバーが埋もれにくいように補正します。
+        /// 中域が沈み込みやすい音源でも、真ん中のバーが埋もれにくいように強めに補正します。
         /// </summary>
-        private const double BalancedMidBandGain = 0.22;
+        private const double BalancedMidBandGain = 0.75;
 
         /// <summary>
         /// HighBoost プロファイルで使用する位置補正係数です。

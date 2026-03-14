@@ -21,17 +21,17 @@ namespace AudioVisualizer.SampleApp.ViewModels
         /// <summary>
         /// SampleApp で初期表示するバー本数です。
         /// </summary>
-        private const int DefaultBarCount = 42;
+        private const int DefaultBarCount = 52;
 
         /// <summary>
         /// SampleApp で初期表示する感度です。
         /// </summary>
-        private const double DefaultSensitivity = 3.0;
+        private const double DefaultSensitivity = 5.0;
 
         /// <summary>
         /// SampleApp で初期表示する平滑化係数です。
         /// </summary>
-        private const double DefaultSmoothing = 0.65;
+        private const double DefaultSmoothing = 0.55;
 
         /// <summary>
         /// SampleApp で初期表示するスペクトラム計算プロファイルです。
@@ -274,7 +274,7 @@ namespace AudioVisualizer.SampleApp.ViewModels
 
         /// <summary>
         /// 可視化コントロールへ渡すスペクトラム計算プロファイルを取得または設定します。
-        /// `Balanced` は偏り緩和、`Raw` は元の分布、`HighBoost` は右側バーの強調に向きます。
+        /// `Balanced` は偏り緩和と中央の見やすさ向上、`Raw` は元の分布、`HighBoost` は右側バーの強調に向きます。
         /// </summary>
         public SpectrumProfile SelectedSpectrumProfile
         {

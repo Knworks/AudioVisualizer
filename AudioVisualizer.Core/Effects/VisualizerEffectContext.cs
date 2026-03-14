@@ -39,7 +39,7 @@ namespace AudioVisualizer.Core.Effects
         /// <summary>
         /// スペクトラム値をバーへ割り当てる計算プロファイルを取得します。
         /// `Raw` は元の分布、`Balanced` は見た目のバランス重視、`HighBoost` は高域強調です。
-        /// バーの偏りを抑えたい場合は `Balanced` か `HighBoost` を使用します。
+        /// バーの偏りを抑えつつ中央の反応も見やすくしたい場合は `Balanced` を使用します。
         /// </summary>
         public SpectrumProfile SpectrumProfile { get; }
 

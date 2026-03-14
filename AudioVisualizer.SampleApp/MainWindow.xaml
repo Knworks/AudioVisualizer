@@ -10,7 +10,7 @@
     Width="960"
     Height="640"
     MinWidth="720"
-    MinHeight="520"
+    MinHeight="480"
     d:DataContext="{d:DesignInstance Type=viewModels:MainWindowViewModel,
                                      IsDesignTimeCreatable=False}"
     mc:Ignorable="d">
@@ -129,6 +129,10 @@
                             ItemsSource="{Binding SpectrumProfileOptions}"
                             SelectedValue="{Binding SelectedSpectrumProfile, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             SelectedValuePath="Value" />
+                        <TextBlock
+                            Margin="0,4,0,0"
+                            Foreground="#FF475569"
+                            Text="Balanced は偏り緩和と中央の見やすさ向上、HighBoost は右側強調です。" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="1" Margin="0,0,16,0">
@@ -151,7 +155,7 @@
                         <Slider
                             Margin="0,8,0,0"
                             Minimum="0.5"
-                            Maximum="6.0"
+                            Maximum="10.0"
                             TickFrequency="0.1"
                             IsSnapToTickEnabled="True"
                             Value="{Binding Sensitivity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />

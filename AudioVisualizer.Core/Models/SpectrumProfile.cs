@@ -16,7 +16,7 @@ namespace AudioVisualizer.Core.Models
         /// <summary>
         /// 低域の偏りを抑えつつ、高域側も見やすくなるよう平均化と補正を行います。
         /// 既定表示として推奨する、見た目のバランス重視設定です。
-        /// HighBoost より補正量を抑え、元の分布もある程度残します。
+        /// 中域も見やすくしつつ、HighBoost ほど高域を強調しません。
         /// </summary>
         Balanced = 1,
 

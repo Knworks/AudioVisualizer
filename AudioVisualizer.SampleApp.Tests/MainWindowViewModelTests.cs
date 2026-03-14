@@ -35,9 +35,9 @@ namespace AudioVisualizer.SampleApp.Tests
                 Assert.That(sut.SelectedInputSource, Is.EqualTo(InputSource.SystemOutput));
                 Assert.That(sut.AvailableDevices.Select(device => device.DeviceId), Is.EqualTo(new[] { "render-1", "render-2" }));
                 Assert.That(sut.SelectedDeviceId, Is.EqualTo("render-1"));
-                Assert.That(sut.BarCount, Is.EqualTo(32));
-                Assert.That(sut.Sensitivity, Is.EqualTo(3.0).Within(1e-10));
-                Assert.That(sut.Smoothing, Is.EqualTo(0.25).Within(1e-10));
+                Assert.That(sut.BarCount, Is.EqualTo(52));
+                Assert.That(sut.Sensitivity, Is.EqualTo(5.0).Within(1e-10));
+                Assert.That(sut.Smoothing, Is.EqualTo(0.65).Within(1e-10));
                 Assert.That(sut.SelectedSpectrumProfile, Is.EqualTo(SpectrumProfile.Balanced));
                 Assert.That(sut.SpectrumProfileOptions.Select(option => option.Value), Is.EqualTo(new[] { SpectrumProfile.Balanced, SpectrumProfile.Raw, SpectrumProfile.HighBoost }));
                 Assert.That(sut.StatusMessage, Is.Empty);

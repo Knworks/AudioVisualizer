@@ -212,6 +212,23 @@ namespace AudioVisualizer.Core.Tests
         }
 
         /// <summary>
+        /// VisualizerFrame の波形必須制約を確認します。
+        /// ■入力
+        /// ・1. waveformValues = null
+        /// ■確認内容
+        /// ・1. ArgumentNullException が送出される
+        /// </summary>
+        [Test]
+        public void Given_NullWaveformValues_When_CreatingVisualizerFrame_Then_ThrowsArgumentNullException()
+        {
+            // 準備
+            static void Act() => _ = new VisualizerFrame(new[] { 0.1, 0.2 }, null!, 0.1, DateTimeOffset.UtcNow);
+
+            // 実行と検証
+            Assert.That(Act, Throws.TypeOf<ArgumentNullException>());
+        }
+
+        /// <summary>
         /// EffectMetadata が対応入力元を重複排除して保持することを確認します。
         /// ■入力
         /// ・1. supportedInputSources に重複した InputSource を含める
@@ -367,10 +384,26 @@ namespace AudioVisualizer.Core.Tests
 
         #region 内部クラス
 
+        /// <summary>
+        /// 可視化エフェクト契約検証用のダミー実装です。
+        /// </summary>
         private sealed class FakeVisualizerEffect : IVisualizerEffect
         {
-            #region 構築消滅
+            #region プロパティ
 
+            /// <summary>
+            /// このエフェクトのメタデータを取得します。
+            /// </summary>
+            public EffectMetadata Metadata { get; }
+
+            #endregion
+
+            #region 構築 / 消滅
+
+            /// <summary>
+            /// <see cref="FakeVisualizerEffect"/> クラスの新しいインスタンスを初期化します。
+            /// </summary>
+            /// <param name="metadata">保持するメタデータです。</param>
             public FakeVisualizerEffect(EffectMetadata metadata)
             {
                 Metadata = metadata;
@@ -378,14 +411,14 @@ namespace AudioVisualizer.Core.Tests
 
             #endregion
 
-            #region プロパティ
-
-            public EffectMetadata Metadata { get; }
-
-            #endregion
-
             #region 公開メソッド
 
+            /// <summary>
+            /// ダミーの描画データを生成します。
+            /// </summary>
+            /// <param name="frame">解析済みフレームです。</param>
+            /// <param name="context">描画コンテキストです。</param>
+            /// <returns>ダミーの描画データです。</returns>
             public VisualizerRenderData BuildRenderData(VisualizerFrame frame, VisualizerEffectContext context)
             {
                 return new FakeRenderData(Metadata.Id, frame.Timestamp);
@@ -394,10 +427,18 @@ namespace AudioVisualizer.Core.Tests
             #endregion
         }
 
+        /// <summary>
+        /// エフェクト ID と時刻だけを保持するダミー描画データです。
+        /// </summary>
         private sealed class FakeRenderData : VisualizerRenderData
         {
-            #region 構築消滅
+            #region 構築 / 消滅
 
+            /// <summary>
+            /// <see cref="FakeRenderData"/> クラスの新しいインスタンスを初期化します。
+            /// </summary>
+            /// <param name="effectId">エフェクト識別子です。</param>
+            /// <param name="timestamp">描画データ作成時刻です。</param>
             public FakeRenderData(string effectId, DateTimeOffset timestamp)
                 : base(effectId, timestamp)
             {

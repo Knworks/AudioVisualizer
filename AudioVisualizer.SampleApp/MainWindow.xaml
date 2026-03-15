@@ -39,6 +39,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <TextBlock
@@ -118,9 +119,24 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                        <TextBlock FontWeight="SemiBold" Text="BuiltInEffect" />
+                        <ComboBox
+                            Margin="0,8,0,0"
+                            DisplayMemberPath="DisplayName"
+                            ItemsSource="{Binding BuiltInEffectOptions}"
+                            SelectedValue="{Binding SelectedBuiltInEffectKind, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            SelectedValuePath="Value" />
+                        <TextBlock
+                            Margin="0,4,0,0"
+                            Foreground="#FF475569"
+                            Text="現在は SpectrumBar と WaveformLine を UI から切り替えできます。" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Margin="0,0,16,0">
                         <TextBlock FontWeight="SemiBold" Text="SpectrumProfile" />
                         <ComboBox
                             Margin="0,8,0,0"
@@ -134,7 +150,7 @@
                             Text="Balanced は偏り緩和と中央の見やすさ向上、HighBoost は右側強調です。" />
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                    <StackPanel Grid.Column="2" Margin="0,0,16,0">
                         <TextBlock FontWeight="SemiBold" Text="BarCount" />
                         <Slider
                             Margin="0,8,0,0"
@@ -149,7 +165,7 @@
                             Text="{Binding BarCount, StringFormat=現在値: {0}}" />
                     </StackPanel>
 
-                    <StackPanel Grid.Column="2" Margin="0,0,16,0">
+                    <StackPanel Grid.Column="3" Margin="0,0,16,0">
                         <TextBlock FontWeight="SemiBold" Text="Sensitivity" />
                         <Slider
                             Margin="0,8,0,0"
@@ -164,7 +180,7 @@
                             Text="{Binding Sensitivity, StringFormat=現在値: {0:F2}}" />
                     </StackPanel>
 
-                    <StackPanel Grid.Column="3">
+                    <StackPanel Grid.Column="4">
                         <TextBlock FontWeight="SemiBold" Text="Smoothing" />
                         <Slider
                             Margin="0,8,0,0"
@@ -198,6 +214,7 @@
             <visualizer:AudioVisualizerControl
                 BarCount="{Binding BarCount}"
                 DeviceId="{Binding SelectedDeviceId}"
+                Effect="{Binding SelectedEffect}"
                 InputSource="{Binding SelectedInputSource}"
                 IsActive="{Binding IsActive, Mode=TwoWay}"
                 PrimaryBrush="#FF22C55E"
@@ -212,7 +229,7 @@
             Grid.Row="3"
             Margin="4,12,4,0"
             Foreground="#FF475569"
-            Text="入力種別、デバイス、既定デバイス利用に加えて、SpectrumProfile、BarCount、Sensitivity、Smoothing もリアルタイムに変更できる利用例です。"
+            Text="入力種別、デバイス、組込エフェクト、SpectrumProfile、BarCount、Sensitivity、Smoothing をリアルタイムに変更できる利用例です。"
             TextWrapping="Wrap" />
     </Grid>
 </Window>

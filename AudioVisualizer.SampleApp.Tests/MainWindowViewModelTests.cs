@@ -1,6 +1,7 @@
 using AudioVisualizer.Core.Audio;
 using AudioVisualizer.Core.Models;
 using AudioVisualizer.SampleApp.ViewModels;
+using AudioVisualizer.Wpf;
 
 namespace AudioVisualizer.SampleApp.Tests
 {
@@ -39,7 +40,10 @@ namespace AudioVisualizer.SampleApp.Tests
                 Assert.That(sut.Sensitivity, Is.EqualTo(5.0).Within(1e-10));
                 Assert.That(sut.Smoothing, Is.EqualTo(0.55).Within(1e-10));
                 Assert.That(sut.SelectedSpectrumProfile, Is.EqualTo(SpectrumProfile.Balanced));
+                Assert.That(sut.SelectedBuiltInEffectKind, Is.EqualTo(BuiltInVisualizerEffectKind.SpectrumBar));
                 Assert.That(sut.SpectrumProfileOptions.Select(option => option.Value), Is.EqualTo(new[] { SpectrumProfile.Balanced, SpectrumProfile.Raw, SpectrumProfile.HighBoost }));
+                Assert.That(sut.BuiltInEffectOptions.Select(option => option.Value), Is.EqualTo(new[] { BuiltInVisualizerEffectKind.SpectrumBar, BuiltInVisualizerEffectKind.WaveformLine }));
+                Assert.That(sut.SelectedEffect.Metadata.Id, Is.EqualTo("spectrum-bars"));
                 Assert.That(sut.StatusMessage, Is.Empty);
             });
         }
@@ -79,6 +83,35 @@ namespace AudioVisualizer.SampleApp.Tests
                 Assert.That(sut.Sensitivity, Is.EqualTo(2.4).Within(1e-10));
                 Assert.That(sut.Smoothing, Is.EqualTo(0.55).Within(1e-10));
                 Assert.That(sut.SelectedSpectrumProfile, Is.EqualTo(SpectrumProfile.HighBoost));
+            });
+        }
+
+        /// <summary>
+        /// MainWindowViewModel が組込エフェクト選択の変更を現在エフェクトへ反映することを確認します。
+        /// ■入力
+        /// ・1. SelectedBuiltInEffectKind = WaveformLine
+        /// ・2. 再度同じ値を設定する
+        /// ■確認内容
+        /// ・1. 選択中の種別が更新される
+        /// ・2. SelectedEffect が WaveformLine のメタデータを持つ
+        /// ・3. 同じ値の再設定でも状態が破綻しない
+        /// </summary>
+        [Test]
+        public void Given_BuiltInEffectSelection_When_ChangingSelectedEffect_Then_CurrentEffectIsUpdated()
+        {
+            // 準備
+            var sut = new MainWindowViewModel(CreateDeviceService());
+
+            // 実行
+            sut.SelectedBuiltInEffectKind = BuiltInVisualizerEffectKind.WaveformLine;
+            sut.SelectedBuiltInEffectKind = BuiltInVisualizerEffectKind.WaveformLine;
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(sut.SelectedBuiltInEffectKind, Is.EqualTo(BuiltInVisualizerEffectKind.WaveformLine));
+                Assert.That(sut.SelectedEffect.Metadata.Id, Is.EqualTo("waveform-line"));
+                Assert.That(sut.SelectedEffect.Metadata.DisplayName, Is.EqualTo("Waveform Line"));
             });
         }
 

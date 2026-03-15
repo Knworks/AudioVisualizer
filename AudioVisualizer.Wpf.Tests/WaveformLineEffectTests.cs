@@ -148,6 +148,46 @@ namespace AudioVisualizer.Wpf.Tests
                 Throws.Nothing);
         }
 
+        /// <summary>
+        /// AudioVisualizerControl が WaveformLineEffect でも Smoothing を適用することを確認します。
+        /// ■入力
+        /// ・1. Smoothing = 0.5 の AudioVisualizerControl
+        /// ・2. Y 座標が異なる 2 フレーム
+        /// ■確認内容
+        /// ・1. 2 フレーム目の CurrentRenderData が中間値へ補間される
+        /// </summary>
+        [Test]
+        public void Given_WaveformRenderData_When_SmoothingIsEnabled_Then_PolylinePointsAreInterpolated()
+        {
+            // 準備
+            var provider = new FakeAudioInputProvider();
+            var control = new TestableAudioVisualizerControl(
+                provider,
+                new SpectrumBarEffect(),
+                new BarSpectrumRenderer(),
+                new PolylineRenderer())
+            {
+                IsActive = true,
+                Effect = new WaveformLineEffect(),
+                Smoothing = 0.5,
+            };
+            var firstFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { -1.0, -1.0 }, 1.0, DateTimeOffset.UtcNow);
+            var secondFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { 1.0, 1.0 }, 1.0, DateTimeOffset.UtcNow.AddMilliseconds(16));
+
+            // 実行
+            provider.RaiseFrame(firstFrame);
+            provider.RaiseFrame(secondFrame);
+
+            // 検証
+            var renderData = (PolylineRenderData)control.CurrentRenderData!;
+            Assert.Multiple(() =>
+            {
+                Assert.That(renderData.Points, Has.Count.EqualTo(2));
+                Assert.That(renderData.Points[0].Y, Is.EqualTo(0.5).Within(0.0001));
+                Assert.That(renderData.Points[1].Y, Is.EqualTo(0.5).Within(0.0001));
+            });
+        }
+
         #endregion
 
         #region 内部クラス

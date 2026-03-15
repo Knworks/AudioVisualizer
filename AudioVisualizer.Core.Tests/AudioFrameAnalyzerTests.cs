@@ -154,6 +154,62 @@ namespace AudioVisualizer.Core.Tests
         }
 
         /// <summary>
+        /// AudioFrameAnalyzer が波形生成で各区画の代表ピークを採用することを確認します。
+        /// ■入力
+        /// ・1. 正負が打ち消し合う 4 サンプルを含む AudioSampleBuffer
+        /// ・2. barCount = 2 の VisualizerSettings
+        /// ■確認内容
+        /// ・1. 各区画の最大絶対値サンプルが WaveformValues に反映される
+        /// </summary>
+        [Test]
+        public void Given_CancelingSamples_When_CreateFrame_Then_WaveformUsesRepresentativePeak()
+        {
+            // 準備
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 2);
+            var sampleBuffer = new AudioSampleBuffer(new[] { 0.1f, 0.8f, -0.2f, -0.9f }, 48000, 1, DateTimeOffset.UtcNow);
+
+            // 実行
+            var result = m_Sut.CreateFrame(sampleBuffer, settings);
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.WaveformValues.Count, Is.EqualTo(2));
+                Assert.That(result.WaveformValues[0], Is.EqualTo(0.8).Within(1e-6));
+                Assert.That(result.WaveformValues[1], Is.EqualTo(-0.9).Within(1e-6));
+            });
+        }
+
+        /// <summary>
+        /// AudioFrameAnalyzer が波形生成時にも感度係数を適用することを確認します。
+        /// ■入力
+        /// ・1. 代表ピーク 0.3 を含む AudioSampleBuffer
+        /// ・2. sensitivity = 2.0 の VisualizerSettings
+        /// ■確認内容
+        /// ・1. WaveformValues が感度係数に応じて拡大される
+        /// ・2. 1.0 を超える場合はクリップされる
+        /// </summary>
+        [Test]
+        public void Given_WaveformSensitivity_When_CreateFrame_Then_WaveformAmplitudeIsScaled()
+        {
+            // 準備
+            var boostedSettings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 2.0, 0.5, 2);
+            var clippedSettings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 4.0, 0.5, 2);
+            var sampleBuffer = new AudioSampleBuffer(new[] { 0.3f, 0.1f, -0.2f, -0.1f }, 48000, 1, DateTimeOffset.UtcNow);
+
+            // 実行
+            var boostedFrame = m_Sut.CreateFrame(sampleBuffer, boostedSettings);
+            var clippedFrame = m_Sut.CreateFrame(sampleBuffer, clippedSettings);
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(boostedFrame.WaveformValues[0], Is.EqualTo(0.6).Within(1e-6));
+                Assert.That(clippedFrame.WaveformValues[0], Is.EqualTo(1.0).Within(1e-6));
+            });
+        }
+
+        /// <summary>
         /// AudioFrameAnalyzer が null 入力を拒否することを確認します。
         /// ■入力
         /// ・1. sampleBuffer = null

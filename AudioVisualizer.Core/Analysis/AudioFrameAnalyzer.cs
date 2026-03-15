@@ -94,7 +94,7 @@ namespace AudioVisualizer.Core.Analysis
         private static double[] BuildWaveformValues(double[] samples, int outputLength, double sensitivity)
         {
             var result = new double[outputLength];
-            if (samples.Length == 0)
+            if (samples.Length == 0 || outputLength <= 0)
             {
                 return result;
             }
@@ -109,14 +109,17 @@ namespace AudioVisualizer.Core.Analysis
                 }
 
                 var endIndex = Math.Min(samples.Length, startIndex + bucketSize);
-                var sum = 0.0;
+                var representativeValue = 0.0;
                 for (var sampleIndex = startIndex; sampleIndex < endIndex; sampleIndex++)
                 {
-                    sum += samples[sampleIndex];
+                    var currentSample = samples[sampleIndex];
+                    if (Math.Abs(currentSample) > Math.Abs(representativeValue))
+                    {
+                        representativeValue = currentSample;
+                    }
                 }
 
-                var average = sum / (endIndex - startIndex);
-                result[bucketIndex] = Math.Clamp(average * sensitivity, -1.0, 1.0);
+                result[bucketIndex] = Math.Clamp(representativeValue * sensitivity, -1.0, 1.0);
             }
 
             return result;

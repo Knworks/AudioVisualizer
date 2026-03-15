@@ -6,8 +6,10 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using AudioVisualizer.Core.Audio;
+using AudioVisualizer.Core.Effects;
 using AudioVisualizer.Core.Models;
 using AudioVisualizer.SampleApp.Commands;
+using AudioVisualizer.Wpf;
 
 namespace AudioVisualizer.SampleApp.ViewModels
 {
@@ -37,6 +39,11 @@ namespace AudioVisualizer.SampleApp.ViewModels
         /// SampleApp で初期表示するスペクトラム計算プロファイルです。
         /// </summary>
         private const SpectrumProfile DefaultSpectrumProfile = SpectrumProfile.Balanced;
+
+        /// <summary>
+        /// SampleApp で初期表示する組込エフェクト種別です。
+        /// </summary>
+        private const BuiltInVisualizerEffectKind DefaultBuiltInEffect = BuiltInVisualizerEffectKind.SpectrumBar;
 
         #endregion
 
@@ -92,6 +99,16 @@ namespace AudioVisualizer.SampleApp.ViewModels
         /// </summary>
         private SpectrumProfile m_SelectedSpectrumProfile;
 
+        /// <summary>
+        /// 現在選択中の組込エフェクト種別です。
+        /// </summary>
+        private BuiltInVisualizerEffectKind m_SelectedBuiltInEffectKind;
+
+        /// <summary>
+        /// 可視化コントロールへ渡す現在のエフェクトです。
+        /// </summary>
+        private IVisualizerEffect m_SelectedEffect;
+
         #endregion
 
         #region プロパティ
@@ -105,6 +122,11 @@ namespace AudioVisualizer.SampleApp.ViewModels
         /// スペクトラム計算プロファイルの選択肢一覧を取得します。
         /// </summary>
         public IReadOnlyList<SpectrumProfileOption> SpectrumProfileOptions { get; }
+
+        /// <summary>
+        /// 組込エフェクトの選択肢一覧を取得します。
+        /// </summary>
+        public IReadOnlyList<BuiltInEffectOption> BuiltInEffectOptions { get; }
 
         /// <summary>
         /// 選択中の入力種別を取得または設定します。
@@ -292,6 +314,43 @@ namespace AudioVisualizer.SampleApp.ViewModels
         }
 
         /// <summary>
+        /// 現在選択中の組込エフェクト種別を取得または設定します。
+        /// </summary>
+        public BuiltInVisualizerEffectKind SelectedBuiltInEffectKind
+        {
+            get => m_SelectedBuiltInEffectKind;
+            set
+            {
+                if (m_SelectedBuiltInEffectKind == value)
+                {
+                    return;
+                }
+
+                m_SelectedBuiltInEffectKind = value;
+                SelectedEffect = BuiltInVisualizerEffects.Create(value);
+                OnPropertyChanged();
+            }
+        }
+
+        /// <summary>
+        /// 可視化コントロールへ渡す現在のエフェクトを取得します。
+        /// </summary>
+        public IVisualizerEffect SelectedEffect
+        {
+            get => m_SelectedEffect;
+            private set
+            {
+                if (ReferenceEquals(m_SelectedEffect, value))
+                {
+                    return;
+                }
+
+                m_SelectedEffect = value;
+                OnPropertyChanged();
+            }
+        }
+
+        /// <summary>
         /// 可視化開始コマンドを取得します。
         /// </summary>
         public ICommand StartCommand { get; }
@@ -324,6 +383,8 @@ namespace AudioVisualizer.SampleApp.ViewModels
             m_Sensitivity = DefaultSensitivity;
             m_Smoothing = DefaultSmoothing;
             m_SelectedSpectrumProfile = DefaultSpectrumProfile;
+            m_SelectedBuiltInEffectKind = DefaultBuiltInEffect;
+            m_SelectedEffect = BuiltInVisualizerEffects.Create(DefaultBuiltInEffect);
 
             InputSourceOptions = new[]
             {
@@ -336,6 +397,12 @@ namespace AudioVisualizer.SampleApp.ViewModels
                 new SpectrumProfileOption(SpectrumProfile.Balanced, "Balanced: 偏りを緩和"),
                 new SpectrumProfileOption(SpectrumProfile.Raw, "Raw: 既定の分布"),
                 new SpectrumProfileOption(SpectrumProfile.HighBoost, "HighBoost: 高域を強調"),
+            };
+
+            BuiltInEffectOptions = new[]
+            {
+                new BuiltInEffectOption(BuiltInVisualizerEffectKind.SpectrumBar, "SpectrumBar: スペクトラムバー"),
+                new BuiltInEffectOption(BuiltInVisualizerEffectKind.WaveformLine, "WaveformLine: 波形ライン"),
             };
 
             StartCommand = new DelegateCommand(Start, () => !IsActive);

@@ -687,20 +687,43 @@ namespace AudioVisualizer.Wpf
         }
 
         /// <summary>
-        /// バー描画データ同士を平滑化係数で補間します。
+        /// 同種の描画データ同士を平滑化係数で補間します。
         /// </summary>
         /// <param name="currentRenderData">現在描画中のレンダーデータです。</param>
         /// <param name="nextRenderData">次に描画するレンダーデータです。</param>
         /// <returns>平滑化適用後のレンダーデータです。</returns>
         private VisualizerRenderData ApplySmoothing(VisualizerRenderData? currentRenderData, VisualizerRenderData nextRenderData)
         {
-            if (Smoothing <= 0 ||
-                currentRenderData is not BarSpectrumRenderData currentBarRenderData ||
-                nextRenderData is not BarSpectrumRenderData nextBarRenderData)
+            if (Smoothing <= 0)
             {
                 return nextRenderData;
             }
 
+            if (currentRenderData is BarSpectrumRenderData currentBarRenderData &&
+                nextRenderData is BarSpectrumRenderData nextBarRenderData)
+            {
+                return ApplyBarSmoothing(currentBarRenderData, nextBarRenderData);
+            }
+
+            if (currentRenderData is PolylineRenderData currentPolylineRenderData &&
+                nextRenderData is PolylineRenderData nextPolylineRenderData)
+            {
+                return ApplyPolylineSmoothing(currentPolylineRenderData, nextPolylineRenderData);
+            }
+
+            return nextRenderData;
+        }
+
+        /// <summary>
+        /// バー描画データへ平滑化を適用します。
+        /// </summary>
+        /// <param name="currentBarRenderData">現在描画中のバー描画データです。</param>
+        /// <param name="nextBarRenderData">次に描画するバー描画データです。</param>
+        /// <returns>平滑化後のバー描画データです。</returns>
+        private VisualizerRenderData ApplyBarSmoothing(
+            BarSpectrumRenderData currentBarRenderData,
+            BarSpectrumRenderData nextBarRenderData)
+        {
             var smoothedBars = new BarRenderItem[nextBarRenderData.Bars.Count];
             for (var index = 0; index < nextBarRenderData.Bars.Count; index++)
             {
@@ -718,6 +741,34 @@ namespace AudioVisualizer.Wpf
             }
 
             return new BarSpectrumRenderData(nextBarRenderData.EffectId, nextBarRenderData.Timestamp, smoothedBars);
+        }
+
+        /// <summary>
+        /// 折れ線描画データへ平滑化を適用します。
+        /// </summary>
+        /// <param name="currentPolylineRenderData">現在描画中の折れ線描画データです。</param>
+        /// <param name="nextPolylineRenderData">次に描画する折れ線描画データです。</param>
+        /// <returns>平滑化後の折れ線描画データです。</returns>
+        private VisualizerRenderData ApplyPolylineSmoothing(
+            PolylineRenderData currentPolylineRenderData,
+            PolylineRenderData nextPolylineRenderData)
+        {
+            var smoothedPoints = new NormalizedPoint[nextPolylineRenderData.Points.Count];
+            for (var index = 0; index < nextPolylineRenderData.Points.Count; index++)
+            {
+                var nextPoint = nextPolylineRenderData.Points[index];
+                if (index >= currentPolylineRenderData.Points.Count)
+                {
+                    smoothedPoints[index] = nextPoint;
+                    continue;
+                }
+
+                var currentPoint = currentPolylineRenderData.Points[index];
+                var smoothedY = (currentPoint.Y * Smoothing) + (nextPoint.Y * (1.0 - Smoothing));
+                smoothedPoints[index] = new NormalizedPoint(nextPoint.X, smoothedY);
+            }
+
+            return new PolylineRenderData(nextPolylineRenderData.EffectId, nextPolylineRenderData.Timestamp, smoothedPoints);
         }
 
         /// <summary>

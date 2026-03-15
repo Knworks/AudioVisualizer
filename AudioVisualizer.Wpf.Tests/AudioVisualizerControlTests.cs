@@ -436,6 +436,79 @@ namespace AudioVisualizer.Wpf.Tests
         }
 
         /// <summary>
+        /// AudioVisualizerControl がワーカースレッドから連続到着したフレームを最新 1 件へ集約することを確認します。
+        /// ■入力
+        /// ・1. ワーカースレッドから連続で通知する 2 フレーム
+        /// ・2. 呼び出し回数を記録するテスト用エフェクト
+        /// ■確認内容
+        /// ・1. BuildRenderData が 1 回だけ呼ばれる
+        /// ・2. 最新フレームの値で描画更新される
+        /// </summary>
+        [Test]
+        public void Given_MultipleFramesRaisedFromWorkerThread_When_FrameProduced_Then_OnlyLatestFrameIsApplied()
+        {
+            // 準備
+            var provider = new FakeAudioInputProvider();
+            var effect = new CountingVisualizerEffect();
+            var control = new AudioVisualizerControl(provider, effect, new BarSpectrumRenderer())
+            {
+                IsActive = true,
+            };
+            var firstFrame = new VisualizerFrame(new[] { 0.1 }, new[] { 0.0 }, 0.1, DateTimeOffset.UtcNow);
+            var secondFrame = new VisualizerFrame(new[] { 0.9 }, new[] { 0.0 }, 0.9, DateTimeOffset.UtcNow.AddMilliseconds(16));
+
+            // 実行
+            Task.Run(() =>
+            {
+                provider.RaiseFrame(firstFrame);
+                provider.RaiseFrame(secondFrame);
+            }).Wait();
+            PumpDispatcher();
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(effect.BuildCallCount, Is.EqualTo(1));
+                Assert.That(effect.LastPeakLevel, Is.EqualTo(0.9).Within(0.0001));
+                Assert.That(control.CurrentRenderData, Is.Not.Null);
+            });
+        }
+
+        /// <summary>
+        /// AudioVisualizerControl が停止後に遅延到着したワーカースレッドフレームを破棄することを確認します。
+        /// ■入力
+        /// ・1. ワーカースレッドから通知した 1 フレーム
+        /// ・2. Dispatcher 実行前の IsActive = false
+        /// ■確認内容
+        /// ・1. BuildRenderData が呼ばれない
+        /// ・2. CurrentRenderData が null のまま維持される
+        /// </summary>
+        [Test]
+        public void Given_PendingWorkerFrame_When_DeactivatingBeforeDispatcherRuns_Then_FrameIsDiscarded()
+        {
+            // 準備
+            var provider = new FakeAudioInputProvider();
+            var effect = new CountingVisualizerEffect();
+            var control = new AudioVisualizerControl(provider, effect, new BarSpectrumRenderer())
+            {
+                IsActive = true,
+            };
+            var frame = new VisualizerFrame(new[] { 0.9 }, new[] { 0.0 }, 0.9, DateTimeOffset.UtcNow);
+
+            // 実行
+            Task.Run(() => provider.RaiseFrame(frame)).Wait();
+            control.IsActive = false;
+            PumpDispatcher();
+
+            // 検証
+            Assert.Multiple(() =>
+            {
+                Assert.That(effect.BuildCallCount, Is.EqualTo(0));
+                Assert.That(control.CurrentRenderData, Is.Null);
+            });
+        }
+
+        /// <summary>
         /// SpectrumBarEffect がスペクトラム値から正規化バー情報を生成することを確認します。
         /// ■入力
         /// ・1. 3 本のスペクトラム値を含む VisualizerFrame
@@ -1075,6 +1148,62 @@ namespace AudioVisualizer.Wpf.Tests
                 }
 
                 return new BarSpectrumRenderData(Metadata.Id, frame.Timestamp, bars);
+            }
+
+            #endregion
+        }
+
+        /// <summary>
+        /// 描画更新回数を記録するテスト用エフェクトです。
+        /// </summary>
+        private sealed class CountingVisualizerEffect : IVisualizerEffect
+        {
+            #region プロパティ
+
+            /// <summary>
+            /// エフェクトのメタデータを取得します。
+            /// </summary>
+            public EffectMetadata Metadata { get; } = new(
+                "counting",
+                "Counting",
+                "1.0.0",
+                "Tests",
+                "BuildRenderData の呼び出し回数を記録するテスト用エフェクトです。",
+                new[] { InputSource.SystemOutput, InputSource.Microphone });
+
+            /// <summary>
+            /// BuildRenderData の呼び出し回数を取得します。
+            /// </summary>
+            public int BuildCallCount { get; private set; }
+
+            /// <summary>
+            /// 直近に受け取ったピークレベルを取得します。
+            /// </summary>
+            public double LastPeakLevel { get; private set; }
+
+            #endregion
+
+            #region 公開メソッド
+
+            /// <summary>
+            /// 目的: フレーム適用回数を記録して最新フレーム反映を検証する。
+            /// 入力: 解析済みフレームと実行コンテキスト。
+            /// 確認内容: 呼び出し回数と直近ピーク値を保持した描画データを返す。
+            /// </summary>
+            /// <param name="frame">解析済みフレームです。</param>
+            /// <param name="context">実行コンテキストです。</param>
+            /// <returns>ピークレベルを反映した簡易バー描画データです。</returns>
+            public VisualizerRenderData BuildRenderData(VisualizerFrame frame, VisualizerEffectContext context)
+            {
+                BuildCallCount++;
+                LastPeakLevel = frame.PeakLevel;
+                return new BarSpectrumRenderData(
+                    Metadata.Id,
+                    frame.Timestamp,
+                    new[]
+                    {
+                        new BarRenderItem(0.0, 0.8, frame.PeakLevel, frame.PeakLevel),
+                    });
             }
 
             #endregion

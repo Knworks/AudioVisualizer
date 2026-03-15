@@ -81,6 +81,21 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         private Brush m_CurrentRenderBrush = Brushes.DeepSkyBlue;
 
+        /// <summary>
+        /// バックグラウンド到着フレームを集約するための排他制御です。
+        /// </summary>
+        private readonly object m_PendingFrameSync = new();
+
+        /// <summary>
+        /// UI スレッドで未反映の最新フレームです。
+        /// </summary>
+        private VisualizerFrame? m_PendingFrame;
+
+        /// <summary>
+        /// UI スレッドへのフレーム反映が予約済みかどうかを示します。
+        /// </summary>
+        private bool m_IsPendingFrameDispatchQueued;
+
         #endregion
 
         #region プロパティ
@@ -463,7 +478,7 @@ namespace AudioVisualizer.Wpf
                 return;
             }
 
-            _ = Dispatcher.InvokeAsync(() => ApplyFrame(e.Frame));
+            QueuePendingFrame(e.Frame);
         }
 
         #endregion
@@ -611,6 +626,11 @@ namespace AudioVisualizer.Wpf
         private void StopCapture()
         {
             m_AudioInputProvider.Stop();
+            lock (m_PendingFrameSync)
+            {
+                m_PendingFrame = null;
+            }
+
             ResetEffectState(Effect ?? m_DefaultEffect);
             m_CurrentFrame = null;
             m_CurrentRenderData = null;
@@ -653,6 +673,11 @@ namespace AudioVisualizer.Wpf
         /// <param name="frame">受信した解析済みフレームです。</param>
         private void ApplyFrame(VisualizerFrame frame)
         {
+            if (!IsActive)
+            {
+                return;
+            }
+
             m_CurrentFrame = frame ?? throw new ArgumentNullException(nameof(frame));
             UpdateRenderData();
             InvalidateVisual();
@@ -672,6 +697,54 @@ namespace AudioVisualizer.Wpf
             var effect = Effect ?? m_DefaultEffect;
             var rawRenderData = effect.BuildRenderData(m_CurrentFrame, CreateEffectContext());
             m_CurrentRenderData = ApplySmoothing(m_CurrentRenderData, rawRenderData);
+        }
+
+        /// <summary>
+        /// バックグラウンドから到着した最新フレームを UI スレッドへ集約して通知します。
+        /// </summary>
+        /// <param name="frame">反映対象の最新フレームです。</param>
+        private void QueuePendingFrame(VisualizerFrame frame)
+        {
+            ArgumentNullException.ThrowIfNull(frame);
+
+            var shouldSchedule = false;
+            lock (m_PendingFrameSync)
+            {
+                m_PendingFrame = frame;
+                if (!m_IsPendingFrameDispatchQueued)
+                {
+                    m_IsPendingFrameDispatchQueued = true;
+                    shouldSchedule = true;
+                }
+            }
+
+            if (shouldSchedule)
+            {
+                _ = Dispatcher.InvokeAsync(ProcessPendingFrames);
+            }
+        }
+
+        /// <summary>
+        /// 予約済みの最新フレームを UI スレッドで順次反映します。
+        /// </summary>
+        private void ProcessPendingFrames()
+        {
+            while (true)
+            {
+                VisualizerFrame? frame;
+                lock (m_PendingFrameSync)
+                {
+                    frame = m_PendingFrame;
+                    m_PendingFrame = null;
+                    if (frame is null)
+                    {
+                        m_IsPendingFrameDispatchQueued = false;
+                        return;
+                    }
+                }
+
+                ApplyFrame(frame);
+            }
         }
 
         /// <summary>

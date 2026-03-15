@@ -11,7 +11,7 @@ using AudioVisualizer.Wpf.Rendering;
 namespace AudioVisualizer.Wpf
 {
     /// <summary>
-    /// 音声入力から生成した解析結果をバー型で表示する最小の可視化コントロールです。
+    /// 音声入力から生成した解析結果をエフェクトごとに描画する可視化コントロールです。
     /// </summary>
     public class AudioVisualizerControl : Control
     {
@@ -52,9 +52,14 @@ namespace AudioVisualizer.Wpf
         private readonly IVisualizerEffect m_DefaultEffect;
 
         /// <summary>
-        /// レンダーデータを WPF 描画へ変換するレンダラーです。
+        /// バー型レンダーデータを WPF 描画へ変換するレンダラーです。
         /// </summary>
-        private readonly BarSpectrumRenderer m_Renderer;
+        private readonly BarSpectrumRenderer m_BarRenderer;
+
+        /// <summary>
+        /// 折れ線レンダーデータを WPF 描画へ変換するレンダラーです。
+        /// </summary>
+        private readonly PolylineRenderer m_PolylineRenderer;
 
         /// <summary>
         /// 直近で受信した解析済みフレームです。
@@ -344,7 +349,7 @@ namespace AudioVisualizer.Wpf
         /// <see cref="AudioVisualizerControl"/> クラスの新しいインスタンスを初期化します。
         /// </summary>
         public AudioVisualizerControl()
-            : this(new SystemOutputAudioInputProvider(), new SpectrumBarEffect(), new BarSpectrumRenderer())
+            : this(new SystemOutputAudioInputProvider(), new SpectrumBarEffect(), new BarSpectrumRenderer(), new PolylineRenderer())
         {
         }
 
@@ -353,12 +358,29 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         /// <param name="audioInputProvider">音声入力の開始と停止を担当する入力プロバイダーです。</param>
         /// <param name="defaultEffect">既定で使用するバー型エフェクトです。</param>
-        /// <param name="renderer">レンダーデータを WPF 描画へ変換するレンダラーです。</param>
+        /// <param name="renderer">バー型レンダーデータを WPF 描画へ変換するレンダラーです。</param>
         internal AudioVisualizerControl(IAudioInputProvider audioInputProvider, IVisualizerEffect defaultEffect, BarSpectrumRenderer renderer)
+            : this(audioInputProvider, defaultEffect, renderer, new PolylineRenderer())
+        {
+        }
+
+        /// <summary>
+        /// <see cref="AudioVisualizerControl"/> クラスの新しいインスタンスを初期化します。
+        /// </summary>
+        /// <param name="audioInputProvider">音声入力の開始と停止を担当する入力プロバイダーです。</param>
+        /// <param name="defaultEffect">既定で使用するバー型エフェクトです。</param>
+        /// <param name="renderer">バー型レンダーデータを WPF 描画へ変換するレンダラーです。</param>
+        /// <param name="polylineRenderer">折れ線レンダーデータを WPF 描画へ変換するレンダラーです。</param>
+        internal AudioVisualizerControl(
+            IAudioInputProvider audioInputProvider,
+            IVisualizerEffect defaultEffect,
+            BarSpectrumRenderer renderer,
+            PolylineRenderer polylineRenderer)
         {
             m_AudioInputProvider = audioInputProvider ?? throw new ArgumentNullException(nameof(audioInputProvider));
             m_DefaultEffect = defaultEffect ?? throw new ArgumentNullException(nameof(defaultEffect));
-            m_Renderer = renderer ?? throw new ArgumentNullException(nameof(renderer));
+            m_BarRenderer = renderer ?? throw new ArgumentNullException(nameof(renderer));
+            m_PolylineRenderer = polylineRenderer ?? throw new ArgumentNullException(nameof(polylineRenderer));
             m_AudioInputProvider.FrameProduced += OnFrameProduced;
             RefreshRenderBrush();
         }
@@ -374,7 +396,14 @@ namespace AudioVisualizer.Wpf
         protected override void OnRender(DrawingContext drawingContext)
         {
             base.OnRender(drawingContext);
-            m_Renderer.Render(drawingContext, m_CurrentRenderData, new Size(ActualWidth, ActualHeight), m_CurrentRenderBrush);
+            var renderSize = new Size(ActualWidth, ActualHeight);
+            if (m_CurrentRenderData is PolylineRenderData)
+            {
+                m_PolylineRenderer.Render(drawingContext, m_CurrentRenderData, renderSize, m_CurrentRenderBrush);
+                return;
+            }
+
+            m_BarRenderer.Render(drawingContext, m_CurrentRenderData, renderSize, m_CurrentRenderBrush);
         }
 
         /// <summary>

@@ -62,6 +62,11 @@ namespace AudioVisualizer.Wpf
         private readonly PolylineRenderer m_PolylineRenderer;
 
         /// <summary>
+        /// 固定帯域メーターレンダーデータを WPF 描画へ変換するレンダラーです。
+        /// </summary>
+        private readonly BandLevelMeterRenderer m_BandLevelMeterRenderer;
+
+        /// <summary>
         /// 直近で受信した解析済みフレームです。
         /// </summary>
         private VisualizerFrame? m_CurrentFrame;
@@ -349,7 +354,7 @@ namespace AudioVisualizer.Wpf
         /// <see cref="AudioVisualizerControl"/> クラスの新しいインスタンスを初期化します。
         /// </summary>
         public AudioVisualizerControl()
-            : this(new SystemOutputAudioInputProvider(), new SpectrumBarEffect(), new BarSpectrumRenderer(), new PolylineRenderer())
+            : this(new SystemOutputAudioInputProvider(), new SpectrumBarEffect(), new BarSpectrumRenderer(), new PolylineRenderer(), new BandLevelMeterRenderer())
         {
         }
 
@@ -360,7 +365,7 @@ namespace AudioVisualizer.Wpf
         /// <param name="defaultEffect">既定で使用するバー型エフェクトです。</param>
         /// <param name="renderer">バー型レンダーデータを WPF 描画へ変換するレンダラーです。</param>
         internal AudioVisualizerControl(IAudioInputProvider audioInputProvider, IVisualizerEffect defaultEffect, BarSpectrumRenderer renderer)
-            : this(audioInputProvider, defaultEffect, renderer, new PolylineRenderer())
+            : this(audioInputProvider, defaultEffect, renderer, new PolylineRenderer(), new BandLevelMeterRenderer())
         {
         }
 
@@ -376,11 +381,30 @@ namespace AudioVisualizer.Wpf
             IVisualizerEffect defaultEffect,
             BarSpectrumRenderer renderer,
             PolylineRenderer polylineRenderer)
+            : this(audioInputProvider, defaultEffect, renderer, polylineRenderer, new BandLevelMeterRenderer())
+        {
+        }
+
+        /// <summary>
+        /// テストや差し替え用途向けの依存注入コンストラクタです。
+        /// </summary>
+        /// <param name="audioInputProvider">音声入力プロバイダーです。</param>
+        /// <param name="defaultEffect">既定エフェクトです。</param>
+        /// <param name="renderer">バー型描画レンダラーです。</param>
+        /// <param name="polylineRenderer">折れ線描画レンダラーです。</param>
+        /// <param name="bandLevelMeterRenderer">固定帯域メーター描画レンダラーです。</param>
+        internal AudioVisualizerControl(
+            IAudioInputProvider audioInputProvider,
+            IVisualizerEffect defaultEffect,
+            BarSpectrumRenderer renderer,
+            PolylineRenderer polylineRenderer,
+            BandLevelMeterRenderer bandLevelMeterRenderer)
         {
             m_AudioInputProvider = audioInputProvider ?? throw new ArgumentNullException(nameof(audioInputProvider));
             m_DefaultEffect = defaultEffect ?? throw new ArgumentNullException(nameof(defaultEffect));
             m_BarRenderer = renderer ?? throw new ArgumentNullException(nameof(renderer));
             m_PolylineRenderer = polylineRenderer ?? throw new ArgumentNullException(nameof(polylineRenderer));
+            m_BandLevelMeterRenderer = bandLevelMeterRenderer ?? throw new ArgumentNullException(nameof(bandLevelMeterRenderer));
             m_AudioInputProvider.FrameProduced += OnFrameProduced;
             RefreshRenderBrush();
         }
@@ -397,6 +421,12 @@ namespace AudioVisualizer.Wpf
         {
             base.OnRender(drawingContext);
             var renderSize = new Size(ActualWidth, ActualHeight);
+            if (m_CurrentRenderData is BandLevelMeterRenderData)
+            {
+                m_BandLevelMeterRenderer.Render(drawingContext, m_CurrentRenderData, renderSize, m_CurrentRenderBrush);
+                return;
+            }
+
             if (m_CurrentRenderData is PolylineRenderData)
             {
                 m_PolylineRenderer.Render(drawingContext, m_CurrentRenderData, renderSize, m_CurrentRenderBrush);
@@ -714,6 +744,12 @@ namespace AudioVisualizer.Wpf
                 return ApplyPolylineSmoothing(currentPolylineRenderData, nextPolylineRenderData);
             }
 
+            if (currentRenderData is BandLevelMeterRenderData currentBandLevelMeterRenderData &&
+                nextRenderData is BandLevelMeterRenderData nextBandLevelMeterRenderData)
+            {
+                return ApplyBandLevelMeterSmoothing(currentBandLevelMeterRenderData, nextBandLevelMeterRenderData);
+            }
+
             return nextRenderData;
         }
 
@@ -772,6 +808,34 @@ namespace AudioVisualizer.Wpf
             }
 
             return new PolylineRenderData(nextPolylineRenderData.EffectId, nextPolylineRenderData.Timestamp, smoothedPoints);
+        }
+
+        /// <summary>
+        /// 固定帯域メーター描画データへ平滑化を適用します。
+        /// </summary>
+        /// <param name="currentBandLevelMeterRenderData">現在描画中の固定帯域メーター描画データです。</param>
+        /// <param name="nextBandLevelMeterRenderData">次に描画する固定帯域メーター描画データです。</param>
+        /// <returns>平滑化後の固定帯域メーター描画データです。</returns>
+        private VisualizerRenderData ApplyBandLevelMeterSmoothing(
+            BandLevelMeterRenderData currentBandLevelMeterRenderData,
+            BandLevelMeterRenderData nextBandLevelMeterRenderData)
+        {
+            var smoothedBands = new BandLevelMeterItem[nextBandLevelMeterRenderData.Bands.Count];
+            for (var index = 0; index < nextBandLevelMeterRenderData.Bands.Count; index++)
+            {
+                var nextBand = nextBandLevelMeterRenderData.Bands[index];
+                if (index >= currentBandLevelMeterRenderData.Bands.Count)
+                {
+                    smoothedBands[index] = nextBand;
+                    continue;
+                }
+
+                var currentBand = currentBandLevelMeterRenderData.Bands[index];
+                var smoothedLevel = (currentBand.Level * Smoothing) + (nextBand.Level * (1.0 - Smoothing));
+                smoothedBands[index] = new BandLevelMeterItem(nextBand.X, nextBand.Width, smoothedLevel, nextBand.Label);
+            }
+
+            return new BandLevelMeterRenderData(nextBandLevelMeterRenderData.EffectId, nextBandLevelMeterRenderData.Timestamp, smoothedBands);
         }
 
         /// <summary>

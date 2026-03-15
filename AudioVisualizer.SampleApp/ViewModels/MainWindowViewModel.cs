@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
@@ -9,6 +10,7 @@ using AudioVisualizer.Core.Audio;
 using AudioVisualizer.Core.Effects;
 using AudioVisualizer.Core.Models;
 using AudioVisualizer.SampleApp.Commands;
+using AudioVisualizer.SampleApp.Properties;
 using AudioVisualizer.Wpf;
 
 namespace AudioVisualizer.SampleApp.ViewModels
@@ -238,6 +240,12 @@ namespace AudioVisualizer.SampleApp.ViewModels
         }
 
         /// <summary>
+        /// バー本数の現在値表示文言を取得します。
+        /// </summary>
+        public string BarCountDisplayText => Strings.FormatCurrentValue(
+            BarCount.ToString(CultureInfo.CurrentCulture));
+
+        /// <summary>
         /// 可視化コントロールへ渡すバー本数を取得または設定します。
         /// 値を減らすと 1 本ごとの動きが大きく見え、増やすと細かい表示になります。
         /// </summary>
@@ -253,8 +261,15 @@ namespace AudioVisualizer.SampleApp.ViewModels
 
                 m_BarCount = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(BarCountDisplayText));
             }
         }
+
+        /// <summary>
+        /// 感度の現在値表示文言を取得します。
+        /// </summary>
+        public string SensitivityDisplayText => Strings.FormatCurrentValue(
+            Sensitivity.ToString("F2", CultureInfo.CurrentCulture));
 
         /// <summary>
         /// 可視化コントロールへ渡す感度を取得または設定します。
@@ -272,8 +287,15 @@ namespace AudioVisualizer.SampleApp.ViewModels
 
                 m_Sensitivity = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(SensitivityDisplayText));
             }
         }
+
+        /// <summary>
+        /// 平滑化係数の現在値表示文言を取得します。
+        /// </summary>
+        public string SmoothingDisplayText => Strings.FormatCurrentValue(
+            Smoothing.ToString("F2", CultureInfo.CurrentCulture));
 
         /// <summary>
         /// 可視化コントロールへ渡す平滑化係数を取得または設定します。
@@ -291,6 +313,7 @@ namespace AudioVisualizer.SampleApp.ViewModels
 
                 m_Smoothing = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(SmoothingDisplayText));
             }
         }
 
@@ -388,24 +411,24 @@ namespace AudioVisualizer.SampleApp.ViewModels
 
             InputSourceOptions = new[]
             {
-                new InputSourceOption(InputSource.SystemOutput, "システム再生音"),
-                new InputSourceOption(InputSource.Microphone, "マイク"),
+                new InputSourceOption(InputSource.SystemOutput, Strings.SystemOutputOptionLabel),
+                new InputSourceOption(InputSource.Microphone, Strings.MicrophoneOptionLabel),
             };
 
             SpectrumProfileOptions = new[]
             {
-                new SpectrumProfileOption(SpectrumProfile.Balanced, "Balanced: 偏りを緩和"),
-                new SpectrumProfileOption(SpectrumProfile.Raw, "Raw: 既定の分布"),
-                new SpectrumProfileOption(SpectrumProfile.HighBoost, "HighBoost: 高域を強調"),
+                new SpectrumProfileOption(SpectrumProfile.Balanced, Strings.BalancedProfileOptionLabel),
+                new SpectrumProfileOption(SpectrumProfile.Raw, Strings.RawProfileOptionLabel),
+                new SpectrumProfileOption(SpectrumProfile.HighBoost, Strings.HighBoostProfileOptionLabel),
             };
 
             BuiltInEffectOptions = new[]
             {
-                new BuiltInEffectOption(BuiltInVisualizerEffectKind.SpectrumBar, "SpectrumBar: スペクトラムバー"),
-                new BuiltInEffectOption(BuiltInVisualizerEffectKind.WaveformLine, "WaveformLine: 波形ライン"),
-                new BuiltInEffectOption(BuiltInVisualizerEffectKind.MirrorBar, "MirrorBar: ミラーバー"),
-                new BuiltInEffectOption(BuiltInVisualizerEffectKind.PeakHoldBar, "PeakHoldBar: ピーク保持バー"),
-                new BuiltInEffectOption(BuiltInVisualizerEffectKind.BandLevelMeter, "BandLevelMeter: 帯域メーター"),
+                new BuiltInEffectOption(BuiltInVisualizerEffectKind.SpectrumBar, Strings.SpectrumBarEffectOptionLabel),
+                new BuiltInEffectOption(BuiltInVisualizerEffectKind.WaveformLine, Strings.WaveformLineEffectOptionLabel),
+                new BuiltInEffectOption(BuiltInVisualizerEffectKind.MirrorBar, Strings.MirrorBarEffectOptionLabel),
+                new BuiltInEffectOption(BuiltInVisualizerEffectKind.PeakHoldBar, Strings.PeakHoldBarEffectOptionLabel),
+                new BuiltInEffectOption(BuiltInVisualizerEffectKind.BandLevelMeter, Strings.BandLevelMeterEffectOptionLabel),
             };
 
             StartCommand = new DelegateCommand(Start, () => !IsActive);
@@ -471,7 +494,7 @@ namespace AudioVisualizer.SampleApp.ViewModels
 
                 if (devices.Count == 0)
                 {
-                    StatusMessage = "利用可能なデバイスがありません。既定デバイス利用のまま操作できます。";
+                    StatusMessage = Strings.NoAvailableDevicesMessage;
                     return;
                 }
 
@@ -482,7 +505,7 @@ namespace AudioVisualizer.SampleApp.ViewModels
                 ReplaceDevices(Array.Empty<AudioDeviceInfo>());
                 SelectedDeviceId = null;
                 UseDefaultDevice = true;
-                StatusMessage = "デバイス一覧の取得に失敗しました。既定デバイス利用のまま操作できます。";
+                StatusMessage = Strings.DeviceLoadFailedMessage;
             }
 
             OnPropertyChanged(nameof(CanSelectDevice));
@@ -539,7 +562,7 @@ namespace AudioVisualizer.SampleApp.ViewModels
             if (AvailableDevices.Count == 0)
             {
                 UseDefaultDevice = true;
-                StatusMessage = "利用可能なデバイスがないため、既定デバイス利用に戻しました。";
+                StatusMessage = Strings.RevertedToDefaultDeviceMessage;
                 return;
             }
 

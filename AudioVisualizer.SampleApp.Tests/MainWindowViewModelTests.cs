@@ -1,6 +1,8 @@
 using System.Reflection;
+using System.Globalization;
 using AudioVisualizer.Core.Audio;
 using AudioVisualizer.Core.Models;
+using AudioVisualizer.SampleApp.Properties;
 using AudioVisualizer.SampleApp.ViewModels;
 using AudioVisualizer.Wpf;
 
@@ -43,7 +45,19 @@ namespace AudioVisualizer.SampleApp.Tests
                 Assert.That(sut.Smoothing, Is.EqualTo(0.55).Within(1e-10));
                 Assert.That(sut.SelectedSpectrumProfile, Is.EqualTo(SpectrumProfile.Balanced));
                 Assert.That(sut.SelectedBuiltInEffectKind, Is.EqualTo(BuiltInVisualizerEffectKind.SpectrumBar));
+                Assert.That(
+                    sut.InputSourceOptions.Select(option => option.DisplayName),
+                    Is.EqualTo(new[] { Strings.SystemOutputOptionLabel, Strings.MicrophoneOptionLabel }));
                 Assert.That(sut.SpectrumProfileOptions.Select(option => option.Value), Is.EqualTo(new[] { SpectrumProfile.Balanced, SpectrumProfile.Raw, SpectrumProfile.HighBoost }));
+                Assert.That(
+                    sut.SpectrumProfileOptions.Select(option => option.DisplayName),
+                    Is.EqualTo(
+                        new[]
+                        {
+                            Strings.BalancedProfileOptionLabel,
+                            Strings.RawProfileOptionLabel,
+                            Strings.HighBoostProfileOptionLabel,
+                        }));
                 Assert.That(
                     sut.BuiltInEffectOptions.Select(option => option.Value),
                     Is.EqualTo(
@@ -60,15 +74,78 @@ namespace AudioVisualizer.SampleApp.Tests
                     Is.EqualTo(
                         new[]
                         {
-                            "SpectrumBar: スペクトラムバー",
-                            "WaveformLine: 波形ライン",
-                            "MirrorBar: ミラーバー",
-                            "PeakHoldBar: ピーク保持バー",
-                            "BandLevelMeter: 帯域メーター",
+                            Strings.SpectrumBarEffectOptionLabel,
+                            Strings.WaveformLineEffectOptionLabel,
+                            Strings.MirrorBarEffectOptionLabel,
+                            Strings.PeakHoldBarEffectOptionLabel,
+                            Strings.BandLevelMeterEffectOptionLabel,
                         }));
                 Assert.That(sut.SelectedEffect.Metadata.Id, Is.EqualTo("spectrum-bars"));
                 Assert.That(sut.StatusMessage, Is.Empty);
+                Assert.That(sut.BarCountDisplayText, Is.EqualTo(Strings.FormatCurrentValue("52")));
+                Assert.That(sut.SensitivityDisplayText, Is.EqualTo(Strings.FormatCurrentValue("5.00")));
+                Assert.That(sut.SmoothingDisplayText, Is.EqualTo(Strings.FormatCurrentValue("0.55")));
             });
+        }
+
+        /// <summary>
+        /// MainWindowViewModel が日本語 UI カルチャで日本語文言を読み込むことを確認します。
+        /// ■入力
+        /// ・1. ja-JP の UI カルチャ
+        /// ・2. デバイス未取得の FakeAudioDeviceService
+        /// ■確認内容
+        /// ・1. 選択肢表示名が日本語になる
+        /// ・2. ステータスメッセージが日本語になる
+        /// </summary>
+        [Test]
+        public void Given_JapaneseUiCulture_When_CreatingViewModel_Then_JapaneseTextsAreUsed()
+        {
+            RunWithCulture(
+                new CultureInfo("ja-JP"),
+                () =>
+                {
+                    // 準備
+                    var sut = new MainWindowViewModel(new FakeAudioDeviceService(Array.Empty<AudioDeviceInfo>(), Array.Empty<AudioDeviceInfo>()));
+
+                    // 検証
+                    Assert.Multiple(() =>
+                    {
+                        Assert.That(sut.InputSourceOptions[0].DisplayName, Is.EqualTo("システム再生音"));
+                        Assert.That(sut.BuiltInEffectOptions[0].DisplayName, Is.EqualTo("SpectrumBar: スペクトラムバー"));
+                        Assert.That(sut.BarCountDisplayText, Is.EqualTo("現在値: 52"));
+                        Assert.That(sut.StatusMessage, Is.EqualTo("利用可能なデバイスがありません。既定デバイス利用のまま操作できます。"));
+                    });
+                });
+        }
+
+        /// <summary>
+        /// MainWindowViewModel が日本語以外の UI カルチャで英語文言を読み込むことを確認します。
+        /// ■入力
+        /// ・1. en-US の UI カルチャ
+        /// ・2. デバイス未取得の FakeAudioDeviceService
+        /// ■確認内容
+        /// ・1. 選択肢表示名が英語になる
+        /// ・2. ステータスメッセージが英語になる
+        /// </summary>
+        [Test]
+        public void Given_NonJapaneseUiCulture_When_CreatingViewModel_Then_EnglishTextsAreUsed()
+        {
+            RunWithCulture(
+                new CultureInfo("en-US"),
+                () =>
+                {
+                    // 準備
+                    var sut = new MainWindowViewModel(new FakeAudioDeviceService(Array.Empty<AudioDeviceInfo>(), Array.Empty<AudioDeviceInfo>()));
+
+                    // 検証
+                    Assert.Multiple(() =>
+                    {
+                        Assert.That(sut.InputSourceOptions[0].DisplayName, Is.EqualTo("System Output"));
+                        Assert.That(sut.BuiltInEffectOptions[0].DisplayName, Is.EqualTo("SpectrumBar: Spectrum Bars"));
+                        Assert.That(sut.BarCountDisplayText, Is.EqualTo("Current: 52"));
+                        Assert.That(sut.StatusMessage, Is.EqualTo("No available devices were found. You can continue using the default device."));
+                    });
+                });
         }
 
         /// <summary>
@@ -308,7 +385,7 @@ namespace AudioVisualizer.SampleApp.Tests
             {
                 Assert.That(sut.UseDefaultDevice, Is.True);
                 Assert.That(sut.SelectedDeviceId, Is.Null);
-                Assert.That(sut.StatusMessage, Is.Not.Empty);
+                Assert.That(sut.StatusMessage, Is.EqualTo(Strings.RevertedToDefaultDeviceMessage));
             });
         }
 
@@ -335,7 +412,7 @@ namespace AudioVisualizer.SampleApp.Tests
             // 検証
             Assert.Multiple(() =>
             {
-                Assert.That(sut.StatusMessage, Is.Not.Empty);
+                Assert.That(sut.StatusMessage, Is.EqualTo(Strings.DeviceLoadFailedMessage));
                 Assert.That(sut.UseDefaultDevice, Is.True);
                 Assert.That(sut.IsActive, Is.False);
             });
@@ -518,6 +595,32 @@ namespace AudioVisualizer.SampleApp.Tests
                     new AudioDeviceInfo("mic-1", "Microphone", InputSource.Microphone, true),
                     new AudioDeviceInfo("mic-2", "USB Microphone", InputSource.Microphone, false),
                 });
+        }
+
+        /// <summary>
+        /// 指定カルチャでテスト処理を実行し、終了後に元のカルチャへ戻します。
+        /// </summary>
+        /// <param name="culture">テスト実行中に適用するカルチャです。</param>
+        /// <param name="action">指定カルチャで実行する処理です。</param>
+        private static void RunWithCulture(CultureInfo culture, Action action)
+        {
+            ArgumentNullException.ThrowIfNull(culture);
+            ArgumentNullException.ThrowIfNull(action);
+
+            var previousCulture = CultureInfo.CurrentCulture;
+            var previousUiCulture = CultureInfo.CurrentUICulture;
+
+            try
+            {
+                CultureInfo.CurrentCulture = culture;
+                CultureInfo.CurrentUICulture = culture;
+                action();
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = previousCulture;
+                CultureInfo.CurrentUICulture = previousUiCulture;
+            }
         }
 
         #endregion

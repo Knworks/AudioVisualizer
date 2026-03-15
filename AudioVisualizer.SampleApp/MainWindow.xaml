@@ -4,18 +4,17 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:properties="clr-namespace:AudioVisualizer.SampleApp.Properties"
     xmlns:viewModels="clr-namespace:AudioVisualizer.SampleApp.ViewModels"
     xmlns:visualizer="clr-namespace:AudioVisualizer.Wpf;assembly=AudioVisualizer.Wpf"
-    Title="AudioVisualizer SampleApp"
+    Title="{x:Static properties:Strings.WindowTitle}"
     Width="960"
-    Height="640"
-
+    Height="520"
     d:DataContext="{d:DesignInstance Type=viewModels:MainWindowViewModel,
                                      IsDesignTimeCreatable=False}"
     mc:Ignorable="d">
     <Grid Margin="20">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
@@ -47,7 +46,7 @@
                     Grid.Column="0"
                     Margin="0,0,12,8"
                     FontWeight="SemiBold"
-                    Text="入力種別" />
+                    Text="{x:Static properties:Strings.InputSourceLabel}" />
                 <ComboBox
                     Grid.Row="1"
                     Grid.Column="0"
@@ -62,7 +61,7 @@
                     Grid.Column="1"
                     Margin="0,0,12,8"
                     FontWeight="SemiBold"
-                    Text="デバイス" />
+                    Text="{x:Static properties:Strings.DeviceLabel}" />
                 <ComboBox
                     Grid.Row="1"
                     Grid.Column="1"
@@ -78,13 +77,13 @@
                     Grid.Column="2"
                     Margin="0,0,12,8"
                     FontWeight="SemiBold"
-                    Text="接続設定" />
+                    Text="{x:Static properties:Strings.ConnectionSettingsLabel}" />
                 <CheckBox
                     Grid.Row="1"
                     Grid.Column="2"
                     Margin="0,4,12,0"
                     VerticalAlignment="Center"
-                    Content="既定デバイスを使う"
+                    Content="{x:Static properties:Strings.UseDefaultDeviceContent}"
                     IsChecked="{Binding UseDefaultDevice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                 <StackPanel
@@ -97,16 +96,16 @@
                         MinWidth="88"
                         Margin="0,0,8,0"
                         Command="{Binding RefreshDevicesCommand}"
-                        Content="再読込" />
+                        Content="{x:Static properties:Strings.RefreshButtonLabel}" />
                     <Button
                         MinWidth="88"
                         Margin="0,0,8,0"
                         Command="{Binding StartCommand}"
-                        Content="開始" />
+                        Content="{x:Static properties:Strings.StartButtonLabel}" />
                     <Button
                         MinWidth="88"
                         Command="{Binding StopCommand}"
-                        Content="停止" />
+                        Content="{x:Static properties:Strings.StopButtonLabel}" />
                 </StackPanel>
 
                 <Grid
@@ -123,35 +122,27 @@
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" Margin="0,0,16,0">
-                        <TextBlock FontWeight="SemiBold" Text="BuiltInEffect" />
+                        <TextBlock FontWeight="SemiBold" Text="{x:Static properties:Strings.BuiltInEffectLabel}" />
                         <ComboBox
                             Margin="0,8,0,0"
                             DisplayMemberPath="DisplayName"
                             ItemsSource="{Binding BuiltInEffectOptions}"
                             SelectedValue="{Binding SelectedBuiltInEffectKind, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             SelectedValuePath="Value" />
-                        <TextBlock
-                            Margin="0,4,0,0"
-                            Foreground="#FF475569"
-                            Text="SpectrumBar、WaveformLine、MirrorBar、PeakHoldBar、BandLevelMeter を切り替えできます。" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="1" Margin="0,0,16,0">
-                        <TextBlock FontWeight="SemiBold" Text="SpectrumProfile" />
+                        <TextBlock FontWeight="SemiBold" Text="{x:Static properties:Strings.SpectrumProfileLabel}" />
                         <ComboBox
                             Margin="0,8,0,0"
                             DisplayMemberPath="DisplayName"
                             ItemsSource="{Binding SpectrumProfileOptions}"
                             SelectedValue="{Binding SelectedSpectrumProfile, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             SelectedValuePath="Value" />
-                        <TextBlock
-                            Margin="0,4,0,0"
-                            Foreground="#FF475569"
-                            Text="Balanced は偏り緩和と中央の見やすさ向上、HighBoost は右側強調です。" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" Margin="0,0,16,0">
-                        <TextBlock FontWeight="SemiBold" Text="BarCount" />
+                        <TextBlock FontWeight="SemiBold" Text="{x:Static properties:Strings.BarCountLabel}" />
                         <Slider
                             Margin="0,8,0,0"
                             Minimum="16"
@@ -162,11 +153,11 @@
                         <TextBlock
                             Margin="0,4,0,0"
                             Foreground="#FF475569"
-                            Text="{Binding BarCount, StringFormat=現在値: {0}}" />
+                            Text="{Binding BarCountDisplayText}" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="3" Margin="0,0,16,0">
-                        <TextBlock FontWeight="SemiBold" Text="Sensitivity" />
+                        <TextBlock FontWeight="SemiBold" Text="{x:Static properties:Strings.SensitivityLabel}" />
                         <Slider
                             Margin="0,8,0,0"
                             Minimum="0.5"
@@ -177,11 +168,11 @@
                         <TextBlock
                             Margin="0,4,0,0"
                             Foreground="#FF475569"
-                            Text="{Binding Sensitivity, StringFormat=現在値: {0:F2}}" />
+                            Text="{Binding SensitivityDisplayText}" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="4">
-                        <TextBlock FontWeight="SemiBold" Text="Smoothing" />
+                        <TextBlock FontWeight="SemiBold" Text="{x:Static properties:Strings.SmoothingLabel}" />
                         <Slider
                             Margin="0,8,0,0"
                             Minimum="0.0"
@@ -192,7 +183,7 @@
                         <TextBlock
                             Margin="0,4,0,0"
                             Foreground="#FF475569"
-                            Text="{Binding Smoothing, StringFormat=現在値: {0:F2}}" />
+                            Text="{Binding SmoothingDisplayText}" />
                     </StackPanel>
                 </Grid>
             </Grid>
@@ -206,7 +197,7 @@
             TextWrapping="Wrap" />
 
         <Border
-            Grid.Row="2"
+            Grid.Row="1"
             Margin="0,12,0,0"
             Padding="12"
             Background="#FF0F172A"
@@ -226,10 +217,10 @@
         </Border>
 
         <TextBlock
-            Grid.Row="3"
+            Grid.Row="2"
             Margin="4,12,4,0"
             Foreground="#FF475569"
-            Text="入力種別、デバイス、5 種類の組込エフェクト、SpectrumProfile、BarCount、Sensitivity、Smoothing をリアルタイムに変更できる利用例です。"
+            Text="{x:Static properties:Strings.FooterDescription}"
             TextWrapping="Wrap" />
     </Grid>
 </Window>

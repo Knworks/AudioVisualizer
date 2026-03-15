@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="WindowTitle" xml:space="preserve">
+    <value>AudioVisualizer サンプル</value>
+  </data>
+  <data name="InputSourceLabel" xml:space="preserve">
+    <value>InputSource</value>
+  </data>
+  <data name="DeviceLabel" xml:space="preserve">
+    <value>DeviceId</value>
+  </data>
+  <data name="ConnectionSettingsLabel" xml:space="preserve">
+    <value>UseDefaultDevice</value>
+  </data>
+  <data name="UseDefaultDeviceContent" xml:space="preserve">
+    <value>UseDefaultDevice</value>
+  </data>
+  <data name="RefreshButtonLabel" xml:space="preserve">
+    <value>再読込</value>
+  </data>
+  <data name="StartButtonLabel" xml:space="preserve">
+    <value>開始</value>
+  </data>
+  <data name="StopButtonLabel" xml:space="preserve">
+    <value>停止</value>
+  </data>
+  <data name="BuiltInEffectLabel" xml:space="preserve">
+    <value>BuiltInEffect</value>
+  </data>
+  <data name="SpectrumProfileLabel" xml:space="preserve">
+    <value>SpectrumProfile</value>
+  </data>
+  <data name="BarCountLabel" xml:space="preserve">
+    <value>BarCount</value>
+  </data>
+  <data name="SensitivityLabel" xml:space="preserve">
+    <value>Sensitivity</value>
+  </data>
+  <data name="SmoothingLabel" xml:space="preserve">
+    <value>Smoothing</value>
+  </data>
+  <data name="CurrentValueFormat" xml:space="preserve">
+    <value>現在値: {0}</value>
+  </data>
+  <data name="FooterDescription" xml:space="preserve">
+    <value>入力種別、デバイス、5 種類の組込エフェクト、スペクトラムプロファイル、バー本数、感度、平滑化をリアルタイムに変更できる利用例です。</value>
+  </data>
+  <data name="SystemOutputOptionLabel" xml:space="preserve">
+    <value>システム再生音</value>
+  </data>
+  <data name="MicrophoneOptionLabel" xml:space="preserve">
+    <value>マイク</value>
+  </data>
+  <data name="BalancedProfileOptionLabel" xml:space="preserve">
+    <value>Balanced: 偏りを緩和</value>
+  </data>
+  <data name="RawProfileOptionLabel" xml:space="preserve">
+    <value>Raw: 既定の分布</value>
+  </data>
+  <data name="HighBoostProfileOptionLabel" xml:space="preserve">
+    <value>HighBoost: 高域を強調</value>
+  </data>
+  <data name="SpectrumBarEffectOptionLabel" xml:space="preserve">
+    <value>SpectrumBar: スペクトラムバー</value>
+  </data>
+  <data name="WaveformLineEffectOptionLabel" xml:space="preserve">
+    <value>WaveformLine: 波形ライン</value>
+  </data>
+  <data name="MirrorBarEffectOptionLabel" xml:space="preserve">
+    <value>MirrorBar: ミラーバー</value>
+  </data>
+  <data name="PeakHoldBarEffectOptionLabel" xml:space="preserve">
+    <value>PeakHoldBar: ピーク保持バー</value>
+  </data>
+  <data name="BandLevelMeterEffectOptionLabel" xml:space="preserve">
+    <value>BandLevelMeter: 帯域メーター</value>
+  </data>
+  <data name="NoAvailableDevicesMessage" xml:space="preserve">
+    <value>利用可能なデバイスがありません。既定デバイス利用のまま操作できます。</value>
+  </data>
+  <data name="DeviceLoadFailedMessage" xml:space="preserve">
+    <value>デバイス一覧の取得に失敗しました。既定デバイス利用のまま操作できます。</value>
+  </data>
+  <data name="RevertedToDefaultDeviceMessage" xml:space="preserve">
+    <value>利用可能なデバイスがないため、既定デバイス利用に戻しました。</value>
+  </data>
+</root>

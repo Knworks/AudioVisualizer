@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="WindowTitle" xml:space="preserve">
+    <value>AudioVisualizer SampleApp</value>
+  </data>
+  <data name="InputSourceLabel" xml:space="preserve">
+    <value>InputSource</value>
+  </data>
+  <data name="DeviceLabel" xml:space="preserve">
+    <value>DeviceId</value>
+  </data>
+  <data name="ConnectionSettingsLabel" xml:space="preserve">
+    <value>UseDefaultDevice</value>
+  </data>
+  <data name="UseDefaultDeviceContent" xml:space="preserve">
+    <value>UseDefaultDevice</value>
+  </data>
+  <data name="RefreshButtonLabel" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="StartButtonLabel" xml:space="preserve">
+    <value>Start</value>
+  </data>
+  <data name="StopButtonLabel" xml:space="preserve">
+    <value>Stop</value>
+  </data>
+  <data name="BuiltInEffectLabel" xml:space="preserve">
+    <value>BuiltInEffect</value>
+  </data>
+  <data name="SpectrumProfileLabel" xml:space="preserve">
+    <value>SpectrumProfile</value>
+  </data>
+  <data name="BarCountLabel" xml:space="preserve">
+    <value>BarCount</value>
+  </data>
+  <data name="SensitivityLabel" xml:space="preserve">
+    <value>Sensitivity</value>
+  </data>
+  <data name="SmoothingLabel" xml:space="preserve">
+    <value>Smoothing</value>
+  </data>
+  <data name="CurrentValueFormat" xml:space="preserve">
+    <value>Current: {0}</value>
+  </data>
+  <data name="FooterDescription" xml:space="preserve">
+    <value>This sample lets you change the input source, device, five built-in effects, spectrum profile, bar count, sensitivity, and smoothing in real time.</value>
+  </data>
+  <data name="SystemOutputOptionLabel" xml:space="preserve">
+    <value>System Output</value>
+  </data>
+  <data name="MicrophoneOptionLabel" xml:space="preserve">
+    <value>Microphone</value>
+  </data>
+  <data name="BalancedProfileOptionLabel" xml:space="preserve">
+    <value>Balanced: Reduce bias</value>
+  </data>
+  <data name="RawProfileOptionLabel" xml:space="preserve">
+    <value>Raw: Default distribution</value>
+  </data>
+  <data name="HighBoostProfileOptionLabel" xml:space="preserve">
+    <value>HighBoost: Emphasize highs</value>
+  </data>
+  <data name="SpectrumBarEffectOptionLabel" xml:space="preserve">
+    <value>SpectrumBar: Spectrum Bars</value>
+  </data>
+  <data name="WaveformLineEffectOptionLabel" xml:space="preserve">
+    <value>WaveformLine: Waveform Line</value>
+  </data>
+  <data name="MirrorBarEffectOptionLabel" xml:space="preserve">
+    <value>MirrorBar: Mirror Bars</value>
+  </data>
+  <data name="PeakHoldBarEffectOptionLabel" xml:space="preserve">
+    <value>PeakHoldBar: Peak Hold Bars</value>
+  </data>
+  <data name="BandLevelMeterEffectOptionLabel" xml:space="preserve">
+    <value>BandLevelMeter: Band Level Meter</value>
+  </data>
+  <data name="NoAvailableDevicesMessage" xml:space="preserve">
+    <value>No available devices were found. You can continue using the default device.</value>
+  </data>
+  <data name="DeviceLoadFailedMessage" xml:space="preserve">
+    <value>Failed to load the device list. You can continue using the default device.</value>
+  </data>
+  <data name="RevertedToDefaultDeviceMessage" xml:space="preserve">
+    <value>No available devices were found, so the app returned to the default device.</value>
+  </data>
+</root>

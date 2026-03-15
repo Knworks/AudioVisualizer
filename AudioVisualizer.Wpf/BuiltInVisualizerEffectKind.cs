@@ -17,6 +17,21 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         WaveformLine,
 
+        /// <summary>
+        /// 中心対称のバーを描画します。
+        /// </summary>
+        MirrorBar,
+
+        /// <summary>
+        /// ピーク保持線付きバーを描画します。
+        /// </summary>
+        PeakHoldBar,
+
+        /// <summary>
+        /// 固定帯域メーターを描画します。
+        /// </summary>
+        BandLevelMeter,
+
         #endregion
     }
 }

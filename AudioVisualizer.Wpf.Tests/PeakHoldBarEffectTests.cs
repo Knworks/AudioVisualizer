@@ -77,6 +77,120 @@ namespace AudioVisualizer.Wpf.Tests
         }
 
         /// <summary>
+        /// AudioVisualizerControl が PeakHoldBarEffect でも Smoothing をバー本体へだけ適用することを確認します。
+        /// ■入力
+        /// ・1. PeakHoldBarEffect と Smoothing = 0.5 を指定した AudioVisualizerControl
+        /// ・2. 高レベルフレームの後に低レベルフレームを渡す
+        /// ■確認内容
+        /// ・1. 2 フレーム目のバー本体が中間値へ補間される
+        /// ・2. ピーク保持線はエフェクト側の減衰結果をそのまま維持する
+        /// </summary>
+        [Test]
+        public void Given_PeakHoldBarEffect_When_SmoothingIsEnabled_Then_OnlyBarsAreInterpolated()
+        {
+            // 準備
+            var provider = new FakeAudioInputProvider();
+            var control = new TestableAudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer(), new PolylineRenderer())
+            {
+                IsActive = true,
+                Effect = new PeakHoldBarEffect(),
+                Smoothing = 0.5,
+            };
+            var firstFrame = new VisualizerFrame(new[] { 1.0, 1.0, 1.0, 1.0 }, new[] { 0.0 }, 1.0, DateTimeOffset.UtcNow);
+            var secondFrame = new VisualizerFrame(new[] { 0.2, 0.2, 0.2, 0.2 }, new[] { 0.0 }, 0.2, DateTimeOffset.UtcNow.AddMilliseconds(16));
+            var verificationEffect = new PeakHoldBarEffect();
+            var effectContext = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.5, 32, SpectrumProfile.Balanced);
+            var firstRenderData = (PeakHoldBarRenderData)verificationEffect.BuildRenderData(firstFrame, effectContext);
+            var secondRenderData = (PeakHoldBarRenderData)verificationEffect.BuildRenderData(secondFrame, effectContext);
+            var expectedBarHeight = (firstRenderData.Bars[0].Height * 0.5) + (secondRenderData.Bars[0].Height * 0.5);
+            var expectedPeakHeight = secondRenderData.PeakMarkers[0].Height;
+
+            // 実行
+            provider.RaiseFrame(firstFrame);
+            provider.RaiseFrame(secondFrame);
+
+            // 検証
+            var renderData = (PeakHoldBarRenderData)control.CurrentRenderData!;
+            Assert.Multiple(() =>
+            {
+                Assert.That(renderData.Bars[0].Height, Is.EqualTo(expectedBarHeight).Within(0.0001));
+                Assert.That(renderData.Bars[0].Level, Is.EqualTo(expectedBarHeight).Within(0.0001));
+                Assert.That(renderData.PeakMarkers[0].Height, Is.EqualTo(expectedPeakHeight).Within(0.0001));
+            });
+        }
+
+        /// <summary>
+        /// AudioVisualizerControl が帯域数の増えた PeakHoldBarRenderData を平滑化する場合は追加バーを最新値のまま採用することを確認します。
+        /// ■入力
+        /// ・1. Smoothing = 0.5 の AudioVisualizerControl
+        /// ・2. 2 本の後に 4 本を返す PeakHoldBarRenderData
+        /// ■確認内容
+        /// ・1. 既存バーは平滑化される
+        /// ・2. 追加バーとピーク保持線は最新値のまま反映される
+        /// </summary>
+        [Test]
+        public void Given_PeakHoldRenderData_When_BarCountIncreasesDuringSmoothing_Then_NewBarsUseLatestValues()
+        {
+            // 準備
+            var provider = new FakeAudioInputProvider();
+            var effect = new SequencePeakHoldEffect(
+                new PeakHoldBarRenderData(
+                    "peak-hold-bars",
+                    DateTimeOffset.UtcNow,
+                    new[]
+                    {
+                        new BarRenderItem(0.1, 0.2, 1.0, 1.0),
+                        new BarRenderItem(0.4, 0.2, 0.0, 0.0),
+                    },
+                    new[]
+                    {
+                        new PeakMarkerItem(0.1, 0.2, 1.0),
+                        new PeakMarkerItem(0.4, 0.2, 0.2),
+                    }),
+                new PeakHoldBarRenderData(
+                    "peak-hold-bars",
+                    DateTimeOffset.UtcNow.AddMilliseconds(16),
+                    new[]
+                    {
+                        new BarRenderItem(0.05, 0.15, 0.0, 0.0),
+                        new BarRenderItem(0.30, 0.15, 1.0, 1.0),
+                        new BarRenderItem(0.55, 0.15, 0.5, 0.5),
+                        new BarRenderItem(0.80, 0.15, 0.25, 0.25),
+                    },
+                    new[]
+                    {
+                        new PeakMarkerItem(0.05, 0.15, 0.9),
+                        new PeakMarkerItem(0.30, 0.15, 0.8),
+                        new PeakMarkerItem(0.55, 0.15, 0.7),
+                        new PeakMarkerItem(0.80, 0.15, 0.6),
+                    }));
+            var control = new TestableAudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer(), new PolylineRenderer())
+            {
+                IsActive = true,
+                Effect = effect,
+                Smoothing = 0.5,
+            };
+            var frame = new VisualizerFrame(new[] { 0.0 }, new[] { 0.0 }, 0.0, DateTimeOffset.UtcNow);
+
+            // 実行
+            provider.RaiseFrame(frame);
+            provider.RaiseFrame(frame);
+
+            // 検証
+            var renderData = (PeakHoldBarRenderData)control.CurrentRenderData!;
+            Assert.Multiple(() =>
+            {
+                Assert.That(renderData.Bars, Has.Count.EqualTo(4));
+                Assert.That(renderData.Bars[0].Height, Is.EqualTo(0.5).Within(0.0001));
+                Assert.That(renderData.Bars[1].Height, Is.EqualTo(0.5).Within(0.0001));
+                Assert.That(renderData.Bars[2].Height, Is.EqualTo(0.5).Within(0.0001));
+                Assert.That(renderData.Bars[3].Height, Is.EqualTo(0.25).Within(0.0001));
+                Assert.That(renderData.PeakMarkers[2].Height, Is.EqualTo(0.7).Within(0.0001));
+                Assert.That(renderData.PeakMarkers[3].Height, Is.EqualTo(0.6).Within(0.0001));
+            });
+        }
+
+        /// <summary>
         /// PeakHoldBarEffect が空スペクトラム入力を空の描画データとして扱うことを確認します。
         /// ■入力
         /// ・1. 直前にピーク保持状態を持つ PeakHoldBarEffect
@@ -379,6 +493,77 @@ namespace AudioVisualizer.Wpf.Tests
             public void InvokeOnRender(DrawingContext drawingContext)
             {
                 OnRender(drawingContext);
+            }
+
+            #endregion
+        }
+
+        /// <summary>
+        /// 呼び出し回数ごとに返却値を切り替えるピーク保持バー用エフェクトです。
+        /// </summary>
+        private sealed class SequencePeakHoldEffect : IVisualizerEffect
+        {
+            #region フィールド
+
+            /// <summary>
+            /// 1 回目に返すレンダーデータです。
+            /// </summary>
+            private readonly PeakHoldBarRenderData m_FirstRenderData;
+
+            /// <summary>
+            /// 2 回目以降に返すレンダーデータです。
+            /// </summary>
+            private readonly PeakHoldBarRenderData m_SecondRenderData;
+
+            /// <summary>
+            /// BuildRenderData の呼び出し回数です。
+            /// </summary>
+            private int m_CallCount;
+
+            #endregion
+
+            #region プロパティ
+
+            /// <summary>
+            /// テスト用エフェクトのメタデータです。
+            /// </summary>
+            public EffectMetadata Metadata { get; } = new(
+                "sequence-peak-hold",
+                "Sequence Peak Hold",
+                "1.0.0",
+                "AudioVisualizer.Tests",
+                "テスト用にバー本数を切り替える PeakHold エフェクトです。",
+                new[] { InputSource.SystemOutput });
+
+            #endregion
+
+            #region 構築 / 消滅
+
+            /// <summary>
+            /// 返却する 2 種類のレンダーデータを指定して初期化します。
+            /// </summary>
+            /// <param name="firstRenderData">1 回目に返すレンダーデータです。</param>
+            /// <param name="secondRenderData">2 回目以降に返すレンダーデータです。</param>
+            public SequencePeakHoldEffect(PeakHoldBarRenderData firstRenderData, PeakHoldBarRenderData secondRenderData)
+            {
+                m_FirstRenderData = firstRenderData;
+                m_SecondRenderData = secondRenderData;
+            }
+
+            #endregion
+
+            #region 公開メソッド
+
+            /// <summary>
+            /// 呼び出し回数に応じたレンダーデータを返します。
+            /// </summary>
+            /// <param name="frame">未使用の解析済みフレームです。</param>
+            /// <param name="context">未使用のエフェクトコンテキストです。</param>
+            /// <returns>切り替え対象のレンダーデータです。</returns>
+            public VisualizerRenderData BuildRenderData(VisualizerFrame frame, VisualizerEffectContext context)
+            {
+                m_CallCount++;
+                return m_CallCount == 1 ? m_FirstRenderData : m_SecondRenderData;
             }
 
             #endregion

@@ -403,6 +403,9 @@ namespace AudioVisualizer.SampleApp.ViewModels
             {
                 new BuiltInEffectOption(BuiltInVisualizerEffectKind.SpectrumBar, "SpectrumBar: スペクトラムバー"),
                 new BuiltInEffectOption(BuiltInVisualizerEffectKind.WaveformLine, "WaveformLine: 波形ライン"),
+                new BuiltInEffectOption(BuiltInVisualizerEffectKind.MirrorBar, "MirrorBar: ミラーバー"),
+                new BuiltInEffectOption(BuiltInVisualizerEffectKind.PeakHoldBar, "PeakHoldBar: ピーク保持バー"),
+                new BuiltInEffectOption(BuiltInVisualizerEffectKind.BandLevelMeter, "BandLevelMeter: 帯域メーター"),
             };
 
             StartCommand = new DelegateCommand(Start, () => !IsActive);

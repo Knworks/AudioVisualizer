@@ -1,3 +1,4 @@
+using System.Reflection;
 using AudioVisualizer.Core.Audio;
 using AudioVisualizer.Core.Models;
 using AudioVisualizer.SampleApp.ViewModels;
@@ -34,6 +35,7 @@ namespace AudioVisualizer.SampleApp.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(sut.SelectedInputSource, Is.EqualTo(InputSource.SystemOutput));
+                Assert.That(sut.InputSourceOptions.Select(option => option.Value), Is.EqualTo(new[] { InputSource.SystemOutput, InputSource.Microphone }));
                 Assert.That(sut.AvailableDevices.Select(device => device.DeviceId), Is.EqualTo(new[] { "render-1", "render-2" }));
                 Assert.That(sut.SelectedDeviceId, Is.EqualTo("render-1"));
                 Assert.That(sut.BarCount, Is.EqualTo(52));
@@ -42,7 +44,28 @@ namespace AudioVisualizer.SampleApp.Tests
                 Assert.That(sut.SelectedSpectrumProfile, Is.EqualTo(SpectrumProfile.Balanced));
                 Assert.That(sut.SelectedBuiltInEffectKind, Is.EqualTo(BuiltInVisualizerEffectKind.SpectrumBar));
                 Assert.That(sut.SpectrumProfileOptions.Select(option => option.Value), Is.EqualTo(new[] { SpectrumProfile.Balanced, SpectrumProfile.Raw, SpectrumProfile.HighBoost }));
-                Assert.That(sut.BuiltInEffectOptions.Select(option => option.Value), Is.EqualTo(new[] { BuiltInVisualizerEffectKind.SpectrumBar, BuiltInVisualizerEffectKind.WaveformLine }));
+                Assert.That(
+                    sut.BuiltInEffectOptions.Select(option => option.Value),
+                    Is.EqualTo(
+                        new[]
+                        {
+                            BuiltInVisualizerEffectKind.SpectrumBar,
+                            BuiltInVisualizerEffectKind.WaveformLine,
+                            BuiltInVisualizerEffectKind.MirrorBar,
+                            BuiltInVisualizerEffectKind.PeakHoldBar,
+                            BuiltInVisualizerEffectKind.BandLevelMeter,
+                        }));
+                Assert.That(
+                    sut.BuiltInEffectOptions.Select(option => option.DisplayName),
+                    Is.EqualTo(
+                        new[]
+                        {
+                            "SpectrumBar: スペクトラムバー",
+                            "WaveformLine: 波形ライン",
+                            "MirrorBar: ミラーバー",
+                            "PeakHoldBar: ピーク保持バー",
+                            "BandLevelMeter: 帯域メーター",
+                        }));
                 Assert.That(sut.SelectedEffect.Metadata.Id, Is.EqualTo("spectrum-bars"));
                 Assert.That(sut.StatusMessage, Is.Empty);
             });
@@ -53,7 +76,7 @@ namespace AudioVisualizer.SampleApp.Tests
         /// ■入力
         /// ・1. BarCount = 48
         /// ・2. Sensitivity = 2.4
-        /// ・3. Smoothing = 0.55
+        /// ・3. Smoothing = 0.6
         /// ・4. SelectedSpectrumProfile = HighBoost
         /// ■確認内容
         /// ・1. 変更後の数値設定が保持される
@@ -69,11 +92,11 @@ namespace AudioVisualizer.SampleApp.Tests
             // 実行
             sut.BarCount = 48;
             sut.Sensitivity = 2.4;
-            sut.Smoothing = 0.55;
+            sut.Smoothing = 0.6;
             sut.SelectedSpectrumProfile = SpectrumProfile.HighBoost;
             sut.BarCount = 48;
             sut.Sensitivity = 2.4;
-            sut.Smoothing = 0.55;
+            sut.Smoothing = 0.6;
             sut.SelectedSpectrumProfile = SpectrumProfile.HighBoost;
 
             // 検証
@@ -81,7 +104,7 @@ namespace AudioVisualizer.SampleApp.Tests
             {
                 Assert.That(sut.BarCount, Is.EqualTo(48));
                 Assert.That(sut.Sensitivity, Is.EqualTo(2.4).Within(1e-10));
-                Assert.That(sut.Smoothing, Is.EqualTo(0.55).Within(1e-10));
+                Assert.That(sut.Smoothing, Is.EqualTo(0.6).Within(1e-10));
                 Assert.That(sut.SelectedSpectrumProfile, Is.EqualTo(SpectrumProfile.HighBoost));
             });
         }
@@ -89,30 +112,121 @@ namespace AudioVisualizer.SampleApp.Tests
         /// <summary>
         /// MainWindowViewModel が組込エフェクト選択の変更を現在エフェクトへ反映することを確認します。
         /// ■入力
-        /// ・1. SelectedBuiltInEffectKind = WaveformLine
-        /// ・2. 再度同じ値を設定する
+        /// ・1. 5 種類の組込エフェクトを順に選択する
         /// ■確認内容
         /// ・1. 選択中の種別が更新される
-        /// ・2. SelectedEffect が WaveformLine のメタデータを持つ
-        /// ・3. 同じ値の再設定でも状態が破綻しない
+        /// ・2. SelectedEffect が対応するメタデータを持つ
         /// </summary>
         [Test]
         public void Given_BuiltInEffectSelection_When_ChangingSelectedEffect_Then_CurrentEffectIsUpdated()
         {
             // 準備
             var sut = new MainWindowViewModel(CreateDeviceService());
+            var expectedEffects = new[]
+            {
+                (BuiltInVisualizerEffectKind.WaveformLine, "waveform-line", "Waveform Line"),
+                (BuiltInVisualizerEffectKind.MirrorBar, "mirror-bars", "Mirror Bars"),
+                (BuiltInVisualizerEffectKind.PeakHoldBar, "peak-hold-bars", "Peak Hold Bars"),
+                (BuiltInVisualizerEffectKind.BandLevelMeter, "band-level-meter", "Band Level Meter"),
+            };
 
             // 実行
-            sut.SelectedBuiltInEffectKind = BuiltInVisualizerEffectKind.WaveformLine;
-            sut.SelectedBuiltInEffectKind = BuiltInVisualizerEffectKind.WaveformLine;
+            foreach (var expectedEffect in expectedEffects)
+            {
+                sut.SelectedBuiltInEffectKind = expectedEffect.Item1;
+
+                Assert.Multiple(() =>
+                {
+                    Assert.That(sut.SelectedBuiltInEffectKind, Is.EqualTo(expectedEffect.Item1));
+                    Assert.That(sut.SelectedEffect.Metadata.Id, Is.EqualTo(expectedEffect.Item2));
+                    Assert.That(sut.SelectedEffect.Metadata.DisplayName, Is.EqualTo(expectedEffect.Item3));
+                });
+            }
+
+            // 検証
+            sut.SelectedBuiltInEffectKind = BuiltInVisualizerEffectKind.BandLevelMeter;
+            Assert.That(sut.SelectedEffect.Metadata.Id, Is.EqualTo("band-level-meter"));
+        }
+
+        /// <summary>
+        /// MainWindowViewModel が同一参照のエフェクト再設定を無視することを確認します。
+        /// ■入力
+        /// ・1. 現在保持している SelectedEffect と同じ参照
+        /// ■確認内容
+        /// ・1. 例外なく再設定を無視する
+        /// ・2. SelectedEffect の参照が維持される
+        /// </summary>
+        [Test]
+        public void Given_SameEffectReference_When_SettingSelectedEffectViaReflection_Then_CurrentReferenceIsPreserved()
+        {
+            // 準備
+            var sut = new MainWindowViewModel(CreateDeviceService());
+            var currentEffect = sut.SelectedEffect;
+            var property = typeof(MainWindowViewModel).GetProperty(
+                "SelectedEffect",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var setter = property?.SetMethod;
+
+            // 実行
+            Assert.That(setter, Is.Not.Null);
+            Assert.That(() => setter!.Invoke(sut, new object?[] { currentEffect }), Throws.Nothing);
+
+            // 検証
+            Assert.That(sut.SelectedEffect, Is.SameAs(currentEffect));
+        }
+
+        /// <summary>
+        /// MainWindowViewModel が組込エフェクト切替時も入力状態とデバイス状態を維持することを確認します。
+        /// ■入力
+        /// ・1. UseDefaultDevice = false かつ IsActive = true の MainWindowViewModel
+        /// ・2. SelectedBuiltInEffectKind の変更
+        /// ■確認内容
+        /// ・1. IsActive が維持される
+        /// ・2. UseDefaultDevice と SelectedDeviceId が維持される
+        /// </summary>
+        [Test]
+        public void Given_ActiveExplicitDeviceMode_When_ChangingBuiltInEffect_Then_InputStateAndDeviceSelectionArePreserved()
+        {
+            // 準備
+            var sut = new MainWindowViewModel(CreateDeviceService())
+            {
+                UseDefaultDevice = false,
+                SelectedDeviceId = "render-2",
+            };
+            sut.Start();
+
+            // 実行
+            sut.SelectedBuiltInEffectKind = BuiltInVisualizerEffectKind.MirrorBar;
+            sut.SelectedBuiltInEffectKind = BuiltInVisualizerEffectKind.PeakHoldBar;
+            sut.SelectedBuiltInEffectKind = BuiltInVisualizerEffectKind.BandLevelMeter;
 
             // 検証
             Assert.Multiple(() =>
             {
-                Assert.That(sut.SelectedBuiltInEffectKind, Is.EqualTo(BuiltInVisualizerEffectKind.WaveformLine));
-                Assert.That(sut.SelectedEffect.Metadata.Id, Is.EqualTo("waveform-line"));
-                Assert.That(sut.SelectedEffect.Metadata.DisplayName, Is.EqualTo("Waveform Line"));
+                Assert.That(sut.IsActive, Is.True);
+                Assert.That(sut.UseDefaultDevice, Is.False);
+                Assert.That(sut.SelectedDeviceId, Is.EqualTo("render-2"));
+                Assert.That(sut.SelectedEffect.Metadata.Id, Is.EqualTo("band-level-meter"));
             });
+        }
+
+        /// <summary>
+        /// BuiltInVisualizerEffects が未対応の組込エフェクト種別を拒否することを確認します。
+        /// ■入力
+        /// ・1. 定義外の BuiltInVisualizerEffectKind
+        /// ■確認内容
+        /// ・1. ArgumentOutOfRangeException が送出される
+        /// </summary>
+        [Test]
+        public void Given_InvalidBuiltInEffectKind_When_CreatingEffect_Then_ArgumentOutOfRangeExceptionIsThrown()
+        {
+            // 準備
+            var invalidKind = (BuiltInVisualizerEffectKind)(-1);
+
+            // 実行と検証
+            Assert.That(
+                () => BuiltInVisualizerEffects.Create(invalidKind),
+                Throws.TypeOf<ArgumentOutOfRangeException>());
         }
 
         /// <summary>

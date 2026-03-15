@@ -744,6 +744,12 @@ namespace AudioVisualizer.Wpf
                 return ApplyPolylineSmoothing(currentPolylineRenderData, nextPolylineRenderData);
             }
 
+            if (currentRenderData is PeakHoldBarRenderData currentPeakHoldBarRenderData &&
+                nextRenderData is PeakHoldBarRenderData nextPeakHoldBarRenderData)
+            {
+                return ApplyPeakHoldBarSmoothing(currentPeakHoldBarRenderData, nextPeakHoldBarRenderData);
+            }
+
             if (currentRenderData is BandLevelMeterRenderData currentBandLevelMeterRenderData &&
                 nextRenderData is BandLevelMeterRenderData nextBandLevelMeterRenderData)
             {
@@ -808,6 +814,40 @@ namespace AudioVisualizer.Wpf
             }
 
             return new PolylineRenderData(nextPolylineRenderData.EffectId, nextPolylineRenderData.Timestamp, smoothedPoints);
+        }
+
+        /// <summary>
+        /// ピーク保持バー描画データへ平滑化を適用します。
+        /// バー本体のみを補間し、ピーク保持線はエフェクト側の保持と減衰結果をそのまま使用します。
+        /// </summary>
+        /// <param name="currentPeakHoldBarRenderData">現在描画中のピーク保持バー描画データです。</param>
+        /// <param name="nextPeakHoldBarRenderData">次に描画するピーク保持バー描画データです。</param>
+        /// <returns>平滑化後のピーク保持バー描画データです。</returns>
+        private VisualizerRenderData ApplyPeakHoldBarSmoothing(
+            PeakHoldBarRenderData currentPeakHoldBarRenderData,
+            PeakHoldBarRenderData nextPeakHoldBarRenderData)
+        {
+            var smoothedBars = new BarRenderItem[nextPeakHoldBarRenderData.Bars.Count];
+            for (var index = 0; index < nextPeakHoldBarRenderData.Bars.Count; index++)
+            {
+                var nextBar = nextPeakHoldBarRenderData.Bars[index];
+                if (index >= currentPeakHoldBarRenderData.Bars.Count)
+                {
+                    smoothedBars[index] = nextBar;
+                    continue;
+                }
+
+                var currentBar = currentPeakHoldBarRenderData.Bars[index];
+                var smoothedHeight = (currentBar.Height * Smoothing) + (nextBar.Height * (1.0 - Smoothing));
+                var smoothedLevel = (currentBar.Level * Smoothing) + (nextBar.Level * (1.0 - Smoothing));
+                smoothedBars[index] = new BarRenderItem(nextBar.X, nextBar.Width, smoothedHeight, smoothedLevel);
+            }
+
+            return new PeakHoldBarRenderData(
+                nextPeakHoldBarRenderData.EffectId,
+                nextPeakHoldBarRenderData.Timestamp,
+                smoothedBars,
+                nextPeakHoldBarRenderData.PeakMarkers);
         }
 
         /// <summary>

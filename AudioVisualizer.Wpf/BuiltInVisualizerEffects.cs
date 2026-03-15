@@ -21,6 +21,9 @@ namespace AudioVisualizer.Wpf
             {
                 BuiltInVisualizerEffectKind.SpectrumBar => new SpectrumBarEffect(),
                 BuiltInVisualizerEffectKind.WaveformLine => new WaveformLineEffect(),
+                BuiltInVisualizerEffectKind.MirrorBar => new MirrorBarEffect(),
+                BuiltInVisualizerEffectKind.PeakHoldBar => new PeakHoldBarEffect(),
+                BuiltInVisualizerEffectKind.BandLevelMeter => new BandLevelMeterEffect(),
                 _ => throw new ArgumentOutOfRangeException(nameof(effectKind), effectKind, "未対応の組込エフェクト種別です。"),
             };
         }

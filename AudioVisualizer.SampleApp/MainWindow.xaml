@@ -133,7 +133,7 @@
                         <TextBlock
                             Margin="0,4,0,0"
                             Foreground="#FF475569"
-                            Text="現在は SpectrumBar と WaveformLine を UI から切り替えできます。" />
+                            Text="SpectrumBar、WaveformLine、MirrorBar、PeakHoldBar、BandLevelMeter を切り替えできます。" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="1" Margin="0,0,16,0">
@@ -229,7 +229,7 @@
             Grid.Row="3"
             Margin="4,12,4,0"
             Foreground="#FF475569"
-            Text="入力種別、デバイス、組込エフェクト、SpectrumProfile、BarCount、Sensitivity、Smoothing をリアルタイムに変更できる利用例です。"
+            Text="入力種別、デバイス、5 種類の組込エフェクト、SpectrumProfile、BarCount、Sensitivity、Smoothing をリアルタイムに変更できる利用例です。"
             TextWrapping="Wrap" />
     </Grid>
 </Window>

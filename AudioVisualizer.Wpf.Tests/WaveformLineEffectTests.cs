@@ -188,6 +188,88 @@ namespace AudioVisualizer.Wpf.Tests
             });
         }
 
+        /// <summary>
+        /// AudioVisualizerControl が Smoothing = 0 の場合は WaveformLineEffect の描画値をそのまま採用することを確認します。
+        /// ■入力
+        /// ・1. Smoothing = 0 の AudioVisualizerControl
+        /// ・2. Y 座標が異なる 2 フレーム
+        /// ■確認内容
+        /// ・1. 2 フレーム目の CurrentRenderData が補間されず最新値になる
+        /// </summary>
+        [Test]
+        public void Given_WaveformRenderData_When_SmoothingIsZero_Then_LatestPolylinePointsAreUsed()
+        {
+            // 準備
+            var provider = new FakeAudioInputProvider();
+            var control = new TestableAudioVisualizerControl(
+                provider,
+                new SpectrumBarEffect(),
+                new BarSpectrumRenderer(),
+                new PolylineRenderer())
+            {
+                IsActive = true,
+                Effect = new WaveformLineEffect(),
+                Smoothing = 0.0,
+            };
+            var firstFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { -1.0, -1.0 }, 1.0, DateTimeOffset.UtcNow);
+            var secondFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { 1.0, 1.0 }, 1.0, DateTimeOffset.UtcNow.AddMilliseconds(16));
+
+            // 実行
+            provider.RaiseFrame(firstFrame);
+            provider.RaiseFrame(secondFrame);
+
+            // 検証
+            var renderData = (PolylineRenderData)control.CurrentRenderData!;
+            Assert.Multiple(() =>
+            {
+                Assert.That(renderData.Points, Has.Count.EqualTo(2));
+                Assert.That(renderData.Points[0].Y, Is.EqualTo(0.0).Within(0.0001));
+                Assert.That(renderData.Points[1].Y, Is.EqualTo(0.0).Within(0.0001));
+            });
+        }
+
+        /// <summary>
+        /// AudioVisualizerControl が現在より点数の多い折れ線描画データを平滑化する場合は追加点をそのまま採用することを確認します。
+        /// ■入力
+        /// ・1. Smoothing = 0.5 の AudioVisualizerControl
+        /// ・2. 2 点の後に 3 点となる 2 フレーム
+        /// ■確認内容
+        /// ・1. 既存点は補間される
+        /// ・2. 追加された末尾点は最新値のまま反映される
+        /// </summary>
+        [Test]
+        public void Given_WaveformRenderData_When_PointCountIncreasesDuringSmoothing_Then_NewPointsUseLatestValues()
+        {
+            // 準備
+            var provider = new FakeAudioInputProvider();
+            var control = new TestableAudioVisualizerControl(
+                provider,
+                new SpectrumBarEffect(),
+                new BarSpectrumRenderer(),
+                new PolylineRenderer())
+            {
+                IsActive = true,
+                Effect = new WaveformLineEffect(),
+                Smoothing = 0.5,
+            };
+            var firstFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { -1.0, 1.0 }, 1.0, DateTimeOffset.UtcNow);
+            var secondFrame = new VisualizerFrame(new[] { 0.1, 0.2, 0.3 }, new[] { 1.0, 0.0, -1.0 }, 1.0, DateTimeOffset.UtcNow.AddMilliseconds(16));
+
+            // 実行
+            provider.RaiseFrame(firstFrame);
+            provider.RaiseFrame(secondFrame);
+
+            // 検証
+            var renderData = (PolylineRenderData)control.CurrentRenderData!;
+            Assert.Multiple(() =>
+            {
+                Assert.That(renderData.Points, Has.Count.EqualTo(3));
+                Assert.That(renderData.Points[0].Y, Is.EqualTo(0.5).Within(0.0001));
+                Assert.That(renderData.Points[1].Y, Is.EqualTo(0.25).Within(0.0001));
+                Assert.That(renderData.Points[2].Y, Is.EqualTo(1.0).Within(0.0001));
+            });
+        }
+
         #endregion
 
         #region 内部クラス

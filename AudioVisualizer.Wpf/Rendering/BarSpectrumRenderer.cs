@@ -28,6 +28,11 @@ namespace AudioVisualizer.Wpf.Rendering
         /// </summary>
         private IReadOnlyList<Rect>? m_LastRectangles;
 
+        /// <summary>
+        /// ピーク保持線の実描画高さです。
+        /// </summary>
+        private const double PeakMarkerThickness = 2.0;
+
         #endregion
 
         #region 公開メソッド
@@ -43,6 +48,25 @@ namespace AudioVisualizer.Wpf.Rendering
         {
             ArgumentNullException.ThrowIfNull(drawingContext);
             ArgumentNullException.ThrowIfNull(fillBrush);
+
+            if (renderData is PeakHoldBarRenderData peakHoldBarRenderData)
+            {
+                var barRectangles = CreateBarRectangles(
+                    new BarSpectrumRenderData(peakHoldBarRenderData.EffectId, peakHoldBarRenderData.Timestamp, peakHoldBarRenderData.Bars),
+                    renderSize);
+                for (var index = 0; index < barRectangles.Count; index++)
+                {
+                    drawingContext.DrawRectangle(fillBrush, null, barRectangles[index]);
+                }
+
+                var peakMarkerRectangles = CreatePeakMarkerRectangles(peakHoldBarRenderData, renderSize);
+                for (var index = 0; index < peakMarkerRectangles.Count; index++)
+                {
+                    drawingContext.DrawRectangle(fillBrush, null, peakMarkerRectangles[index]);
+                }
+
+                return;
+            }
 
             if (renderData is not BarSpectrumRenderData barSpectrumRenderData)
             {
@@ -110,6 +134,40 @@ namespace AudioVisualizer.Wpf.Rendering
             m_LastRenderSize = renderSize;
             m_LastRectangles = rectangles;
             return m_LastRectangles;
+        }
+
+        /// <summary>
+        /// ピーク保持バー型レンダーデータからピーク保持線の矩形一覧を生成します。
+        /// </summary>
+        /// <param name="renderData">ピーク保持バー型レンダーデータです。</param>
+        /// <param name="renderSize">描画領域サイズです。</param>
+        /// <returns>ピーク保持線の矩形一覧です。</returns>
+        internal IReadOnlyList<Rect> CreatePeakMarkerRectangles(PeakHoldBarRenderData renderData, Size renderSize)
+        {
+            ArgumentNullException.ThrowIfNull(renderData);
+
+            if (renderSize.Width <= 0 || renderSize.Height <= 0)
+            {
+                return Array.Empty<Rect>();
+            }
+
+            var rectangles = new Rect[renderData.PeakMarkers.Count];
+            for (var index = 0; index < renderData.PeakMarkers.Count; index++)
+            {
+                var marker = renderData.PeakMarkers[index];
+                var width = Math.Max(0, marker.Width * renderSize.Width);
+                if (marker.Height > 0 && width > 0 && width < 1.0)
+                {
+                    width = Math.Min(renderSize.Width, 1.0);
+                }
+
+                var y = Math.Clamp(renderSize.Height - (marker.Height * renderSize.Height), 0, Math.Max(0, renderSize.Height - 1.0));
+                var x = Math.Clamp(marker.X * renderSize.Width, 0, Math.Max(0, renderSize.Width - width));
+                var height = Math.Min(renderSize.Height, PeakMarkerThickness);
+                rectangles[index] = new Rect(x, y, width, height);
+            }
+
+            return rectangles;
         }
 
         #endregion

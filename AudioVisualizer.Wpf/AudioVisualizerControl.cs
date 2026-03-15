@@ -486,6 +486,8 @@ namespace AudioVisualizer.Wpf
         private static void OnEffectChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
         {
             var control = (AudioVisualizerControl)dependencyObject;
+            ResetEffectState(e.OldValue as IVisualizerEffect);
+            ResetEffectState(e.NewValue as IVisualizerEffect);
             control.UpdateRenderData();
             control.InvalidateVisual();
         }
@@ -579,6 +581,7 @@ namespace AudioVisualizer.Wpf
         private void StopCapture()
         {
             m_AudioInputProvider.Stop();
+            ResetEffectState(Effect ?? m_DefaultEffect);
             m_CurrentFrame = null;
             m_CurrentRenderData = null;
             InvalidateVisual();
@@ -769,6 +772,18 @@ namespace AudioVisualizer.Wpf
             }
 
             return new PolylineRenderData(nextPolylineRenderData.EffectId, nextPolylineRenderData.Timestamp, smoothedPoints);
+        }
+
+        /// <summary>
+        /// 状態保持型エフェクトの内部状態を初期化します。
+        /// </summary>
+        /// <param name="effect">初期化対象のエフェクトです。</param>
+        private static void ResetEffectState(IVisualizerEffect? effect)
+        {
+            if (effect is IResettableVisualizerEffect resettableVisualizerEffect)
+            {
+                resettableVisualizerEffect.Reset();
+            }
         }
 
         /// <summary>

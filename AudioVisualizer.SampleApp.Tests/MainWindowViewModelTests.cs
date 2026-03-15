@@ -124,6 +124,7 @@ namespace AudioVisualizer.SampleApp.Tests
             var sut = new MainWindowViewModel(CreateDeviceService());
             var expectedEffects = new[]
             {
+                (BuiltInVisualizerEffectKind.SpectrumBar, "spectrum-bars", "Spectrum Bars"),
                 (BuiltInVisualizerEffectKind.WaveformLine, "waveform-line", "Waveform Line"),
                 (BuiltInVisualizerEffectKind.MirrorBar, "mirror-bars", "Mirror Bars"),
                 (BuiltInVisualizerEffectKind.PeakHoldBar, "peak-hold-bars", "Peak Hold Bars"),
@@ -196,6 +197,8 @@ namespace AudioVisualizer.SampleApp.Tests
             sut.Start();
 
             // 実行
+            sut.SelectedBuiltInEffectKind = BuiltInVisualizerEffectKind.WaveformLine;
+            sut.SelectedBuiltInEffectKind = BuiltInVisualizerEffectKind.SpectrumBar;
             sut.SelectedBuiltInEffectKind = BuiltInVisualizerEffectKind.MirrorBar;
             sut.SelectedBuiltInEffectKind = BuiltInVisualizerEffectKind.PeakHoldBar;
             sut.SelectedBuiltInEffectKind = BuiltInVisualizerEffectKind.BandLevelMeter;

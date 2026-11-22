@@ -10,14 +10,29 @@ namespace AudioVisualizer.SampleApp
     /// </summary>
     public partial class MainWindow : Window
     {
+        /// <summary>
+        /// ウィンドウが生成したデバイスサービスです。
+        /// </summary>
+        private readonly WindowsAudioDeviceService? m_OwnedAudioDeviceService;
+
         #region 構築 / 消滅
 
         /// <summary>
         /// <see cref="MainWindow"/> クラスの新しいインスタンスを初期化します。
         /// </summary>
         public MainWindow()
-            : this(new MainWindowViewModel(new WindowsAudioDeviceService()))
+            : this(new WindowsAudioDeviceService())
         {
+        }
+
+        /// <summary>
+        /// ウィンドウが所有するデバイスサービスで画面を初期化します。
+        /// </summary>
+        /// <param name="audioDeviceService">ウィンドウ終了時に破棄するデバイスサービスです。</param>
+        private MainWindow(WindowsAudioDeviceService audioDeviceService)
+            : this(new MainWindowViewModel(audioDeviceService))
+        {
+            m_OwnedAudioDeviceService = audioDeviceService;
         }
 
         /// <summary>
@@ -31,5 +46,21 @@ namespace AudioVisualizer.SampleApp
         }
 
         #endregion
+
+        /// <summary>
+        /// ウィンドウが閉じたときに所有するデバイスサービスを解放します。
+        /// </summary>
+        /// <param name="e">ウィンドウの終了イベントです。</param>
+        protected override void OnClosed(EventArgs e)
+        {
+            try
+            {
+                base.OnClosed(e);
+            }
+            finally
+            {
+                m_OwnedAudioDeviceService?.Dispose();
+            }
+        }
     }
 }

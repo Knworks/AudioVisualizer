@@ -1013,9 +1013,36 @@ namespace AudioVisualizer.Wpf.Tests
         #region 内部クラス
 
         /// <summary>
+        /// 所有する入力が画面への配置中だけ稼働することを確認します。
+        /// </summary>
+        [Test]
+        public void OwnedInput_WhenUnloadedAndReloaded_DisposesAndRestarts()
+        {
+            var first = new FakeAudioInputProvider();
+            var second = new FakeAudioInputProvider();
+            var providers = new Queue<FakeAudioInputProvider>(new[] { first, second });
+            var control = new AudioVisualizerControl(() => providers.Dequeue()) { IsActive = true };
+
+            Assert.That(first.StartCallCount, Is.Zero);
+
+            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            Assert.That(first.IsCapturing, Is.True);
+
+            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+            Assert.That(first.IsDisposed, Is.True);
+            Assert.That(first.IsCapturing, Is.False);
+            Assert.That(control.IsActive, Is.True);
+
+            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            Assert.That(second.IsCapturing, Is.True);
+            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+            Assert.That(second.IsDisposed, Is.True);
+        }
+
+        /// <summary>
         /// 入力開始回数とフレーム通知を制御できる偽の音声入力プロバイダーです。
         /// </summary>
-        private sealed class FakeAudioInputProvider : IAudioInputProvider
+        private sealed class FakeAudioInputProvider : IAudioInputProvider, IDisposable
         {
             #region プロパティ
 
@@ -1033,6 +1060,20 @@ namespace AudioVisualizer.Wpf.Tests
             /// 現在音声入力が有効かどうかを示す値を取得します。
             /// </summary>
             public bool IsCapturing { get; private set; }
+
+            /// <summary>
+            /// プロバイダーが破棄されたかどうかを取得します。
+            /// </summary>
+            public bool IsDisposed { get; private set; }
+
+            /// <summary>
+            /// 取得を停止し、破棄されたことを記録します。
+            /// </summary>
+            public void Dispose()
+            {
+                Stop();
+                IsDisposed = true;
+            }
 
             /// <summary>
             /// 直近の開始設定を取得します。

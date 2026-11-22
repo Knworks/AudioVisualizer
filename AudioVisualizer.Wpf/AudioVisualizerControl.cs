@@ -44,7 +44,12 @@ namespace AudioVisualizer.Wpf
         /// <summary>
         /// 音声入力の開始と停止を担当する入力プロバイダーです。
         /// </summary>
-        private readonly IAudioInputProvider m_AudioInputProvider;
+        private IAudioInputProvider? m_AudioInputProvider;
+
+        /// <summary>
+        /// 画面に配置されるたびに所有する入力プロバイダーを生成します。
+        /// </summary>
+        private readonly Func<IAudioInputProvider>? m_CreateAudioInputProvider;
 
         /// <summary>
         /// 既定で使用するバー型エフェクトです。
@@ -369,7 +374,16 @@ namespace AudioVisualizer.Wpf
         /// <see cref="AudioVisualizerControl"/> クラスの新しいインスタンスを初期化します。
         /// </summary>
         public AudioVisualizerControl()
-            : this(new SystemOutputAudioInputProvider(), new SpectrumBarEffect(), new BarSpectrumRenderer(), new PolylineRenderer(), new BandLevelMeterRenderer())
+            : this(static () => new SystemOutputAudioInputProvider())
+        {
+        }
+
+        /// <summary>
+        /// 画面のライフサイクルに合わせて入力プロバイダーを生成するコントロールを初期化します。
+        /// </summary>
+        /// <param name="createAudioInputProvider">音声入力プロバイダーの生成処理です。</param>
+        internal AudioVisualizerControl(Func<IAudioInputProvider> createAudioInputProvider)
+            : this(null, new SpectrumBarEffect(), new BarSpectrumRenderer(), new PolylineRenderer(), new BandLevelMeterRenderer(), createAudioInputProvider)
         {
         }
 
@@ -414,13 +428,40 @@ namespace AudioVisualizer.Wpf
             BarSpectrumRenderer renderer,
             PolylineRenderer polylineRenderer,
             BandLevelMeterRenderer bandLevelMeterRenderer)
+            : this(audioInputProvider, defaultEffect, renderer, polylineRenderer, bandLevelMeterRenderer, null)
         {
-            m_AudioInputProvider = audioInputProvider ?? throw new ArgumentNullException(nameof(audioInputProvider));
+        }
+
+        /// <summary>
+        /// 描画処理と音声入力の依存関係を設定します。
+        /// </summary>
+        /// <param name="audioInputProvider">呼び出し元が管理する音声入力プロバイダーです。</param>
+        /// <param name="defaultEffect">既定エフェクトです。</param>
+        /// <param name="renderer">バー型描画レンダラーです。</param>
+        /// <param name="polylineRenderer">折れ線描画レンダラーです。</param>
+        /// <param name="bandLevelMeterRenderer">固定帯域メーター描画レンダラーです。</param>
+        /// <param name="createAudioInputProvider">コントロールが所有する入力プロバイダーの生成処理です。</param>
+        private AudioVisualizerControl(
+            IAudioInputProvider? audioInputProvider,
+            IVisualizerEffect defaultEffect,
+            BarSpectrumRenderer renderer,
+            PolylineRenderer polylineRenderer,
+            BandLevelMeterRenderer bandLevelMeterRenderer,
+            Func<IAudioInputProvider>? createAudioInputProvider)
+        {
+            m_AudioInputProvider = audioInputProvider;
+            m_CreateAudioInputProvider = createAudioInputProvider;
             m_DefaultEffect = defaultEffect ?? throw new ArgumentNullException(nameof(defaultEffect));
             m_BarRenderer = renderer ?? throw new ArgumentNullException(nameof(renderer));
             m_PolylineRenderer = polylineRenderer ?? throw new ArgumentNullException(nameof(polylineRenderer));
             m_BandLevelMeterRenderer = bandLevelMeterRenderer ?? throw new ArgumentNullException(nameof(bandLevelMeterRenderer));
-            m_AudioInputProvider.FrameProduced += OnFrameProduced;
+            if (audioInputProvider is not null)
+            {
+                audioInputProvider.FrameProduced += OnFrameProduced;
+            }
+
+            Loaded += OnLoaded;
+            Unloaded += OnUnloaded;
             RefreshRenderBrush();
         }
 
@@ -474,11 +515,76 @@ namespace AudioVisualizer.Wpf
         {
             if (Dispatcher.CheckAccess())
             {
-                ApplyFrame(e.Frame);
+                if (ReferenceEquals(sender, m_AudioInputProvider))
+                {
+                    ApplyFrame(e.Frame);
+                }
+
                 return;
             }
 
-            QueuePendingFrame(e.Frame);
+            QueuePendingFrame(sender, e.Frame);
+        }
+
+        /// <summary>
+        /// 画面への配置時に音声入力を準備し、有効な設定で取得を開始します。
+        /// </summary>
+        /// <param name="sender">イベント送信元です。</param>
+        /// <param name="e">画面への配置イベントです。</param>
+        private void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            if (m_AudioInputProvider is null && m_CreateAudioInputProvider is not null)
+            {
+                var provider = m_CreateAudioInputProvider();
+                lock (m_PendingFrameSync)
+                {
+                    m_AudioInputProvider = provider;
+                }
+
+                provider.FrameProduced += OnFrameProduced;
+            }
+
+            if (IsActive)
+            {
+                StartCapture();
+            }
+        }
+
+        /// <summary>
+        /// 画面から外されたときに音声取得を停止し、所有する資源を解放します。
+        /// </summary>
+        /// <param name="sender">イベント送信元です。</param>
+        /// <param name="e">画面からの取り外しイベントです。</param>
+        private void OnUnloaded(object sender, RoutedEventArgs e)
+        {
+            var provider = m_AudioInputProvider;
+            if (provider is null || m_CreateAudioInputProvider is null)
+            {
+                StopCapture();
+                return;
+            }
+
+            lock (m_PendingFrameSync)
+            {
+                m_AudioInputProvider = null;
+            }
+
+            provider.FrameProduced -= OnFrameProduced;
+            try
+            {
+                if (provider is IDisposable disposable)
+                {
+                    disposable.Dispose();
+                }
+                else
+                {
+                    provider.Stop();
+                }
+            }
+            finally
+            {
+                StopCapture();
+            }
         }
 
         #endregion
@@ -607,17 +713,12 @@ namespace AudioVisualizer.Wpf
         private void StartCapture()
         {
             var settings = CreateCaptureSettings();
-            if (settings is null)
+            if (settings is null || m_AudioInputProvider is not { IsCapturing: false } provider)
             {
                 return;
             }
 
-            if (m_AudioInputProvider.IsCapturing)
-            {
-                return;
-            }
-
-            _ = m_AudioInputProvider.Start(settings);
+            _ = provider.Start(settings);
         }
 
         /// <summary>
@@ -625,7 +726,7 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         private void StopCapture()
         {
-            m_AudioInputProvider.Stop();
+            m_AudioInputProvider?.Stop();
             lock (m_PendingFrameSync)
             {
                 m_PendingFrame = null;
@@ -702,14 +803,20 @@ namespace AudioVisualizer.Wpf
         /// <summary>
         /// バックグラウンドから到着した最新フレームを UI スレッドへ集約して通知します。
         /// </summary>
+        /// <param name="sender">フレームを生成した音声入力プロバイダーです。</param>
         /// <param name="frame">反映対象の最新フレームです。</param>
-        private void QueuePendingFrame(VisualizerFrame frame)
+        private void QueuePendingFrame(object? sender, VisualizerFrame frame)
         {
             ArgumentNullException.ThrowIfNull(frame);
 
             var shouldSchedule = false;
             lock (m_PendingFrameSync)
             {
+                if (!ReferenceEquals(sender, m_AudioInputProvider))
+                {
+                    return;
+                }
+
                 m_PendingFrame = frame;
                 if (!m_IsPendingFrameDispatchQueued)
                 {

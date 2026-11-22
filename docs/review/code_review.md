@@ -227,6 +227,8 @@
 
 **コード確認。** `AudioVisualizer.Core/AudioVisualizer.Tests.csproj` はソリューションに含まれず、Core本体と同じフォルダーにある。プロジェクト指定を省いて同フォルダーで操作する場合や、全 `csproj` を探す自動化でビルド対象や中間出力が混乱する。正式な `AudioVisualizer.Core.Tests` への移行を確認し、残存プロジェクトを整理する。 [残存プロジェクト](../AudioVisualizer.Core/AudioVisualizer.Tests.csproj) [ソリューション](../AudioVisualizer.slnx)
 
+**修正済み。** 残存する旧テストプロジェクトにはソリューションからの参照もテストソースもなく、Coreテストは正式なAudioVisualizer.Core.Testsにまとまっていることを確認した。旧プロジェクトを削除し、ソリューションの6プロジェクトとCoreの全97テストを確認した。
+
 ### 🧹 L07 リポジトリ指定のフォーマット検査が失敗する
 
 **実行確認。** `dotnet format AudioVisualizer.slnx --verify-no-changes --no-restore` が失敗した。Coreのデバイスサービスおよびインターフェースのインデントと、WPFのアセンブリ属性に空白診断が出ている。既存の差分と混ぜずに整形し、文書化されている確認コマンドを通す。 [Coreデバイスサービス](../AudioVisualizer.Core/Audio/WindowsAudioDeviceService.cs#L5) [WPFアセンブリ属性](../AudioVisualizer.Wpf/AssemblyInfo.cs#L5) [リポジトリの確認手順](../AGENTS.md#L9)

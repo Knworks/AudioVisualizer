@@ -233,6 +233,8 @@
 
 **実行確認。** `dotnet format AudioVisualizer.slnx --verify-no-changes --no-restore` が失敗した。Coreのデバイスサービスおよびインターフェースのインデントと、WPFのアセンブリ属性に空白診断が出ている。既存の差分と混ぜずに整形し、文書化されている確認コマンドを通す。 [Coreデバイスサービス](../AudioVisualizer.Core/Audio/WindowsAudioDeviceService.cs#L5) [WPFアセンブリ属性](../AudioVisualizer.Wpf/AssemblyInfo.cs#L5) [リポジトリの確認手順](../AGENTS.md#L9)
 
+**修正済み。** 現行ブランチで空白診断が出たCoreの3ファイルを整形した。WPFのアセンブリ属性には診断が出なかった。dotnet format AudioVisualizer.slnx --verify-no-changes --no-restore が成功した。
+
 ### 📚 L08 公開資料と実際のプロジェクト・テスト構成が一致しない
 
 **コード確認。** 日英READMEのツリーは公開対象の `docs/06_inplementation_plan.md` を掲げているが、追跡されているファイルはない。AGENTS.mdは検出されるテストがないと記載し、要件書と設計書のプロジェクト一覧にはSampleApp.Testsが載っていない。実際のソリューションを基準に記載を合わせる。 [README日本語版](../README.md#L174) [README英語版](../README.en.md#L174) [AGENTS.md](../AGENTS.md#L20) [要件の構成](./01_requirements.md#L113) [ソリューション](../AudioVisualizer.slnx)

@@ -7,7 +7,7 @@ namespace AudioVisualizer.Core.Audio
     /// <summary>
     /// Windows の音声デバイス一覧と既定デバイス情報を取得する公開サービスです。
     /// </summary>
-public sealed class WindowsAudioDeviceService : IAudioDeviceService, IDisposable
+    public sealed class WindowsAudioDeviceService : IAudioDeviceService, IDisposable
     {
         #region フィールド
 

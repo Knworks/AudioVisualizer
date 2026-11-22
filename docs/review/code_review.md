@@ -35,6 +35,8 @@
 
 **対応案。** OS通知では処理をキューへ入れてすぐ戻る。取得の開始・停止・再接続を直列化し、セッションを識別して古い通知やフレームを破棄する。同時に停止・既定変更した場合を検証する。 [通知の起点](../AudioVisualizer.Core/Audio/WasapiAudioDeviceEnumerator.cs#L113) [再接続とフレーム通知](../AudioVisualizer.Core/Audio/SystemOutputAudioInputProvider.cs#L197) [WPFの保留フレーム](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L626) [Microsoftのコールバック要件](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nn-mmdeviceapi-immnotificationclient) [NAudio 2.3.0の破棄処理](https://github.com/naudio/NAudio/blob/v2.3.0/NAudio.Wasapi/WasapiCapture.cs#L303-L315)
 
+**修正済み。** 既定デバイス通知は再接続をスレッドプールへ予約する。取得操作を直列化し、停止や切替をまたぐ通知は要求の識別子で除外する。WPFは処理待ちのフレームを描画する前に取得セッションの有効性を確認する。再接続前のフレームと停止・再開をまたぐ通知を回帰テストし、全160テストが成功した。
+
 ### 💥 H03 デバイス切断時にNAudioがプロセスを終了させ得る
 
 **コードと上流資料で確認。** このリポジトリはNAudio 2.3.0の `WasapiCapture` と `WasapiLoopbackCapture` を使う。2.3.0は、取得スレッドの `finally` で呼ぶ `AudioClient.Stop` の例外を処理しない。デバイス無効化などでこの呼び出しが失敗すると、それ以前の例外を捕捉していても、取得スレッドの未処理例外としてホストが終了し得る。上流でもデバイス切替時に報告され、修正されている。今回の環境で実機切断によるプロセス終了は未検証。

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using AudioVisualizer.Core.Analysis;
 using AudioVisualizer.Core.Models;
 
@@ -34,7 +35,27 @@ namespace AudioVisualizer.Core.Audio
         /// <summary>
         /// フレーム生成に使用する現在の設定です。
         /// </summary>
-        private VisualizerSettings? m_CurrentSettings;
+        private volatile CaptureState? m_ActiveCapture;
+
+        /// <summary>
+        /// 開始、停止、破棄、再接続を直列化するためのロックです。
+        /// </summary>
+        private readonly object m_CaptureSync = new();
+
+        /// <summary>
+        /// 利用者が開始または停止を指示するたびに更新される識別子です。
+        /// </summary>
+        private long m_RequestVersion;
+
+        /// <summary>
+        /// 既定デバイスの変更を通知元スレッドの外で処理します。
+        /// </summary>
+        private readonly Action<Action> m_QueueReconnect;
+
+        /// <summary>
+        /// プロバイダーが破棄されたかどうかを示します。
+        /// </summary>
+        private bool m_IsDisposed;
 
         /// <summary>
         /// 現在接続している音声デバイス識別子です。
@@ -53,7 +74,7 @@ namespace AudioVisualizer.Core.Audio
         /// <summary>
         /// 現在音声入力が有効かどうかを示す値を取得します。
         /// </summary>
-        public bool IsCapturing { get; private set; }
+        public bool IsCapturing => m_ActiveCapture is not null;
 
         #endregion
 
@@ -82,8 +103,13 @@ namespace AudioVisualizer.Core.Audio
         /// <param name="frameAnalyzer">PCM サンプルをフレームへ変換する解析サービスです。</param>
         /// <param name="audioDeviceService">利用可能デバイス一覧と既定デバイスを取得するサービスです。</param>
         /// <param name="captureFactory">音声入力キャプチャを生成するファクトリです。</param>
-        internal SystemOutputAudioInputProvider(IAudioFrameAnalyzer frameAnalyzer, IAudioDeviceService audioDeviceService, IAudioCaptureFactory captureFactory)
-            : this(frameAnalyzer, audioDeviceService, captureFactory, false)
+        /// <param name="queueReconnect">再接続処理を予約する仕組みです。</param>
+        internal SystemOutputAudioInputProvider(
+            IAudioFrameAnalyzer frameAnalyzer,
+            IAudioDeviceService audioDeviceService,
+            IAudioCaptureFactory captureFactory,
+            Action<Action>? queueReconnect = null)
+            : this(frameAnalyzer, audioDeviceService, captureFactory, false, queueReconnect)
         {
         }
 
@@ -94,16 +120,19 @@ namespace AudioVisualizer.Core.Audio
         /// <param name="audioDeviceService">利用可能デバイス一覧と既定デバイスを取得するサービスです。</param>
         /// <param name="captureFactory">音声入力キャプチャを生成するファクトリです。</param>
         /// <param name="ownsAudioDeviceService">デバイスサービスの破棄責務をこのインスタンスが持つかどうかを示します。</param>
+        /// <param name="queueReconnect">再接続処理を予約する仕組みです。</param>
         private SystemOutputAudioInputProvider(
             IAudioFrameAnalyzer frameAnalyzer,
             IAudioDeviceService audioDeviceService,
             IAudioCaptureFactory captureFactory,
-            bool ownsAudioDeviceService)
+            bool ownsAudioDeviceService,
+            Action<Action>? queueReconnect = null)
         {
             m_FrameAnalyzer = frameAnalyzer ?? throw new ArgumentNullException(nameof(frameAnalyzer));
             m_AudioDeviceService = audioDeviceService ?? throw new ArgumentNullException(nameof(audioDeviceService));
             m_CaptureFactory = captureFactory ?? throw new ArgumentNullException(nameof(captureFactory));
             m_OwnsAudioDeviceService = ownsAudioDeviceService;
+            m_QueueReconnect = queueReconnect ?? (static reconnect => ThreadPool.QueueUserWorkItem(static action => action(), reconnect, false));
             m_AudioDeviceService.DefaultDeviceChanged += OnDefaultDeviceChanged;
         }
 
@@ -116,11 +145,26 @@ namespace AudioVisualizer.Core.Audio
         /// </summary>
         public void Dispose()
         {
-            Stop();
-            m_AudioDeviceService.DefaultDeviceChanged -= OnDefaultDeviceChanged;
-            if (m_OwnsAudioDeviceService && m_AudioDeviceService is IDisposable disposableAudioDeviceService)
+            lock (m_CaptureSync)
             {
-                disposableAudioDeviceService.Dispose();
+                if (m_IsDisposed)
+                {
+                    return;
+                }
+
+                m_IsDisposed = true;
+                m_AudioDeviceService.DefaultDeviceChanged -= OnDefaultDeviceChanged;
+                try
+                {
+                    Stop();
+                }
+                finally
+                {
+                    if (m_OwnsAudioDeviceService && m_AudioDeviceService is IDisposable disposableAudioDeviceService)
+                    {
+                        disposableAudioDeviceService.Dispose();
+                    }
+                }
             }
         }
 
@@ -133,31 +177,49 @@ namespace AudioVisualizer.Core.Audio
         {
             ArgumentNullException.ThrowIfNull(settings);
 
+            lock (m_CaptureSync)
+            {
+                ObjectDisposedException.ThrowIf(m_IsDisposed, this);
+                Interlocked.Increment(ref m_RequestVersion);
+                return StartCapture(settings);
+            }
+        }
+
+        /// <summary>
+        /// ロックを保持した状態で取得セッションを切り替えます。
+        /// </summary>
+        /// <param name="settings">開始に使用する設定です。</param>
+        /// <param name="reconnect">既定の変更による再接続かどうかを示します。</param>
+        /// <returns>開始処理の結果です。</returns>
+        private AudioInputStartResult StartCapture(VisualizerSettings settings, bool reconnect = false)
+        {
             var targetDevice = ResolveTargetDevice(settings);
             if (targetDevice is null)
             {
                 return AudioInputStartResult.Failed("指定された音声デバイスが見つかりません。");
             }
 
+            if (reconnect && string.Equals(m_CurrentDeviceId, targetDevice.DeviceId, StringComparison.Ordinal))
+            {
+                return AudioInputStartResult.Success();
+            }
+
             try
             {
-                Stop();
+                StopCapture();
                 var captureSession = m_CaptureFactory.CreateCapture(settings.InputSource, targetDevice.DeviceId);
                 captureSession.SamplesCaptured += OnSamplesCaptured;
                 captureSession.Start();
 
                 m_CaptureSession = captureSession;
-                m_CurrentSettings = settings;
                 m_CurrentDeviceId = targetDevice.DeviceId;
-                IsCapturing = true;
+                m_ActiveCapture = new CaptureState(captureSession, settings);
                 return AudioInputStartResult.Success();
             }
             catch (Exception)
             {
                 ReleaseCaptureSession();
-                m_CurrentSettings = null;
                 m_CurrentDeviceId = null;
-                IsCapturing = false;
                 return AudioInputStartResult.Failed("音声入力の開始に失敗しました。");
             }
         }
@@ -167,6 +229,19 @@ namespace AudioVisualizer.Core.Audio
         /// </summary>
         public void Stop()
         {
+            lock (m_CaptureSync)
+            {
+                Interlocked.Increment(ref m_RequestVersion);
+                StopCapture();
+            }
+        }
+
+        /// <summary>
+        /// ロックを保持した状態で取得を停止し、処理中のフレームを無効にします。
+        /// </summary>
+        private void StopCapture()
+        {
+            m_ActiveCapture = null;
             try
             {
                 m_CaptureSession?.Stop();
@@ -174,9 +249,7 @@ namespace AudioVisualizer.Core.Audio
             finally
             {
                 ReleaseCaptureSession();
-                m_CurrentSettings = null;
                 m_CurrentDeviceId = null;
-                IsCapturing = false;
             }
         }
 
@@ -196,22 +269,34 @@ namespace AudioVisualizer.Core.Audio
         /// <param name="e">既定デバイス変更情報です。</param>
         private void OnDefaultDeviceChanged(object? sender, DefaultAudioDeviceChangedEventArgs e)
         {
-            if (!IsCapturing || m_CurrentSettings is null || !m_CurrentSettings.UseDefaultDevice)
-            {
-                return;
-            }
+            var requestVersion = Interlocked.Read(ref m_RequestVersion);
+            m_QueueReconnect(() => Reconnect(requestVersion, e.InputSource));
+        }
 
-            if (m_CurrentSettings.InputSource != e.InputSource)
+        /// <summary>
+        /// 通知後も同じ取得要求が有効な場合に、現在の既定デバイスを再確認します。
+        /// </summary>
+        /// <param name="requestVersion">通知時点の利用者要求です。</param>
+        /// <param name="inputSource">通知対象の入力種別です。</param>
+        private void Reconnect(long requestVersion, InputSource inputSource)
+        {
+            lock (m_CaptureSync)
             {
-                return;
-            }
+                if (m_IsDisposed || requestVersion != m_RequestVersion ||
+                    m_ActiveCapture?.Settings is not { UseDefaultDevice: true } settings || settings.InputSource != inputSource)
+                {
+                    return;
+                }
 
-            if (string.Equals(m_CurrentDeviceId, e.DeviceId, StringComparison.Ordinal))
-            {
-                return;
+                try
+                {
+                    _ = StartCapture(settings, reconnect: true);
+                }
+                catch (Exception exception)
+                {
+                    Trace.TraceError("{0}", exception);
+                }
             }
-
-            _ = Start(m_CurrentSettings);
         }
 
         /// <summary>
@@ -221,17 +306,28 @@ namespace AudioVisualizer.Core.Audio
         /// <param name="e">取得した PCM サンプルを含むイベントデータです。</param>
         private void OnSamplesCaptured(object? sender, AudioSamplesCapturedEventArgs e)
         {
-            if (m_CurrentSettings is null)
+            var capture = m_ActiveCapture;
+            if (capture is null || !ReferenceEquals(sender, capture.Session))
             {
                 return;
             }
 
             var sampleBuffer = new AudioSampleBuffer(e.Samples, e.SampleRate, e.Channels, e.Timestamp);
-            var frame = m_FrameAnalyzer.CreateFrame(sampleBuffer, m_CurrentSettings);
-            FrameProduced?.Invoke(this, new VisualizerFrameEventArgs(frame));
+            var frame = m_FrameAnalyzer.CreateFrame(sampleBuffer, capture.Settings);
+            if (ReferenceEquals(m_ActiveCapture, capture))
+            {
+                FrameProduced?.Invoke(this, new VisualizerFrameEventArgs(frame, () => ReferenceEquals(m_ActiveCapture, capture)));
+            }
         }
 
         #endregion
+
+        /// <summary>
+        /// 稼働中のセッションと、そのセッションに対応する解析設定です。
+        /// </summary>
+        /// <param name="Session">音声取得セッションです。</param>
+        /// <param name="Settings">フレームの解析設定です。</param>
+        private sealed record CaptureState(IAudioCaptureSession Session, VisualizerSettings Settings);
 
         #region 内部処理
 

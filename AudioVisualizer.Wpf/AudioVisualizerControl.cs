@@ -94,7 +94,7 @@ namespace AudioVisualizer.Wpf
         /// <summary>
         /// UI スレッドで未反映の最新フレームです。
         /// </summary>
-        private VisualizerFrame? m_PendingFrame;
+        private VisualizerFrameEventArgs? m_PendingFrame;
 
         /// <summary>
         /// UI スレッドへのフレーム反映が予約済みかどうかを示します。
@@ -515,7 +515,7 @@ namespace AudioVisualizer.Wpf
         {
             if (Dispatcher.CheckAccess())
             {
-                if (ReferenceEquals(sender, m_AudioInputProvider))
+                if (ReferenceEquals(sender, m_AudioInputProvider) && e.IsCurrent)
                 {
                     ApplyFrame(e.Frame);
                 }
@@ -523,7 +523,7 @@ namespace AudioVisualizer.Wpf
                 return;
             }
 
-            QueuePendingFrame(sender, e.Frame);
+            QueuePendingFrame(sender, e);
         }
 
         /// <summary>
@@ -805,14 +805,14 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         /// <param name="sender">フレームを生成した音声入力プロバイダーです。</param>
         /// <param name="frame">反映対象の最新フレームです。</param>
-        private void QueuePendingFrame(object? sender, VisualizerFrame frame)
+        private void QueuePendingFrame(object? sender, VisualizerFrameEventArgs frame)
         {
             ArgumentNullException.ThrowIfNull(frame);
 
             var shouldSchedule = false;
             lock (m_PendingFrameSync)
             {
-                if (!ReferenceEquals(sender, m_AudioInputProvider))
+                if (!ReferenceEquals(sender, m_AudioInputProvider) || !frame.IsCurrent)
                 {
                     return;
                 }
@@ -838,7 +838,7 @@ namespace AudioVisualizer.Wpf
         {
             while (true)
             {
-                VisualizerFrame? frame;
+                VisualizerFrameEventArgs? frame;
                 lock (m_PendingFrameSync)
                 {
                     frame = m_PendingFrame;
@@ -850,7 +850,10 @@ namespace AudioVisualizer.Wpf
                     }
                 }
 
-                ApplyFrame(frame);
+                if (frame.IsCurrent)
+                {
+                    ApplyFrame(frame.Frame);
+                }
             }
         }
 

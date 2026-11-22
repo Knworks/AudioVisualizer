@@ -117,13 +117,20 @@ namespace AudioVisualizer.Core.Tests
                 microphoneDevices: Array.Empty<AudioDeviceInfo>(),
                 defaultRenderDevice: renderDevice1,
                 defaultMicrophoneDevice: null);
-            using var sut = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), deviceService, captureFactory);
+            var work = new Queue<Action>();
+            using var sut = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), deviceService, captureFactory, work.Enqueue);
             var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
+            VisualizerFrameEventArgs? oldFrame = null;
+            sut.FrameProduced += (_, args) => oldFrame = args;
 
             // 実行
             var startResult = sut.Start(settings);
+            captureSession.RaiseSamples(new[] { 0.1f, 0.2f }, 48000, 1);
             deviceService.SetDefaultDevice(InputSource.SystemOutput, renderDevice2);
             deviceService.RaiseDefaultDeviceChanged(InputSource.SystemOutput, "render-2");
+            Assert.That(captureFactory.CreateCallCount, Is.EqualTo(1));
+            work.Dequeue()();
+            Assert.That(oldFrame!.IsCurrent, Is.False);
 
             // 検証
             Assert.Multiple(() =>
@@ -555,6 +562,33 @@ namespace AudioVisualizer.Core.Tests
                 Assert.That(failure.Succeeded, Is.False);
                 Assert.That(failure.ErrorMessage, Is.EqualTo("error"));
             });
+        }
+
+        /// <summary>
+        /// 停止と再開をまたいだ既定デバイス通知は、後から実行されても再接続しません。
+        /// </summary>
+        [Test]
+        public void QueuedDefaultChange_WhenCaptureRequestIsReplaced_IsIgnored()
+        {
+            var first = new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true);
+            var second = new AudioDeviceInfo("render-2", "Headphones", InputSource.SystemOutput, false);
+            var devices = new FakeAudioDeviceService(new[] { first, second }, Array.Empty<AudioDeviceInfo>(), first, null);
+            var captures = new FakeAudioCaptureFactory(new FakeAudioCaptureSession());
+            var work = new Queue<Action>();
+            using var provider = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), devices, captures, work.Enqueue);
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
+
+            Assert.That(provider.Start(settings).Succeeded, Is.True);
+            devices.SetDefaultDevice(InputSource.SystemOutput, second);
+            devices.RaiseDefaultDeviceChanged(InputSource.SystemOutput, second.DeviceId);
+            provider.Stop();
+            Assert.That(provider.Start(settings).Succeeded, Is.True);
+            devices.SetDefaultDevice(InputSource.SystemOutput, first);
+
+            work.Dequeue()();
+
+            Assert.That(captures.CreateCallCount, Is.EqualTo(2));
+            Assert.That(captures.LastDeviceId, Is.EqualTo(second.DeviceId));
         }
 
         #endregion

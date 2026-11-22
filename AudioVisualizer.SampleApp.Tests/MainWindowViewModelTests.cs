@@ -16,6 +16,34 @@ namespace AudioVisualizer.SampleApp.Tests
     {
         #region 公開メソッド
 
+        /// <summary>デバイス一覧のエラーが可視化領域の下に表示されることを確認します。</summary>
+        [Test]
+        [Apartment(System.Threading.ApartmentState.STA)]
+        public void DeviceError_WhenWindowIsLaidOut_IsBelowVisualizer()
+        {
+            var viewModel = new MainWindowViewModel(new FakeAudioDeviceService(
+                Array.Empty<AudioDeviceInfo>(), Array.Empty<AudioDeviceInfo>(), throwOnGetDevices: true));
+            var window = (MainWindow)Activator.CreateInstance(
+                typeof(MainWindow), BindingFlags.Instance | BindingFlags.NonPublic, null, new[] { viewModel }, null)!;
+            try
+            {
+                var grid = (System.Windows.Controls.Grid)window.Content;
+                grid.Measure(new System.Windows.Size(920, 470));
+                grid.Arrange(new System.Windows.Rect(0, 0, 920, 470));
+                var status = (System.Windows.Controls.TextBlock)window.FindName("DeviceStatus");
+                var visualizer = (AudioVisualizerControl)window.FindName("AudioVisualizer");
+
+                Assert.That(status.Text, Is.EqualTo(Strings.DeviceLoadFailedMessage));
+                Assert.That(status.ActualHeight, Is.GreaterThan(0));
+                Assert.That(status.TranslatePoint(new System.Windows.Point(), grid).Y,
+                    Is.GreaterThanOrEqualTo(visualizer.TranslatePoint(new System.Windows.Point(0, visualizer.ActualHeight), grid).Y));
+            }
+            finally
+            {
+                window.Close();
+            }
+        }
+
         /// <summary>
         /// MainWindowViewModel が初期化時にシステム再生音デバイス一覧を読み込むことを確認します。
         /// ■入力
@@ -705,6 +733,8 @@ namespace AudioVisualizer.SampleApp.Tests
             #endregion
 
             #region 公開メソッド
+
+
 
             /// <summary>
             /// 指定入力種別のデバイス一覧を返します。

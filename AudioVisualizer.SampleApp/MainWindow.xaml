@@ -189,13 +189,6 @@
             </Grid>
         </Border>
 
-        <TextBlock
-            Grid.Row="1"
-            Margin="4,12,4,0"
-            Foreground="#FFB45309"
-            Text="{Binding StatusMessage}"
-            TextWrapping="Wrap" />
-
         <Border
             Grid.Row="1"
             Margin="0,12,0,0"
@@ -219,6 +212,21 @@
         </Border>
 
         <StackPanel Grid.Row="2" Margin="4,12,4,0">
+            <TextBlock
+                x:Name="DeviceStatus"
+                Foreground="#FFB45309"
+                Text="{Binding StatusMessage}"
+                TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding StatusMessage}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
             <TextBlock
                 Foreground="#FFB45309"
                 Text="{Binding CaptureError, ElementName=AudioVisualizer}"

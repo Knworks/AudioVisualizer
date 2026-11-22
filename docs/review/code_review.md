@@ -159,6 +159,8 @@
 
 **コード確認。** `StatusMessage` 用のテキストと不透明背景の可視化領域が同じGrid行とほぼ同じ上端にある。後から記述された可視化領域が前面に描かれるため、デバイスがないなどのメッセージを隠す。別のGrid行へ置き、エラーがある状態の画面を確認する。 [メッセージと可視化領域の配置](../AudioVisualizer.SampleApp/MainWindow.xaml#L192)
 
+**修正済み。** デバイス一覧の状態メッセージを可視化領域と別の行に移し、空のときは折りたたむ。エラー状態のウィンドウをWPFで配置し、メッセージに高さがあり可視化領域の下に収まることを自動確認した。SampleAppの全21テストが成功した。
+
 ### 🔣 M12 数値・列挙・点列の検証が公開API間でそろっていない
 
 **コード確認。** Coreの大小比較を使った検証は `NaN` を通し、感度では正の無限大も拒否しない。描画データのリストには `null` 要素も渡せる。WPFの入力種別とCoreの設定は未定義の `InputSource` を構築時点で拒否せず、後段のデバイス列挙で例外になる。通常の設定ミスや独自エフェクトの計算異常が、分析結果の汚染や描画エラーとして遅れて現れる。境界で有限値、列挙、要素の妥当性を統一的に検証する。 [設定の検証](../AudioVisualizer.Core/Models/VisualizerSettings.cs#L77) [公開描画値](../AudioVisualizer.Core/Effects/NormalizedPoint.cs#L32) [描画点列](../AudioVisualizer.Core/Effects/PolylineRenderData.cs#L26) [WPF設定登録](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L245)

@@ -189,6 +189,8 @@
 
 **コード確認。** `VisualizerSettings.IsActive` は音声取得を有効化するかどうかを示すが、公開の `SystemOutputAudioInputProvider.Start` はこの値を参照しない。WPFは独自に開始を制御するため通常経路ではガードされる。Coreの直接利用では `IsActive = false` の設定でも指定入力を取得する。開始要求と有効フラグの優先関係を契約で明示し、無効時にデバイスを開かない挙動を検証する。 [有効フラグの説明](../AudioVisualizer.Core/Models/VisualizerSettings.cs#L26) [開始処理](../AudioVisualizer.Core/Audio/SystemOutputAudioInputProvider.cs#L132)
 
+**修正済み。** CoreのStartに無効な設定を渡すと既存取得を停止し、再接続要求を消去して成功を返す。デバイス未使用、既存セッション解放および既定変更による再開防止を検証し、全213テストが成功した。
+
 ## 🟡 低
 
 ### 📍 L01 平滑化とピーク減衰の速度がフレーム間隔に依存する

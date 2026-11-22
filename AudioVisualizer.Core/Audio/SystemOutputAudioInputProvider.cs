@@ -199,7 +199,7 @@ namespace AudioVisualizer.Core.Audio
         }
 
         /// <summary>
-        /// 指定設定に従って音声入力の取得を開始します。
+        /// 指定設定が有効なら音声入力を開始し、無効なら停止します。
         /// </summary>
         /// <param name="settings">開始に使用する設定です。</param>
         /// <returns>開始処理の結果です。</returns>
@@ -211,7 +211,7 @@ namespace AudioVisualizer.Core.Audio
             {
                 ObjectDisposedException.ThrowIf(m_IsDisposed, this);
                 Interlocked.Increment(ref m_RequestVersion);
-                m_RequestedSettings = settings;
+                m_RequestedSettings = settings.IsActive ? settings : null;
                 var result = StartCapture(settings);
                 PublishCaptureStatus(result.ErrorMessage);
                 return result;
@@ -228,6 +228,12 @@ namespace AudioVisualizer.Core.Audio
         {
             try
             {
+                if (!settings.IsActive)
+                {
+                    StopCapture();
+                    return AudioInputStartResult.Success();
+                }
+
                 var targetDevice = ResolveTargetDevice(settings);
                 if (targetDevice is null)
                 {

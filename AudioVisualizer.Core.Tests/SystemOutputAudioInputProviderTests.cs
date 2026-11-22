@@ -628,6 +628,29 @@ namespace AudioVisualizer.Core.Tests
             Assert.That(provider.CaptureError, Is.Null);
         }
 
+        /// <summary>無効な設定が新規取得と既定変更による再開を防ぐことを確認します。</summary>
+        [Test]
+        public void Start_WhenSettingsAreInactive_DoesNotOpenOrRestartCapture()
+        {
+            var device = new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true);
+            var devices = new FakeAudioDeviceService(new[] { device }, Array.Empty<AudioDeviceInfo>(), device, null);
+            var session = new FakeAudioCaptureSession();
+            var factory = new FakeAudioCaptureFactory(session);
+            using var provider = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), devices, factory);
+            var inactive = new VisualizerSettings(InputSource.SystemOutput, null, true, false, 1, 0.5, 8);
+            var active = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1, 0.5, 8);
+
+            Assert.That(provider.Start(inactive).Succeeded, Is.True);
+            Assert.That(factory.CreateCallCount, Is.Zero);
+            Assert.That(provider.Start(active).Succeeded, Is.True);
+
+            Assert.That(provider.Start(inactive).Succeeded, Is.True);
+            Assert.That(provider.IsCapturing, Is.False);
+            Assert.That(session.DisposeCallCount, Is.EqualTo(1));
+            devices.RaiseDefaultDeviceChanged(InputSource.SystemOutput, device.DeviceId);
+            Assert.That(factory.CreateCallCount, Is.EqualTo(1));
+        }
+
         /// <summary>
         /// 開始処理で例外が発生したセッションから通知購読を外し、セッションを破棄します。
         /// </summary>

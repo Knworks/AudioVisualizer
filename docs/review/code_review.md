@@ -147,6 +147,8 @@
 
 **コード確認。** Dispatcherは保留フレームを1件に集約するが、コールバック内で空になるまで処理を続ける。エフェクト処理中に毎回新フレームが届くとDispatcherへ処理を返せず、入力や画面描画が遅れる。開始・停止の同期処理もUIスレッドで行われ、停止時は取得スレッドの終了待ちが入る。Dispatcherの実行1回あたりの仕事量を制限し、取得の状態遷移をUIスレッドから外す。 [フレーム処理](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L730) [停止処理](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L626) [NAudio 2.3.0の終了待ち](https://github.com/naudio/NAudio/blob/v2.3.0/NAudio.Wasapi/WasapiCapture.cs#L303-L315)
 
+**修正済み。** Dispatcherの背景優先度で1回につき最新フレームを1件描画し、連続受信時も入力処理に制御を返す。コントロールが所有する取得の開始・停止・破棄をバックグラウンドで直列化し、旧設定のフレームを除外する。入力処理の割り込みと開始・停止の実行スレッドを検証し、全194テストが成功した。
+
 ### 🎛️ M10 SampleAppの入力切替や一覧更新で中間状態が取得処理へ伝わる
 
 **コード確認。** 入力種別を先に通知し、その後で新しいデバイス一覧を読み込む。明示指定中は入力種別と旧デバイスIDの組み合わせで一度再接続を試みる。稼働中の一覧再構築でも、選択値が一時的に外れれば停止・再接続に至る。指定デバイスが消えた場合に別の既定・先頭デバイスを選ぶため、明示指定で使用するマイクも変わり得る。入力種別とデバイスIDを確定してから一度だけ反映し、指定機器が消えた場合は状態を表示する。 [入力変更](../AudioVisualizer.SampleApp/ViewModels/MainWindowViewModel.cs#L136) [一覧と選択の更新](../AudioVisualizer.SampleApp/ViewModels/MainWindowViewModel.cs#L485) [接続変更の処理](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L493)

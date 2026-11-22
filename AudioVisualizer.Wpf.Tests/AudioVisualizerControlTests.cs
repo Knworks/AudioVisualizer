@@ -1026,16 +1026,20 @@ namespace AudioVisualizer.Wpf.Tests
             Assert.That(first.StartCallCount, Is.Zero);
 
             control.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
             Assert.That(first.IsCapturing, Is.True);
 
             control.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
             Assert.That(first.IsDisposed, Is.True);
             Assert.That(first.IsCapturing, Is.False);
             Assert.That(control.IsActive, Is.True);
 
             control.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
             Assert.That(second.IsCapturing, Is.True);
             control.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
             Assert.That(second.IsDisposed, Is.True);
         }
 
@@ -1177,6 +1181,61 @@ namespace AudioVisualizer.Wpf.Tests
         }
 
         /// <summary>
+        /// 描画中に次のフレームが届いても、入力処理が先に実行されます。
+        /// </summary>
+        [Test]
+        public void PendingFrames_WhenAnotherArrivesDuringRender_YieldToInput()
+        {
+            var provider = new FakeAudioInputProvider();
+            var effect = new CountingVisualizerEffect();
+            var control = new AudioVisualizerControl(provider, effect, new BarSpectrumRenderer()) { IsActive = true };
+            var frame = new VisualizerFrame(new[] { 0.6 }, 0.6, DateTimeOffset.UtcNow);
+            var buildCountAtInput = -1;
+            effect.OnBuild = () =>
+            {
+                if (effect.BuildCallCount == 1)
+                {
+                    Task.Run(() => provider.RaiseFrame(frame)).GetAwaiter().GetResult();
+                    _ = control.Dispatcher.InvokeAsync(() => buildCountAtInput = effect.BuildCallCount, DispatcherPriority.Input);
+                }
+            };
+
+            Task.Run(() => provider.RaiseFrame(frame)).GetAwaiter().GetResult();
+            PumpDispatcher();
+            Assert.That(buildCountAtInput, Is.EqualTo(1));
+
+            PumpDispatcher();
+            Assert.That(effect.BuildCallCount, Is.EqualTo(2));
+        }
+
+        /// <summary>
+        /// 所有するプロバイダーを開始・停止する処理が UI スレッドの外で行われます。
+        /// </summary>
+        [Test]
+        public void OwnedInput_WhenStartedAndStopped_RunsOperationsOutsideDispatcher()
+        {
+            var startThread = 0;
+            var stopThread = 0;
+            var provider = new FakeAudioInputProvider
+            {
+                OnStart = () => startThread = Environment.CurrentManagedThreadId,
+                OnStop = () => stopThread = Environment.CurrentManagedThreadId,
+            };
+            var control = new AudioVisualizerControl(() => provider) { IsActive = true };
+            var uiThread = Environment.CurrentManagedThreadId;
+
+            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+            control.IsActive = false;
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+
+            Assert.That(startThread, Is.Positive.And.Not.EqualTo(uiThread));
+            Assert.That(stopThread, Is.Positive.And.Not.EqualTo(uiThread));
+            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
         /// 入力開始回数とフレーム通知を制御できる偽の音声入力プロバイダーです。
         /// </summary>
         private sealed class FakeAudioInputProvider : IAudioInputProvider, IDisposable
@@ -1192,6 +1251,16 @@ namespace AudioVisualizer.Wpf.Tests
             /// 開始時に返すエラーを指定します。
             /// </summary>
             public string? StartError { get; set; }
+
+            /// <summary>
+            /// 開始時に呼び出すテスト処理です。
+            /// </summary>
+            public Action? OnStart { get; init; }
+
+            /// <summary>
+            /// 停止時に呼び出すテスト処理です。
+            /// </summary>
+            public Action? OnStop { get; init; }
 
             /// <summary>
             /// 入力停止が呼ばれた回数を取得します。
@@ -1234,6 +1303,7 @@ namespace AudioVisualizer.Wpf.Tests
             public AudioInputStartResult Start(VisualizerSettings settings)
             {
                 StartCallCount++;
+                OnStart?.Invoke();
                 LastSettings = settings;
                 if (StartError is not null)
                 {
@@ -1250,6 +1320,7 @@ namespace AudioVisualizer.Wpf.Tests
             public void Stop()
             {
                 StopCallCount++;
+                OnStop?.Invoke();
                 IsCapturing = false;
             }
 
@@ -1370,6 +1441,11 @@ namespace AudioVisualizer.Wpf.Tests
             public bool ThrowOnBuild { get; set; }
 
             /// <summary>
+            /// 描画生成時に呼び出すテスト処理です。
+            /// </summary>
+            public Action? OnBuild { get; set; }
+
+            /// <summary>
             /// 直近に受け取ったピークレベルを取得します。
             /// </summary>
             public double LastPeakLevel { get; private set; }
@@ -1389,6 +1465,7 @@ namespace AudioVisualizer.Wpf.Tests
             public VisualizerRenderData BuildRenderData(VisualizerFrame frame, VisualizerEffectContext context)
             {
                 BuildCallCount++;
+                OnBuild?.Invoke();
                 if (ThrowOnBuild)
                 {
                     throw new InvalidOperationException();

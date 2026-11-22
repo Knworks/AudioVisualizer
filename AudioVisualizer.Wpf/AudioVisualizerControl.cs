@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using AudioVisualizer.Core.Audio;
 using AudioVisualizer.Core.Effects;
 using AudioVisualizer.Core.Models;
@@ -60,6 +61,21 @@ namespace AudioVisualizer.Wpf
         /// コントロールが画面に配置されているかどうかを示します。
         /// </summary>
         private bool m_IsCaptureHostLoaded;
+
+        /// <summary>
+        /// 所有する入力プロバイダーへの操作を順番に実行します。
+        /// </summary>
+        private Task m_CaptureOperations = Task.CompletedTask;
+
+        /// <summary>
+        /// UI が最後に指示した取得操作の世代です。
+        /// </summary>
+        private long m_CaptureRequestVersion;
+
+        /// <summary>
+        /// 入力プロバイダーへ反映された最後の取得開始の世代です。
+        /// </summary>
+        private long m_StartedCaptureVersion;
 
         /// <summary>
         /// 既定で使用するバー型エフェクトです。
@@ -254,6 +270,11 @@ namespace AudioVisualizer.Wpf
         /// テスト確認用の現在レンダーデータを取得します。
         /// </summary>
         internal VisualizerRenderData? CurrentRenderData => m_CurrentRenderData;
+
+        /// <summary>
+        /// 現在までに予約された取得操作の完了を取得します。
+        /// </summary>
+        internal Task CaptureOperations => m_CaptureOperations;
 
         /// <summary>
         /// テスト確認用の現在描画ブラシを取得します。
@@ -556,7 +577,7 @@ namespace AudioVisualizer.Wpf
         {
             if (Dispatcher.CheckAccess())
             {
-                if (ReferenceEquals(sender, m_AudioInputProvider) && e.IsCurrent)
+                if (ReferenceEquals(sender, m_AudioInputProvider) && e.IsCurrent && CanApplyCaptureFrame())
                 {
                     ApplyFrame(e.Frame);
                 }
@@ -607,7 +628,7 @@ namespace AudioVisualizer.Wpf
                 captureProvider.CaptureStatusChanged -= OnCaptureStatusChanged;
             }
 
-            try
+            QueueCaptureOperation(() =>
             {
                 if (provider is IDisposable disposable)
                 {
@@ -617,11 +638,8 @@ namespace AudioVisualizer.Wpf
                 {
                     provider.Stop();
                 }
-            }
-            finally
-            {
-                StopCapture();
-            }
+            });
+            StopCapture();
         }
 
         #endregion
@@ -767,13 +785,58 @@ namespace AudioVisualizer.Wpf
                 return;
             }
 
-            if (m_AudioInputProvider is not { IsCapturing: false } provider)
+            if (m_AudioInputProvider is not { } provider)
             {
                 return;
             }
 
-            var result = provider.Start(settings);
-            UpdateCaptureStatus(provider.IsCapturing, result.ErrorMessage);
+            if (m_CreateAudioInputProvider is null)
+            {
+                if (!provider.IsCapturing)
+                {
+                    var result = provider.Start(settings);
+                    UpdateCaptureStatus(provider.IsCapturing, result.ErrorMessage);
+                }
+
+                return;
+            }
+
+            var version = Interlocked.Increment(ref m_CaptureRequestVersion);
+            QueueCaptureOperation(() =>
+            {
+                if (version != Interlocked.Read(ref m_CaptureRequestVersion))
+                {
+                    return;
+                }
+
+                string? error;
+                try
+                {
+                    error = provider.Start(settings).ErrorMessage;
+                }
+                catch (Exception exception)
+                {
+                    System.Diagnostics.Trace.TraceError("{0}", exception);
+                    error = "音声入力の開始に失敗しました。";
+                }
+
+                Interlocked.Exchange(ref m_StartedCaptureVersion, version);
+                _ = Dispatcher.InvokeAsync(() =>
+                {
+                    if (ReferenceEquals(m_AudioInputProvider, provider) && IsActive &&
+                        version == Interlocked.Read(ref m_CaptureRequestVersion))
+                    {
+                        if (provider is SystemOutputAudioInputProvider captureProvider)
+                        {
+                            UpdateCaptureStatus(captureProvider.IsCapturing, captureProvider.CaptureError ?? (captureProvider.IsCapturing ? null : error));
+                        }
+                        else
+                        {
+                            UpdateCaptureStatus(provider.IsCapturing, error);
+                        }
+                    }
+                });
+            });
         }
 
         /// <summary>
@@ -806,13 +869,57 @@ namespace AudioVisualizer.Wpf
         {
             try
             {
-                m_AudioInputProvider?.Stop();
+                Interlocked.Increment(ref m_CaptureRequestVersion);
+                if (m_AudioInputProvider is { } provider)
+                {
+                    if (m_CreateAudioInputProvider is not null)
+                    {
+                        QueueCaptureOperation(provider.Stop);
+                    }
+                    else
+                    {
+                        provider.Stop();
+                    }
+                }
             }
             finally
             {
                 UpdateCaptureStatus(false, null);
                 ClearCaptureFrame();
             }
+        }
+
+        /// <summary>
+        /// 所有する入力プロバイダーへの操作を UI スレッドの外で順番に実行します。
+        /// </summary>
+        /// <param name="operation">取得に対する操作です。</param>
+        private void QueueCaptureOperation(Action operation)
+        {
+            m_CaptureOperations = m_CaptureOperations.ContinueWith(
+                _ =>
+                {
+                    try
+                    {
+                        operation();
+                    }
+                    catch (Exception exception)
+                    {
+                        System.Diagnostics.Trace.TraceError("{0}", exception);
+                    }
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.None,
+                TaskScheduler.Default);
+        }
+
+        /// <summary>
+        /// 通知時の取得が現在の指示に対応しているかを判定します。
+        /// </summary>
+        /// <returns>描画や稼働状態を反映できる場合は true です。</returns>
+        private bool CanApplyCaptureFrame()
+        {
+            return m_CreateAudioInputProvider is null ||
+                Interlocked.Read(ref m_CaptureRequestVersion) == Interlocked.Read(ref m_StartedCaptureVersion);
         }
 
         /// <summary>
@@ -829,7 +936,7 @@ namespace AudioVisualizer.Wpf
 
             _ = Dispatcher.InvokeAsync(() =>
             {
-                if (ReferenceEquals(m_AudioInputProvider, provider) && IsActive)
+                if (ReferenceEquals(m_AudioInputProvider, provider) && IsActive && CanApplyCaptureFrame())
                 {
                     UpdateCaptureStatus(provider.IsCapturing, provider.CaptureError);
                 }
@@ -956,7 +1063,7 @@ namespace AudioVisualizer.Wpf
             var shouldSchedule = false;
             lock (m_PendingFrameSync)
             {
-                if (!ReferenceEquals(sender, m_AudioInputProvider) || !frame.IsCurrent)
+                if (!ReferenceEquals(sender, m_AudioInputProvider) || !frame.IsCurrent || !CanApplyCaptureFrame())
                 {
                     return;
                 }
@@ -971,7 +1078,7 @@ namespace AudioVisualizer.Wpf
 
             if (shouldSchedule)
             {
-                _ = Dispatcher.InvokeAsync(ProcessPendingFrames);
+                _ = Dispatcher.InvokeAsync(ProcessPendingFrames, DispatcherPriority.Background);
             }
         }
 
@@ -982,24 +1089,16 @@ namespace AudioVisualizer.Wpf
         {
             try
             {
-                while (true)
+                VisualizerFrameEventArgs? frame;
+                lock (m_PendingFrameSync)
                 {
-                    VisualizerFrameEventArgs? frame;
-                    lock (m_PendingFrameSync)
-                    {
-                        frame = m_PendingFrame;
-                        m_PendingFrame = null;
-                    }
+                    frame = m_PendingFrame;
+                    m_PendingFrame = null;
+                }
 
-                    if (frame is null)
-                    {
-                        break;
-                    }
-
-                    if (frame.IsCurrent)
-                    {
-                        ApplyFrame(frame.Frame);
-                    }
+                if (frame is { IsCurrent: true } && CanApplyCaptureFrame())
+                {
+                    ApplyFrame(frame.Frame);
                 }
             }
             finally
@@ -1013,7 +1112,7 @@ namespace AudioVisualizer.Wpf
 
                 if (shouldSchedule)
                 {
-                    _ = Dispatcher.InvokeAsync(ProcessPendingFrames);
+                    _ = Dispatcher.InvokeAsync(ProcessPendingFrames, DispatcherPriority.Background);
                 }
             }
         }

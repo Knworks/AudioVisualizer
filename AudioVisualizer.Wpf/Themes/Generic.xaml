@@ -5,7 +5,6 @@
 
     <Style TargetType="{x:Type local:AudioVisualizerControl}">
         <Setter Property="Focusable" Value="False" />
-        <Setter Property="Foreground" Value="#FF3BA7FF" />
         <Setter Property="MinWidth" Value="48" />
         <Setter Property="MinHeight" Value="24" />
     </Style>

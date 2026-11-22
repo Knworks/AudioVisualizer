@@ -203,6 +203,8 @@
 
 **実行確認。** `Foreground` は `PrimaryBrush` を指定しない場合の描画色だが、描画用ブラシを更新するコールバックは `PrimaryBrush` と `SecondaryBrush` にしか付いていない。検証で `Foreground` を変更しても描画ブラシがその値へ変わらなかった。テーマ由来の色も含め、`Foreground` の変更で描画ブラシを更新する。 [ブラシ用プロパティ](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L339) [描画用ブラシのキャッシュ](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L763) [既定テーマ](../AudioVisualizer.Wpf/Themes/Generic.xaml#L6)
 
+**修正済み。** Foregroundの既定色を依存関係プロパティの既定値へ移して親から継承できるようにした。主ブラシ未指定時はForeground変更を描画キャッシュへ反映する。親のForegroundを変更する回帰テストを含めコントロールの全43テストが成功した。
+
 ### 🌈 L03 セカンダリ色を指定すると任意のBrushが失われる
 
 **コード確認。** 公開プロパティは `Brush` 型を受け付けるが、`SecondaryBrush` を指定すると両者を単色に変換する。入力がグラデーションなら最初の色だけを使用し、画像ブラシなどは既定色になる。ブラシの種類次第で利用側指定が反映されない。合成可能な型と挙動を契約に明記するか、ブラシを保持して描画する。 [グラデーション生成](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L763) [単色の抽出](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L972)

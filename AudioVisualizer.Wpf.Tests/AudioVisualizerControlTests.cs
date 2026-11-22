@@ -1043,6 +1043,18 @@ namespace AudioVisualizer.Wpf.Tests
             Assert.That(second.IsDisposed, Is.True);
         }
 
+        /// <summary>親から継承した Foreground が変わると描画ブラシも変わることを確認します。</summary>
+        [Test]
+        public void InheritedForeground_WhenParentChanges_RefreshesRenderBrush()
+        {
+            var control = new AudioVisualizerControl();
+            var parent = new System.Windows.Controls.ContentControl { Content = control, Foreground = Brushes.SeaGreen };
+
+            Assert.That(control.CurrentRenderBrush, Is.SameAs(Brushes.SeaGreen));
+            parent.Foreground = Brushes.DarkOrange;
+            Assert.That(control.CurrentRenderBrush, Is.SameAs(Brushes.DarkOrange));
+        }
+
         /// <summary>同じUI操作の入力設定をまとめ、最終設定で一度だけ再接続することを確認します。</summary>
         [Test]
         public void OwnedInput_WhenConnectionSettingsChangeTogether_ReconnectsOnce()

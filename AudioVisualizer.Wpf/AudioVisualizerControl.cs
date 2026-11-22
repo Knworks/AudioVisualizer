@@ -434,6 +434,9 @@ namespace AudioVisualizer.Wpf
         static AudioVisualizerControl()
         {
             DefaultStyleKeyProperty.OverrideMetadata(typeof(AudioVisualizerControl), new FrameworkPropertyMetadata(typeof(AudioVisualizerControl)));
+            var defaultForeground = new SolidColorBrush(Color.FromRgb(0x3B, 0xA7, 0xFF));
+            defaultForeground.Freeze();
+            ForegroundProperty.OverrideMetadata(typeof(AudioVisualizerControl), new FrameworkPropertyMetadata(defaultForeground));
         }
 
         /// <summary>
@@ -534,6 +537,18 @@ namespace AudioVisualizer.Wpf
         #endregion
 
         #region オーバーライド
+
+        /// <summary>継承やテーマによる Foreground の変更を描画ブラシへ反映します。</summary>
+        /// <param name="e">依存関係プロパティの変更内容です。</param>
+        protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+        {
+            base.OnPropertyChanged(e);
+            if (e.Property == ForegroundProperty && PrimaryBrush is null)
+            {
+                RefreshRenderBrush();
+                InvalidateVisual();
+            }
+        }
 
         /// <summary>
         /// 現在保持しているレンダーデータを描画します。

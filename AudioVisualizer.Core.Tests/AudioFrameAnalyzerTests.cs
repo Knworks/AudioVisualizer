@@ -302,6 +302,22 @@ namespace AudioVisualizer.Core.Tests
             Assert.That(stereoFrame.SpectrumValues, Is.EqualTo(monoFrame.SpectrumValues).Within(1e-7));
         }
 
+        /// <summary>
+        /// 逆相で打ち消されず、右側だけに音がある場合も正しい時間軸で波形を生成します。
+        /// </summary>
+        [TestCase(1, -1)]
+        [TestCase(0, 1)]
+        public void Waveform_WhenStereoIsAntiphaseOrSingleChannel_ShowsSelectedChannel(int leftGain, int rightGain)
+        {
+            var mono = new[] { 0.2f, -0.1f, -0.2f, 0.1f };
+            var stereo = mono.SelectMany(sample => new[] { sample * leftGain, sample * rightGain }).ToArray();
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.0, mono.Length);
+            var frame = new AudioFrameAnalyzer().CreateFrame(
+                new AudioSampleBuffer(stereo, 48000, 2, DateTimeOffset.UtcNow), settings);
+
+            Assert.That(frame.WaveformValues, Is.EqualTo(mono.Select(sample => (double)sample)));
+        }
+
         #endregion
     }
 }

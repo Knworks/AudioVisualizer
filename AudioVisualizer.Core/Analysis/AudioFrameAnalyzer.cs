@@ -41,7 +41,7 @@ namespace AudioVisualizer.Core.Analysis
 
             var normalizedSamples = ToNormalizedSamples(sampleBuffer);
             var peakLevel = CalculatePeakLevel(normalizedSamples);
-            var (waveformValues, waveformRanges) = BuildWaveformValues(normalizedSamples, settings.BarCount, settings.Sensitivity);
+            var (waveformValues, waveformRanges) = BuildWaveformValues(SelectWaveformChannel(normalizedSamples, sampleBuffer.Channels), settings.BarCount, settings.Sensitivity);
             var spectrumValues = BuildSpectrumValues(normalizedSamples, sampleBuffer.Channels, settings.BarCount, settings.Sensitivity);
 
             return new VisualizerFrame(spectrumValues, waveformValues, peakLevel, sampleBuffer.Timestamp, waveformRanges);
@@ -85,6 +85,52 @@ namespace AudioVisualizer.Core.Analysis
             }
 
             return peak;
+        }
+
+        /// <summary>
+        /// 波形表示には窓内のエネルギーが最大のチャンネルを使用します。
+        /// </summary>
+        /// <param name="samples">チャンネルが交互に並ぶ PCM サンプルです。</param>
+        /// <param name="channels">入力のチャンネル数です。</param>
+        /// <returns>選択されたチャンネルのサンプルです。</returns>
+        private static double[] SelectWaveformChannel(double[] samples, int channels)
+        {
+            if (channels == 1 || samples.Length == 0)
+            {
+                return samples;
+            }
+
+            var frameCount = samples.Length / channels;
+            var result = new double[frameCount];
+            if (frameCount == 0)
+            {
+                return result;
+            }
+
+            var selectedChannel = 0;
+            var maximumEnergy = -1.0;
+            for (var channel = 0; channel < channels; channel++)
+            {
+                var energy = 0.0;
+                for (var index = 0; index < frameCount; index++)
+                {
+                    var sample = samples[(index * channels) + channel];
+                    energy += sample * sample;
+                }
+
+                if (energy > maximumEnergy)
+                {
+                    selectedChannel = channel;
+                    maximumEnergy = energy;
+                }
+            }
+
+            for (var index = 0; index < frameCount; index++)
+            {
+                result[index] = samples[(index * channels) + selectedChannel];
+            }
+
+            return result;
         }
 
         /// <summary>

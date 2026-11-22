@@ -31,12 +31,12 @@ namespace AudioVisualizer.Core.Effects
         /// <exception cref="ArgumentOutOfRangeException">正規化範囲外の値が指定された場合にスローされます。</exception>
         public NormalizedPoint(double x, double y)
         {
-            if (x < 0 || x > 1)
+            if (!double.IsFinite(x) || x < 0 || x > 1)
             {
                 throw new ArgumentOutOfRangeException(nameof(x), "X は 0.0 から 1.0 の範囲で指定してください。");
             }
 
-            if (y < 0 || y > 1)
+            if (!double.IsFinite(y) || y < 0 || y > 1)
             {
                 throw new ArgumentOutOfRangeException(nameof(y), "Y は 0.0 から 1.0 の範囲で指定してください。");
             }

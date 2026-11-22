@@ -296,7 +296,8 @@ namespace AudioVisualizer.Wpf
                 nameof(InputSource),
                 typeof(InputSource),
                 typeof(AudioVisualizerControl),
-                new FrameworkPropertyMetadata(InputSource.SystemOutput, OnConnectionSettingChanged));
+                new FrameworkPropertyMetadata(InputSource.SystemOutput, OnConnectionSettingChanged),
+                value => value is InputSource source && Enum.IsDefined(source));
 
         /// <summary>
         /// 既定デバイス利用可否の依存関係プロパティです。
@@ -747,7 +748,7 @@ namespace AudioVisualizer.Wpf
         /// <returns>有効値の場合は <see langword="true"/>。</returns>
         private static bool IsValidSensitivity(object value)
         {
-            return value is double sensitivity && sensitivity > 0;
+            return value is double sensitivity && double.IsFinite(sensitivity) && sensitivity > 0;
         }
 
         /// <summary>

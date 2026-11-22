@@ -31,7 +31,13 @@ namespace AudioVisualizer.Core.Effects
                 throw new ArgumentNullException(nameof(bands));
             }
 
-            Bands = bands.ToArray();
+            var bandsCopy = bands.ToArray();
+            if (Array.Exists(bandsCopy, item => item is null))
+            {
+                throw new ArgumentException("Render data must not contain null elements.", nameof(bands));
+            }
+
+            Bands = bandsCopy;
         }
 
         #endregion

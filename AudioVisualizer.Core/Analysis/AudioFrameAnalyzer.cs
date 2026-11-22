@@ -250,7 +250,7 @@ namespace AudioVisualizer.Core.Analysis
                 }
             }
 
-            var scale = (double)fftSize / windowSize * sensitivity * SpectrumScale;
+            var scale = (double)fftSize / windowSize * SpectrumScale;
             for (var barIndex = 0; barIndex < outputLength; barIndex++)
             {
                 var startBin = 1 + (int)((long)positiveBinCount * barIndex / outputLength);
@@ -261,7 +261,7 @@ namespace AudioVisualizer.Core.Analysis
                     maximumPower = Math.Max(maximumPower, maximumPowerByBin[bin]);
                 }
 
-                result[barIndex] = Math.Clamp(Math.Sqrt(maximumPower) * scale, 0.0, 1.0);
+                result[barIndex] = Math.Clamp(Math.Sqrt(maximumPower) * scale * sensitivity, 0.0, 1.0);
             }
 
             return result;

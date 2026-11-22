@@ -80,13 +80,25 @@ namespace AudioVisualizer.Core.Models
                 throw new ArgumentNullException(nameof(waveformValues));
             }
 
-            if (peakLevel < 0)
+            if (!double.IsFinite(peakLevel) || peakLevel < 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(peakLevel), "Peak level must not be negative.");
             }
 
-            SpectrumValues = spectrumValues.ToArray();
-            WaveformValues = waveformValues.ToArray();
+            var spectrum = spectrumValues.ToArray();
+            if (Array.Exists(spectrum, value => !double.IsFinite(value)))
+            {
+                throw new ArgumentException("Spectrum values must be finite.", nameof(spectrumValues));
+            }
+
+            var waveform = waveformValues.ToArray();
+            if (Array.Exists(waveform, value => !double.IsFinite(value)))
+            {
+                throw new ArgumentException("Waveform values must be finite.", nameof(waveformValues));
+            }
+
+            SpectrumValues = spectrum;
+            WaveformValues = waveform;
             WaveformRanges = Array.AsReadOnly(waveformRanges.ToArray());
             PeakLevel = peakLevel;
             Timestamp = timestamp;

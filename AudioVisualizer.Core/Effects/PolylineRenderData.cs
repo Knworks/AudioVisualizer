@@ -31,7 +31,13 @@ namespace AudioVisualizer.Core.Effects
                 throw new ArgumentNullException(nameof(points));
             }
 
-            Points = points.ToArray();
+            var pointsCopy = points.ToArray();
+            if (Array.Exists(pointsCopy, item => item is null))
+            {
+                throw new ArgumentException("Render data must not contain null elements.", nameof(points));
+            }
+
+            Points = pointsCopy;
         }
 
         #endregion

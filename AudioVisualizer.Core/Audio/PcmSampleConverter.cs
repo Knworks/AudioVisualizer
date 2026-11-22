@@ -37,7 +37,7 @@ namespace AudioVisualizer.Core.Audio
             for (var index = 0; index < result.Length; index++)
             {
                 var bytes = buffer[(index * bytesPerSample)..];
-                result[index] = (format.Encoding, bytesPerSample) switch
+                var sample = (format.Encoding, bytesPerSample) switch
                 {
                     (WaveFormatEncoding.IeeeFloat, _) => BinaryPrimitives.ReadSingleLittleEndian(bytes),
                     (_, 1) => (bytes[0] - 128) / 128f,
@@ -45,6 +45,7 @@ namespace AudioVisualizer.Core.Audio
                     (_, 3) => (bytes[0] | (bytes[1] << 8) | ((sbyte)bytes[2] << 16)) / 8388608f,
                     _ => BinaryPrimitives.ReadInt32LittleEndian(bytes) / 2147483648f,
                 };
+                result[index] = float.IsFinite(sample) ? sample : 0f;
             }
 
             return result;

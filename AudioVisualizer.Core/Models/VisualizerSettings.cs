@@ -83,12 +83,12 @@ namespace AudioVisualizer.Core.Models
             double smoothing,
             int barCount)
         {
-            if (sensitivity <= 0)
+            if (!double.IsFinite(sensitivity) || sensitivity <= 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(sensitivity), "Sensitivity must be greater than zero.");
             }
 
-            if (smoothing < 0 || smoothing > 1)
+            if (!double.IsFinite(smoothing) || smoothing < 0 || smoothing > 1)
             {
                 throw new ArgumentOutOfRangeException(nameof(smoothing), "Smoothing must be between 0.0 and 1.0.");
             }
@@ -101,6 +101,11 @@ namespace AudioVisualizer.Core.Models
             if (!useDefaultDevice && string.IsNullOrWhiteSpace(deviceId))
             {
                 throw new ArgumentException("A device ID is required when the default device is not used.", nameof(deviceId));
+            }
+
+            if (!Enum.IsDefined(inputSource))
+            {
+                throw new ArgumentOutOfRangeException(nameof(inputSource));
             }
 
             InputSource = inputSource;

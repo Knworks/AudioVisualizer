@@ -165,6 +165,8 @@
 
 **コード確認。** Coreの大小比較を使った検証は `NaN` を通し、感度では正の無限大も拒否しない。描画データのリストには `null` 要素も渡せる。WPFの入力種別とCoreの設定は未定義の `InputSource` を構築時点で拒否せず、後段のデバイス列挙で例外になる。通常の設定ミスや独自エフェクトの計算異常が、分析結果の汚染や描画エラーとして遅れて現れる。境界で有限値、列挙、要素の妥当性を統一的に検証する。 [設定の検証](../AudioVisualizer.Core/Models/VisualizerSettings.cs#L77) [公開描画値](../AudioVisualizer.Core/Effects/NormalizedPoint.cs#L32) [描画点列](../AudioVisualizer.Core/Effects/PolylineRenderData.cs#L26) [WPF設定登録](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L245)
 
+**修正済み。** 公開設定および描画・フレームの値を生成時に検証し、非有限値、未定義の入力種別、描画リストのnull要素を拒否する。WASAPI由来の非有限PCMは無音に置き換える。Core 94件、WPF 87件、SampleApp 21件のテストが成功した。
+
 ### 📈 M13 バー数に上限がなく、分析と描画の負荷が急増する
 
 **コード確認。** 公開APIは正の整数をすべて受け付け、その値で配列を確保する。解析ではフレームごとに各出力点について最大1024サンプルの三角関数計算を繰り返し、1024サンプルの半分を超える出力点は同じ周波数を重複計算する。設定値次第でUI応答性を失い、メモリ不足にもなり得る。描画点数の上限と解析負荷の予算を定め、周波数点を一度求めて再利用する。 [バー数の検証](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L589) [周波数計算とループ](../AudioVisualizer.Core/Analysis/AudioFrameAnalyzer.cs#L185)

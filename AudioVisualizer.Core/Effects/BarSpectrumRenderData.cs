@@ -35,7 +35,13 @@ namespace AudioVisualizer.Core.Effects
                 throw new ArgumentNullException(nameof(bars));
             }
 
-            Bars = bars.ToArray();
+            var barsCopy = bars.ToArray();
+            if (Array.Exists(barsCopy, item => item is null))
+            {
+                throw new ArgumentException("Render data must not contain null elements.", nameof(bars));
+            }
+
+            Bars = barsCopy;
         }
 
         #endregion

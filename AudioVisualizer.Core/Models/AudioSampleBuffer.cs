@@ -61,7 +61,13 @@ namespace AudioVisualizer.Core.Models
                 throw new ArgumentOutOfRangeException(nameof(channels), "チャンネル数は 1 以上である必要があります。");
             }
 
-            Samples = samples.ToArray();
+            var copy = samples.ToArray();
+            if (Array.Exists(copy, sample => !float.IsFinite(sample)))
+            {
+                throw new ArgumentException("Audio samples must be finite.", nameof(samples));
+            }
+
+            Samples = copy;
             SampleRate = sampleRate;
             Channels = channels;
             Timestamp = timestamp;

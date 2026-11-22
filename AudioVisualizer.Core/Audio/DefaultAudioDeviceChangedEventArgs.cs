@@ -35,6 +35,11 @@ namespace AudioVisualizer.Core.Audio
                 throw new ArgumentException("A default device ID is required.", nameof(deviceId));
             }
 
+            if (!Enum.IsDefined(inputSource))
+            {
+                throw new ArgumentOutOfRangeException(nameof(inputSource));
+            }
+
             InputSource = inputSource;
             DeviceId = deviceId;
         }

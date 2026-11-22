@@ -46,8 +46,20 @@ namespace AudioVisualizer.Core.Effects
                 throw new ArgumentNullException(nameof(peakMarkers));
             }
 
-            Bars = bars.ToArray();
-            PeakMarkers = peakMarkers.ToArray();
+            var barsCopy = bars.ToArray();
+            if (Array.Exists(barsCopy, item => item is null))
+            {
+                throw new ArgumentException("Render data must not contain null elements.", nameof(bars));
+            }
+
+            Bars = barsCopy;
+            var peakMarkersCopy = peakMarkers.ToArray();
+            if (Array.Exists(peakMarkersCopy, item => item is null))
+            {
+                throw new ArgumentException("Render data must not contain null elements.", nameof(peakMarkers));
+            }
+
+            PeakMarkers = peakMarkersCopy;
         }
 
         #endregion

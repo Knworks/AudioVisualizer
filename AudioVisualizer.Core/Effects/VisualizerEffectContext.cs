@@ -65,12 +65,12 @@ namespace AudioVisualizer.Core.Effects
             int barCount,
             SpectrumProfile spectrumProfile)
         {
-            if (sensitivity <= 0)
+            if (!double.IsFinite(sensitivity) || sensitivity <= 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(sensitivity), "Sensitivity must be greater than zero.");
             }
 
-            if (smoothing < 0 || smoothing > 1)
+            if (!double.IsFinite(smoothing) || smoothing < 0 || smoothing > 1)
             {
                 throw new ArgumentOutOfRangeException(nameof(smoothing), "Smoothing must be between 0.0 and 1.0.");
             }
@@ -83,6 +83,11 @@ namespace AudioVisualizer.Core.Effects
             if (!Enum.IsDefined(spectrumProfile))
             {
                 throw new ArgumentOutOfRangeException(nameof(spectrumProfile), "Spectrum profile is not supported.");
+            }
+
+            if (!Enum.IsDefined(inputSource))
+            {
+                throw new ArgumentOutOfRangeException(nameof(inputSource));
             }
 
             InputSource = inputSource;

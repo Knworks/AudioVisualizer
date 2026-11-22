@@ -51,6 +51,11 @@ namespace AudioVisualizer.Core.Models
             DisplayName = string.IsNullOrWhiteSpace(displayName)
                 ? throw new ArgumentException("Display name must not be blank.", nameof(displayName))
                 : displayName;
+            if (!Enum.IsDefined(inputSource))
+            {
+                throw new ArgumentOutOfRangeException(nameof(inputSource));
+            }
+
             InputSource = inputSource;
             IsDefault = isDefault;
         }

@@ -35,17 +35,17 @@ namespace AudioVisualizer.Core.Effects
         /// <exception cref="ArgumentOutOfRangeException">正規化範囲外の値が指定された場合にスローされます。</exception>
         public PeakMarkerItem(double x, double width, double height)
         {
-            if (x < 0 || x > 1)
+            if (!double.IsFinite(x) || x < 0 || x > 1)
             {
                 throw new ArgumentOutOfRangeException(nameof(x), "X は 0.0 から 1.0 の範囲で指定してください。");
             }
 
-            if (width < 0 || width > 1)
+            if (!double.IsFinite(width) || width < 0 || width > 1)
             {
                 throw new ArgumentOutOfRangeException(nameof(width), "Width は 0.0 から 1.0 の範囲で指定してください。");
             }
 
-            if (height < 0 || height > 1)
+            if (!double.IsFinite(height) || height < 0 || height > 1)
             {
                 throw new ArgumentOutOfRangeException(nameof(height), "Height は 0.0 から 1.0 の範囲で指定してください。");
             }

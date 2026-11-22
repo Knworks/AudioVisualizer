@@ -407,7 +407,9 @@ namespace AudioVisualizer.Core.Audio
             }
 
             var sampleBuffer = new AudioSampleBuffer(e.Samples, e.SampleRate, e.Channels, e.Timestamp);
-            var frame = m_FrameAnalyzer.CreateFrame(sampleBuffer, capture.Settings);
+            var frame = m_FrameAnalyzer is AudioFrameAnalyzer analyzer
+                ? analyzer.CreateFrame(sampleBuffer, capture.Settings, capture.WaveformHistory)
+                : m_FrameAnalyzer.CreateFrame(sampleBuffer, capture.Settings);
             var args = new VisualizerFrameEventArgs(frame, () => ReferenceEquals(m_ActiveCapture, capture));
             lock (m_FrameDispatchSync)
             {
@@ -482,7 +484,13 @@ namespace AudioVisualizer.Core.Audio
         /// </summary>
         /// <param name="Session">音声取得セッションです。</param>
         /// <param name="Settings">フレームの解析設定です。</param>
-        private sealed record CaptureState(IAudioCaptureSession Session, VisualizerSettings Settings);
+        private sealed record CaptureState(IAudioCaptureSession Session, VisualizerSettings Settings)
+        {
+            /// <summary>
+            /// 同じ取得セッションの PCM を保持する波形履歴です。
+            /// </summary>
+            public WaveformHistory WaveformHistory { get; } = new();
+        }
 
         #region 内部処理
 

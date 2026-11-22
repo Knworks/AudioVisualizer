@@ -36,12 +36,25 @@ namespace AudioVisualizer.Core.Analysis
         /// <exception cref="ArgumentNullException"><paramref name="sampleBuffer"/> または <paramref name="settings"/> が <see langword="null"/> の場合にスローされます。</exception>
         public VisualizerFrame CreateFrame(AudioSampleBuffer sampleBuffer, VisualizerSettings settings)
         {
+            return CreateFrame(sampleBuffer, settings, null);
+        }
+
+        /// <summary>
+        /// 連続取得中の波形履歴を利用して解析済みフレームを生成します。
+        /// </summary>
+        /// <param name="sampleBuffer">最新の入力ブロックです。</param>
+        /// <param name="settings">解析設定です。</param>
+        /// <param name="waveformHistory">現在の取得セッションの波形履歴です。</param>
+        /// <returns>解析済みフレームです。</returns>
+        internal VisualizerFrame CreateFrame(AudioSampleBuffer sampleBuffer, VisualizerSettings settings, WaveformHistory? waveformHistory)
+        {
             ArgumentNullException.ThrowIfNull(sampleBuffer);
             ArgumentNullException.ThrowIfNull(settings);
 
             var normalizedSamples = ToNormalizedSamples(sampleBuffer);
             var peakLevel = CalculatePeakLevel(normalizedSamples);
-            var (waveformValues, waveformRanges) = BuildWaveformValues(SelectWaveformChannel(normalizedSamples, sampleBuffer.Channels), settings.BarCount, settings.Sensitivity);
+            var waveformSamples = waveformHistory?.Append(normalizedSamples, sampleBuffer.SampleRate, sampleBuffer.Channels) ?? normalizedSamples;
+            var (waveformValues, waveformRanges) = BuildWaveformValues(SelectWaveformChannel(waveformSamples, sampleBuffer.Channels), settings.BarCount, settings.Sensitivity);
             var spectrumValues = BuildSpectrumValues(normalizedSamples, sampleBuffer.Channels, settings.BarCount, settings.Sensitivity);
 
             return new VisualizerFrame(spectrumValues, waveformValues, peakLevel, sampleBuffer.Timestamp, waveformRanges);

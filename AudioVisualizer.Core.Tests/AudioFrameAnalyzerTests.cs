@@ -318,6 +318,45 @@ namespace AudioVisualizer.Core.Tests
             Assert.That(frame.WaveformValues, Is.EqualTo(mono.Select(sample => (double)sample)));
         }
 
+        /// <summary>
+        /// 短い取得ブロックを連結して、固定時間の波形を描画できることを確認します。
+        /// </summary>
+        [Test]
+        public void CaptureWaveform_WhenPacketsAreShort_UsesOneFixedWindow()
+        {
+            var analyzer = new AudioFrameAnalyzer();
+            var history = new WaveformHistory();
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.0, 12);
+            var first = new AudioSampleBuffer(new[] { 0.25f, 0.5f, 0.75f, 1.0f }, 1000, 1, DateTimeOffset.UtcNow);
+            var second = new AudioSampleBuffer(new[] { -0.25f, -0.5f, -0.75f, -1.0f }, 1000, 1, DateTimeOffset.UtcNow);
+
+            analyzer.CreateFrame(first, settings, history);
+            var frame = analyzer.CreateFrame(second, settings, history);
+
+            Assert.That(frame.WaveformValues, Is.EqualTo(new[] { 0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, -0.25, -0.5, -0.75, -1.0 }));
+        }
+
+        /// <summary>
+        /// 長いブロックの前半にある単発音を表示し、その次は最新の時間窓へ戻ります。
+        /// </summary>
+        [Test]
+        public void CaptureWaveform_WhenLongPacketContainsEarlyTransient_ShowsItForOneFrame()
+        {
+            var analyzer = new AudioFrameAnalyzer();
+            var history = new WaveformHistory();
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.0, 12);
+            var samples = new float[48];
+            samples[3] = 0.75f;
+            var packet = new AudioSampleBuffer(samples, 1000, 1, DateTimeOffset.UtcNow);
+            var silence = new AudioSampleBuffer(new float[2], 1000, 1, DateTimeOffset.UtcNow);
+
+            var transient = analyzer.CreateFrame(packet, settings, history);
+            var next = analyzer.CreateFrame(silence, settings, history);
+
+            Assert.That(transient.WaveformValues[3], Is.EqualTo(0.75));
+            Assert.That(next.WaveformValues, Is.All.Zero);
+        }
+
         #endregion
     }
 }

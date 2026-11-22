@@ -91,6 +91,8 @@
 
 **対応案。** フレーム通知と取得の停止・解放を異なる実行経路にし、ハンドラーから停止を要求しても処理が完了することを検証する。 [フレーム通知](../AudioVisualizer.Core/Audio/SystemOutputAudioInputProvider.cs#L222) [停止と解放](../AudioVisualizer.Core/Audio/SystemOutputAudioInputProvider.cs#L168) [WASAPIデータ通知](../AudioVisualizer.Core/Audio/WasapiAudioCaptureFactory.cs#L116) [NAudio 2.3.0のデータ通知と破棄](https://github.com/naudio/NAudio/blob/v2.3.0/NAudio.Wasapi/WasapiCapture.cs#L266-L315) [MicrosoftのThread.Join仕様](https://learn.microsoft.com/en-us/dotnet/api/system.threading.thread.join?view=net-10.0#system-threading-thread-join)
 
+**修正済み。** 解析済みフレームは取得スレッドとは別のスレッドから通知し、通知待ちは最新1件に集約する。停止・破棄がサンプル通知の終了を待つ条件で、フレームハンドラーから両操作が完了することを確認した。全177テストが成功した。
+
 ## 🟠 中
 
 ### 🎧 M01 取得処理が扱えるPCM形式が限定され、未対応の形式は取得中に失敗する

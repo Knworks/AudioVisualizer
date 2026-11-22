@@ -68,6 +68,21 @@ namespace AudioVisualizer.Core.Audio
         private volatile string? m_CaptureError;
 
         /// <summary>
+        /// フレーム通知の予約を保護します。キャプチャ操作のロックとは独立しています。
+        /// </summary>
+        private readonly object m_FrameDispatchSync = new();
+
+        /// <summary>
+        /// 通知待ちの最新フレームです。
+        /// </summary>
+        private VisualizerFrameEventArgs? m_PendingFrame;
+
+        /// <summary>
+        /// フレーム通知の作業が予約済みか実行中かを示します。
+        /// </summary>
+        private bool m_IsFrameDispatchQueued;
+
+        /// <summary>
         /// 現在接続している音声デバイス識別子です。
         /// </summary>
         private string? m_CurrentDeviceId;
@@ -277,6 +292,11 @@ namespace AudioVisualizer.Core.Audio
         private void StopCapture()
         {
             m_ActiveCapture = null;
+            lock (m_FrameDispatchSync)
+            {
+                m_PendingFrame = null;
+            }
+
             try
             {
                 m_CaptureSession?.Stop();
@@ -293,7 +313,7 @@ namespace AudioVisualizer.Core.Audio
         #region イベントハンドラ
 
         /// <summary>
-        /// 新しい解析済みフレームが生成されたときに発生します。
+        /// 取得スレッドとは別のスレッドで最新の解析済みフレームを通知します。
         /// </summary>
         public event EventHandler<VisualizerFrameEventArgs>? FrameProduced;
 
@@ -388,9 +408,70 @@ namespace AudioVisualizer.Core.Audio
 
             var sampleBuffer = new AudioSampleBuffer(e.Samples, e.SampleRate, e.Channels, e.Timestamp);
             var frame = m_FrameAnalyzer.CreateFrame(sampleBuffer, capture.Settings);
-            if (ReferenceEquals(m_ActiveCapture, capture))
+            var args = new VisualizerFrameEventArgs(frame, () => ReferenceEquals(m_ActiveCapture, capture));
+            lock (m_FrameDispatchSync)
             {
-                FrameProduced?.Invoke(this, new VisualizerFrameEventArgs(frame, () => ReferenceEquals(m_ActiveCapture, capture)));
+                if (!args.IsCurrent)
+                {
+                    return;
+                }
+
+                m_PendingFrame = args;
+                if (m_IsFrameDispatchQueued)
+                {
+                    return;
+                }
+
+                m_IsFrameDispatchQueued = true;
+            }
+
+            QueueFrameDispatch();
+        }
+
+        /// <summary>
+        /// 取得スレッドから独立した作業として、保留フレームの通知を予約します。
+        /// </summary>
+        private void QueueFrameDispatch()
+        {
+            ThreadPool.QueueUserWorkItem(static provider => provider.DispatchFrame(), this, false);
+        }
+
+        /// <summary>
+        /// 取得がまだ有効な最新フレームを購読者へ通知します。
+        /// </summary>
+        private void DispatchFrame()
+        {
+            VisualizerFrameEventArgs? frame;
+            lock (m_FrameDispatchSync)
+            {
+                frame = m_PendingFrame;
+                m_PendingFrame = null;
+            }
+
+            try
+            {
+                if (frame is { IsCurrent: true })
+                {
+                    FrameProduced?.Invoke(this, frame);
+                }
+            }
+            catch (Exception exception)
+            {
+                Trace.TraceError("{0}", exception);
+            }
+            finally
+            {
+                bool shouldSchedule;
+                lock (m_FrameDispatchSync)
+                {
+                    shouldSchedule = m_PendingFrame is not null;
+                    m_IsFrameDispatchQueued = shouldSchedule;
+                }
+
+                if (shouldSchedule)
+                {
+                    QueueFrameDispatch();
+                }
             }
         }
 

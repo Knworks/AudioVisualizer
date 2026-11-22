@@ -24,7 +24,7 @@ namespace AudioVisualizer.Core.Tests
         /// ・3. Stop 後に IsCapturing が false になる
         /// </summary>
         [Test]
-        public void Given_SystemOutputSettings_When_StartAndSamplesArrive_Then_FrameProducedIsRaised()
+        public async Task Given_SystemOutputSettings_When_StartAndSamplesArrive_Then_FrameProducedIsRaised()
         {
             // 準備
             var captureSession = new FakeAudioCaptureSession();
@@ -37,12 +37,13 @@ namespace AudioVisualizer.Core.Tests
             var analyzer = new AudioFrameAnalyzer();
             using var sut = new SystemOutputAudioInputProvider(analyzer, deviceService, captureFactory);
             var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
-            VisualizerFrame? producedFrame = null;
-            sut.FrameProduced += (_, eventArgs) => producedFrame = eventArgs.Frame;
+            var receivedFrame = new TaskCompletionSource<VisualizerFrame>(TaskCreationOptions.RunContinuationsAsynchronously);
+            sut.FrameProduced += (_, eventArgs) => receivedFrame.TrySetResult(eventArgs.Frame);
 
             // 実行
             var startResult = sut.Start(settings);
             captureSession.RaiseSamples(new float[] { 0.1f, -0.4f, 0.7f, -0.2f }, 48000, 2);
+            var producedFrame = await receivedFrame.Task.WaitAsync(TimeSpan.FromSeconds(5));
             sut.Stop();
 
             // 検証
@@ -105,7 +106,7 @@ namespace AudioVisualizer.Core.Tests
         /// ・3. 既存セッションへ Stop が 1 回呼ばれる
         /// </summary>
         [Test]
-        public void Given_DefaultDeviceMode_When_DefaultRenderDeviceChanges_Then_CaptureRestartsWithNewDefaultDevice()
+        public async Task Given_DefaultDeviceMode_When_DefaultRenderDeviceChanges_Then_CaptureRestartsWithNewDefaultDevice()
         {
             // 準備
             var captureSession = new FakeAudioCaptureSession();
@@ -120,17 +121,18 @@ namespace AudioVisualizer.Core.Tests
             var work = new Queue<Action>();
             using var sut = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), deviceService, captureFactory, work.Enqueue);
             var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
-            VisualizerFrameEventArgs? oldFrame = null;
-            sut.FrameProduced += (_, args) => oldFrame = args;
+            var receivedFrame = new TaskCompletionSource<VisualizerFrameEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+            sut.FrameProduced += (_, args) => receivedFrame.TrySetResult(args);
 
             // 実行
             var startResult = sut.Start(settings);
             captureSession.RaiseSamples(new[] { 0.1f, 0.2f }, 48000, 1);
+            var oldFrame = await receivedFrame.Task.WaitAsync(TimeSpan.FromSeconds(5));
             deviceService.SetDefaultDevice(InputSource.SystemOutput, renderDevice2);
             deviceService.RaiseDefaultDeviceChanged(InputSource.SystemOutput, "render-2");
             Assert.That(captureFactory.CreateCallCount, Is.EqualTo(1));
             work.Dequeue()();
-            Assert.That(oldFrame!.IsCurrent, Is.False);
+            Assert.That(oldFrame.IsCurrent, Is.False);
 
             // 検証
             Assert.Multiple(() =>
@@ -670,6 +672,56 @@ namespace AudioVisualizer.Core.Tests
             Assert.That(reportedStates[0].Error, Is.Not.Null);
         }
 
+        /// <summary>
+        /// フレーム通知中に停止や破棄を行っても、サンプル通知元の終了を待てます。
+        /// </summary>
+        [TestCase(false)]
+        [TestCase(true)]
+        public async Task FrameHandler_WhenStoppingOrDisposing_AllowsCaptureThreadToExit(bool dispose)
+        {
+            var device = new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true);
+            var devices = new FakeAudioDeviceService(new[] { device }, Array.Empty<AudioDeviceInfo>(), device, null);
+            var producerExited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var session = new FakeAudioCaptureSession
+            {
+                OnDispose = () => producerExited.Task.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult(),
+            };
+            using var provider = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), devices, new FakeAudioCaptureFactory(session));
+            provider.FrameProduced += (_, _) =>
+            {
+                try
+                {
+                    if (dispose)
+                    {
+                        provider.Dispose();
+                    }
+                    else
+                    {
+                        provider.Stop();
+                    }
+
+                    stopped.SetResult();
+                }
+                catch (Exception exception)
+                {
+                    stopped.SetException(exception);
+                }
+            };
+
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
+            Assert.That(provider.Start(settings).Succeeded, Is.True);
+            await Task.Run(() =>
+            {
+                session.RaiseSamples(new[] { 0.1f, 0.2f }, 48000, 1);
+                producerExited.SetResult();
+            });
+
+            await stopped.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.That(provider.IsCapturing, Is.False);
+            Assert.That(session.DisposeCallCount, Is.EqualTo(1));
+        }
+
         #endregion
 
         #region 内部処理
@@ -941,6 +993,11 @@ namespace AudioVisualizer.Core.Tests
             /// </summary>
             public int DisposeCallCount { get; private set; }
 
+            /// <summary>
+            /// 解放時に実行する処理を指定します。
+            /// </summary>
+            public Action? OnDispose { get; init; }
+
             #endregion
 
             #region 公開メソッド
@@ -970,6 +1027,7 @@ namespace AudioVisualizer.Core.Tests
             public void Dispose()
             {
                 DisposeCallCount++;
+                OnDispose?.Invoke();
             }
 
             /// <summary>

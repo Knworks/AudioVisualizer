@@ -41,7 +41,7 @@ namespace AudioVisualizer.Core.Effects
                 throw new ArgumentException("Render data must not contain null elements.", nameof(bars));
             }
 
-            Bars = barsCopy;
+            Bars = Array.AsReadOnly(barsCopy);
         }
 
         #endregion

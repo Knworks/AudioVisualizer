@@ -221,6 +221,8 @@
 
 **コード確認。** コンストラクターでコピーするが、配列をそのまま `IReadOnlyList<T>` として返す。配列型へキャストできるため、公開データを受け取った後も内容を変更できる。フレームを別スレッドで受け渡す場合や、レンダラーがデータ参照で座標をキャッシュする場合は、表示と公開値が一致しなくなり得る。公開するなら読み取り専用ラッパーか不変コレクションを使う。 [フレームの配列](../AudioVisualizer.Core/Models/VisualizerFrame.cs#L65) [描画点の配列](../AudioVisualizer.Core/Effects/PolylineRenderData.cs#L34) [参照ベースのキャッシュ](../AudioVisualizer.Wpf/Rendering/PolylineRenderer.cs#L106)
 
+**修正済み。** フレーム、PCMサンプル、描画データ、エフェクト対応入力の配列を複製した上で読み取り専用ラッパーを公開する。元の配列と公開リストの両方から変更できないことを確認し、全220テストが成功した。
+
 ### 🗂️ L06 Coreディレクトリにソリューション外のテストプロジェクトが残っている
 
 **コード確認。** `AudioVisualizer.Core/AudioVisualizer.Tests.csproj` はソリューションに含まれず、Core本体と同じフォルダーにある。プロジェクト指定を省いて同フォルダーで操作する場合や、全 `csproj` を探す自動化でビルド対象や中間出力が混乱する。正式な `AudioVisualizer.Core.Tests` への移行を確認し、残存プロジェクトを整理する。 [残存プロジェクト](../AudioVisualizer.Core/AudioVisualizer.Tests.csproj) [ソリューション](../AudioVisualizer.slnx)

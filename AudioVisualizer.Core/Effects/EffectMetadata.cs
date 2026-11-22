@@ -90,7 +90,7 @@ namespace AudioVisualizer.Core.Effects
 
             Author = string.IsNullOrWhiteSpace(author) ? null : author;
             Description = string.IsNullOrWhiteSpace(description) ? null : description;
-            SupportedInputSources = inputSources;
+            SupportedInputSources = Array.AsReadOnly(inputSources);
         }
 
         #endregion

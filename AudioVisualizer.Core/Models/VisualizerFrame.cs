@@ -105,9 +105,9 @@ namespace AudioVisualizer.Core.Models
                 throw new ArgumentException("Waveform values must be finite.", nameof(waveformValues));
             }
 
-            SpectrumValues = spectrum;
+            SpectrumValues = Array.AsReadOnly(spectrum);
             FrequencyBandLevels = frequencyBandLevels;
-            WaveformValues = waveform;
+            WaveformValues = Array.AsReadOnly(waveform);
             WaveformRanges = Array.AsReadOnly(waveformRanges.ToArray());
             PeakLevel = peakLevel;
             Timestamp = timestamp;

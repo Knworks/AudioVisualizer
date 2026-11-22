@@ -8,6 +8,21 @@ namespace AudioVisualizer.Core.Tests
     [TestFixture]
     public class PolylineRenderDataTests
     {
+        /// <summary>元の配列と公開コレクションの両方から点列を変更できないことを確認します。</summary>
+        [Test]
+        public void Points_AfterConstruction_CannotBeModified()
+        {
+            var original = new NormalizedPoint(0, 0);
+            var replacement = new NormalizedPoint(1, 1);
+            var source = new[] { original };
+            var data = new PolylineRenderData("test", DateTimeOffset.UnixEpoch, source);
+
+            source[0] = replacement;
+            Assert.That(() => ((IList<NormalizedPoint>)data.Points)[0] = replacement,
+                Throws.TypeOf<NotSupportedException>());
+            Assert.That(data.Points[0], Is.SameAs(original));
+        }
+
         #region 公開メソッド
 
         /// <summary>

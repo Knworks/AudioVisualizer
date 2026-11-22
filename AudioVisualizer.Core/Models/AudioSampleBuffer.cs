@@ -67,7 +67,7 @@ namespace AudioVisualizer.Core.Models
                 throw new ArgumentException("Audio samples must be finite.", nameof(samples));
             }
 
-            Samples = copy;
+            Samples = Array.AsReadOnly(copy);
             SampleRate = sampleRate;
             Channels = channels;
             Timestamp = timestamp;

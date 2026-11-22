@@ -1063,6 +1063,34 @@ namespace AudioVisualizer.Wpf.Tests
         }
 
         /// <summary>
+        /// 独自エフェクトの例外時は描画を消去し、次のフレームを処理できることを確認します。
+        /// </summary>
+        [Test]
+        public void Effect_WhenRenderingThrows_ClearsDrawingAndAcceptsNextFrame()
+        {
+            var provider = new FakeAudioInputProvider();
+            var effect = new CountingVisualizerEffect();
+            var control = new AudioVisualizerControl(provider, effect, new BarSpectrumRenderer()) { IsActive = true };
+            var frame = new VisualizerFrame(new[] { 0.1 }, new[] { 0.1 }, 0.1, DateTimeOffset.UtcNow);
+            provider.RaiseFrame(frame);
+            Assert.That(control.CurrentRenderData, Is.Not.Null);
+
+            effect.ThrowOnBuild = true;
+            Assert.That(() => control.Sensitivity = 2.0, Throws.Nothing);
+            Assert.That(control.CurrentRenderData, Is.Null);
+            Task.Run(() => provider.RaiseFrame(frame)).GetAwaiter().GetResult();
+            PumpDispatcher();
+            Assert.That(control.CurrentRenderData, Is.Null);
+
+            effect.ThrowOnBuild = false;
+            Task.Run(() => provider.RaiseFrame(frame)).GetAwaiter().GetResult();
+            PumpDispatcher();
+
+            Assert.That(control.CurrentRenderData, Is.Not.Null);
+            Assert.That(effect.BuildCallCount, Is.EqualTo(4));
+        }
+
+        /// <summary>
         /// 入力開始回数とフレーム通知を制御できる偽の音声入力プロバイダーです。
         /// </summary>
         private sealed class FakeAudioInputProvider : IAudioInputProvider, IDisposable
@@ -1251,6 +1279,11 @@ namespace AudioVisualizer.Wpf.Tests
             public int BuildCallCount { get; private set; }
 
             /// <summary>
+            /// 描画データを生成する際に例外を送出するかを指定します。
+            /// </summary>
+            public bool ThrowOnBuild { get; set; }
+
+            /// <summary>
             /// 直近に受け取ったピークレベルを取得します。
             /// </summary>
             public double LastPeakLevel { get; private set; }
@@ -1270,6 +1303,11 @@ namespace AudioVisualizer.Wpf.Tests
             public VisualizerRenderData BuildRenderData(VisualizerFrame frame, VisualizerEffectContext context)
             {
                 BuildCallCount++;
+                if (ThrowOnBuild)
+                {
+                    throw new InvalidOperationException();
+                }
+
                 LastPeakLevel = frame.PeakLevel;
                 return new BarSpectrumRenderData(
                     Metadata.Id,

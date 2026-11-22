@@ -924,8 +924,16 @@ namespace AudioVisualizer.Wpf
             }
 
             var effect = Effect ?? m_DefaultEffect;
-            var rawRenderData = effect.BuildRenderData(m_CurrentFrame, CreateEffectContext());
-            m_CurrentRenderData = ApplySmoothing(m_CurrentRenderData, rawRenderData);
+            try
+            {
+                var rawRenderData = effect.BuildRenderData(m_CurrentFrame, CreateEffectContext());
+                m_CurrentRenderData = ApplySmoothing(m_CurrentRenderData, rawRenderData);
+            }
+            catch (Exception exception)
+            {
+                System.Diagnostics.Trace.TraceError("{0}", exception);
+                m_CurrentRenderData = null;
+            }
         }
 
         /// <summary>
@@ -964,23 +972,40 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         private void ProcessPendingFrames()
         {
-            while (true)
+            try
             {
-                VisualizerFrameEventArgs? frame;
-                lock (m_PendingFrameSync)
+                while (true)
                 {
-                    frame = m_PendingFrame;
-                    m_PendingFrame = null;
+                    VisualizerFrameEventArgs? frame;
+                    lock (m_PendingFrameSync)
+                    {
+                        frame = m_PendingFrame;
+                        m_PendingFrame = null;
+                    }
+
                     if (frame is null)
                     {
-                        m_IsPendingFrameDispatchQueued = false;
-                        return;
+                        break;
+                    }
+
+                    if (frame.IsCurrent)
+                    {
+                        ApplyFrame(frame.Frame);
                     }
                 }
-
-                if (frame.IsCurrent)
+            }
+            finally
+            {
+                bool shouldSchedule;
+                lock (m_PendingFrameSync)
                 {
-                    ApplyFrame(frame.Frame);
+                    shouldSchedule = m_PendingFrame is not null;
+                    m_IsPendingFrameDispatchQueued = shouldSchedule;
+                }
+
+                if (shouldSchedule)
+                {
+                    _ = Dispatcher.InvokeAsync(ProcessPendingFrames);
                 }
             }
         }
@@ -1197,7 +1222,14 @@ namespace AudioVisualizer.Wpf
         {
             if (effect is IResettableVisualizerEffect resettableVisualizerEffect)
             {
-                resettableVisualizerEffect.Reset();
+                try
+                {
+                    resettableVisualizerEffect.Reset();
+                }
+                catch (Exception exception)
+                {
+                    System.Diagnostics.Trace.TraceError("{0}", exception);
+                }
             }
         }
 

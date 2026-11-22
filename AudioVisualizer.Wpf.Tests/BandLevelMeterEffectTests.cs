@@ -369,7 +369,7 @@ namespace AudioVisualizer.Wpf.Tests
                 new BandLevelMeterRenderer())
             {
                 IsActive = true,
-                Effect = new BandLevelMeterEffect(),
+                VisualizerEffect = new BandLevelMeterEffect(),
                 Smoothing = 0.5,
                 Width = 120,
                 Height = 80,
@@ -450,7 +450,7 @@ namespace AudioVisualizer.Wpf.Tests
                 new BandLevelMeterRenderer())
             {
                 IsActive = true,
-                Effect = effect,
+                VisualizerEffect = effect,
                 Smoothing = 0.5,
             };
             var frame = new VisualizerFrame(new[] { 0.0 }, new[] { 0.0 }, 0.0, DateTimeOffset.UtcNow);

@@ -183,7 +183,7 @@ namespace AudioVisualizer.Wpf.Tests
         /// AudioVisualizerControl がフレーム未保持時のエフェクト変更で空レンダーデータのまま維持することを確認します。
         /// ■入力
         /// ・1. フレーム未受信の AudioVisualizerControl
-        /// ・2. Effect の変更
+        /// ・2. VisualizerEffect の変更
         /// ■確認内容
         /// ・1. CurrentRenderData が null のままである
         /// </summary>
@@ -195,16 +195,16 @@ namespace AudioVisualizer.Wpf.Tests
             var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer());
 
             // 実行
-            control.Effect = new SpectrumBarEffect();
+            control.VisualizerEffect = new SpectrumBarEffect();
 
             // 検証
             Assert.That(control.CurrentRenderData, Is.Null);
         }
 
         /// <summary>
-        /// AudioVisualizerControl が Effect 未指定時に既定バーエフェクトでレンダーデータを生成することを確認します。
+        /// AudioVisualizerControl が VisualizerEffect 未指定時に既定バーエフェクトでレンダーデータを生成することを確認します。
         /// ■入力
-        /// ・1. Effect = null の AudioVisualizerControl
+        /// ・1. VisualizerEffect = null の AudioVisualizerControl
         /// ・2. SpectrumValues を含む VisualizerFrame
         /// ■確認内容
         /// ・1. 現在レンダーデータが BarSpectrumRenderData になる
@@ -218,7 +218,7 @@ namespace AudioVisualizer.Wpf.Tests
             var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer())
             {
                 IsActive = true,
-                Effect = null,
+                VisualizerEffect = null,
             };
             var frame = new VisualizerFrame(new[] { 0.2, 0.5, 0.8 }, new[] { 0.1, 0.2, 0.3 }, 0.8, DateTimeOffset.UtcNow);
 
@@ -1043,6 +1043,28 @@ namespace AudioVisualizer.Wpf.Tests
             Assert.That(second.IsDisposed, Is.True);
         }
 
+        /// <summary>WPF の画像効果と音声エフェクトを同じコントロールで設定できることを確認します。</summary>
+        [Test]
+        public void WpfEffect_FromXaml_CoexistsWithVisualizerEffect()
+        {
+            var control = (AudioVisualizerControl)System.Windows.Markup.XamlReader.Parse(
+                """
+                <local:AudioVisualizerControl
+                    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:local="clr-namespace:AudioVisualizer.Wpf;assembly=AudioVisualizer.Wpf">
+                    <local:AudioVisualizerControl.Effect>
+                        <BlurEffect Radius="3" />
+                    </local:AudioVisualizerControl.Effect>
+                </local:AudioVisualizerControl>
+                """);
+            var audioEffect = new SpectrumBarEffect();
+
+            control.VisualizerEffect = audioEffect;
+
+            Assert.That(control.Effect, Is.TypeOf<System.Windows.Media.Effects.BlurEffect>());
+            Assert.That(control.VisualizerEffect, Is.SameAs(audioEffect));
+        }
+
         /// <summary>親から継承した Foreground が変わると描画ブラシも変わることを確認します。</summary>
         [Test]
         public void InheritedForeground_WhenParentChanges_RefreshesRenderBrush()
@@ -1174,7 +1196,7 @@ namespace AudioVisualizer.Wpf.Tests
             };
             var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer())
             {
-                Effect = effect,
+                VisualizerEffect = effect,
                 IsActive = true,
             };
             var frame = new VisualizerFrame(new[] { 0.6 }, new[] { 0.6 }, 0.6, DateTimeOffset.UtcNow);
@@ -1211,7 +1233,7 @@ namespace AudioVisualizer.Wpf.Tests
             var previous = (BarSpectrumRenderData)control.CurrentRenderData!;
             var effect = new MirrorBarEffect();
 
-            control.Effect = effect;
+            control.VisualizerEffect = effect;
 
             var current = (BarSpectrumRenderData)control.CurrentRenderData!;
             var context = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.8, 4, SpectrumProfile.Raw);

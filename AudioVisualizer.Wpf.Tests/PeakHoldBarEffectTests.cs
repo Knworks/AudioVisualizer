@@ -110,7 +110,7 @@ namespace AudioVisualizer.Wpf.Tests
             var control = new TestableAudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer(), new PolylineRenderer())
             {
                 IsActive = true,
-                Effect = new PeakHoldBarEffect(),
+                VisualizerEffect = new PeakHoldBarEffect(),
                 Smoothing = 0.5,
             };
             var firstFrame = new VisualizerFrame(new[] { 1.0, 1.0, 1.0, 1.0 }, new[] { 0.0 }, 1.0, DateTimeOffset.UnixEpoch);
@@ -184,7 +184,7 @@ namespace AudioVisualizer.Wpf.Tests
             var control = new TestableAudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer(), new PolylineRenderer())
             {
                 IsActive = true,
-                Effect = effect,
+                VisualizerEffect = effect,
                 Smoothing = 0.5,
             };
             var frame = new VisualizerFrame(new[] { 0.0 }, new[] { 0.0 }, 0.0, DateTimeOffset.UtcNow);
@@ -281,7 +281,7 @@ namespace AudioVisualizer.Wpf.Tests
             var control = new TestableAudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer(), new PolylineRenderer())
             {
                 IsActive = true,
-                Effect = effect,
+                VisualizerEffect = effect,
             };
             var highFrame = new VisualizerFrame(new[] { 1.0, 1.0, 1.0, 1.0 }, new[] { 0.0 }, 1.0, DateTimeOffset.UnixEpoch);
             var lowFrame = new VisualizerFrame(new[] { 0.2, 0.2, 0.2, 0.2 }, new[] { 0.0 }, 0.2, DateTimeOffset.UnixEpoch.AddMilliseconds(16));

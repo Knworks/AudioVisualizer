@@ -47,7 +47,7 @@ namespace AudioVisualizer.Wpf.Tests
             var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer())
             {
                 IsActive = true,
-                Effect = new WaveformLineEffect(),
+                VisualizerEffect = new WaveformLineEffect(),
                 Smoothing = 0,
             };
             provider.RaiseFrame(new VisualizerFrame(Array.Empty<double>(), new[] { -0.4, -0.1, 0.1, 0.4 }, 0.4, DateTimeOffset.UtcNow));
@@ -189,7 +189,7 @@ namespace AudioVisualizer.Wpf.Tests
                 new PolylineRenderer())
             {
                 IsActive = true,
-                Effect = new WaveformLineEffect(),
+                VisualizerEffect = new WaveformLineEffect(),
                 Width = 120,
                 Height = 60,
             };
@@ -230,7 +230,7 @@ namespace AudioVisualizer.Wpf.Tests
                 new PolylineRenderer())
             {
                 IsActive = true,
-                Effect = new WaveformLineEffect(),
+                VisualizerEffect = new WaveformLineEffect(),
                 Smoothing = 0.5,
             };
             var firstFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { -1.0, -1.0 }, 1.0, DateTimeOffset.UnixEpoch);
@@ -270,7 +270,7 @@ namespace AudioVisualizer.Wpf.Tests
                 new PolylineRenderer())
             {
                 IsActive = true,
-                Effect = new WaveformLineEffect(),
+                VisualizerEffect = new WaveformLineEffect(),
                 Smoothing = 0.0,
             };
             var firstFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { -1.0, -1.0 }, 1.0, DateTimeOffset.UnixEpoch);
@@ -311,7 +311,7 @@ namespace AudioVisualizer.Wpf.Tests
                 new PolylineRenderer())
             {
                 IsActive = true,
-                Effect = new WaveformLineEffect(),
+                VisualizerEffect = new WaveformLineEffect(),
                 Smoothing = 0.5,
             };
             var firstFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { -1.0, 1.0 }, 1.0, DateTimeOffset.UnixEpoch);

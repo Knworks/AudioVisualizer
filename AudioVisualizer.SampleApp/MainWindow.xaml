@@ -200,7 +200,7 @@
                 BarCount="{Binding BarCount}"
                 CaptureErrorChanged="OnCaptureErrorChanged"
                 DeviceId="{Binding SelectedDeviceId}"
-                Effect="{Binding SelectedEffect}"
+                VisualizerEffect="{Binding SelectedEffect}"
                 InputSource="{Binding SelectedInputSource}"
                 IsActive="{Binding IsActive, Mode=TwoWay}"
                 PrimaryBrush="#FF22C55E"

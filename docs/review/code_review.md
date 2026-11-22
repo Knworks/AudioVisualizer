@@ -251,6 +251,8 @@
 
 **コード確認。** `AudioVisualizerControl` は画像効果用の `UIElement.Effect` と異なる型で `new Effect` を公開する。派生コントロール上で一般的なWPFの `Effect` の指定が音声エフェクトの指定として解決されるため、汎用スタイルとの併用や利用者の型推論が紛らわしい。音声表示であることを明示する名前への移行と、既存XAMLの互換性を検討する。 [同名プロパティ](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L151) [依存プロパティ登録](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L285)
 
+**修正済み。** 音声表示用の依存関係プロパティをVisualizerEffectへ改名し、通常のWPF Effectを使えるようにした。SampleApp、テスト、日英README、要件・設計書を更新した。旧XAMLとC#の音声指定には改名が必要。XAMLでBlurEffectを設定し音声エフェクトと共存することを含め、コントロールの全44テストが成功した。
+
 ### 🧰 L11 点数や間隔が異なる折れ線が同じ添字で補間される
 
 **コード確認。** 同じエフェクトでも点数や間隔が変わった場合、旧点と新点を同じ添字で混ぜる。例えば2点から3点へ変わると、旧点の右端と新点の中央が補間される。新旧のX座標が一致しない場合に補間をやめるか、位置に合わせて再サンプリングする。 [折れ線の補間](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L870) [現行の点数変更テスト](../AudioVisualizer.Wpf.Tests/WaveformLineEffectTests.cs#L241)

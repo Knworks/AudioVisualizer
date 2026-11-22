@@ -193,10 +193,10 @@ namespace AudioVisualizer.Wpf
         /// <see langword="null"/> の場合は既定のバー表示エフェクトを使用します。
         /// エフェクト変更は再接続を行わず、次回描画から反映されます。
         /// </summary>
-        public new IVisualizerEffect? Effect
+        public IVisualizerEffect? VisualizerEffect
         {
-            get => (IVisualizerEffect?)GetValue(EffectProperty);
-            set => SetValue(EffectProperty, value);
+            get => (IVisualizerEffect?)GetValue(VisualizerEffectProperty);
+            set => SetValue(VisualizerEffectProperty, value);
         }
 
         /// <summary>
@@ -354,12 +354,12 @@ namespace AudioVisualizer.Wpf
         /// <summary>
         /// エフェクト指定の依存関係プロパティです。
         /// </summary>
-        public static new readonly DependencyProperty EffectProperty =
+        public static readonly DependencyProperty VisualizerEffectProperty =
             DependencyProperty.Register(
-                nameof(Effect),
+                nameof(VisualizerEffect),
                 typeof(IVisualizerEffect),
                 typeof(AudioVisualizerControl),
-                new FrameworkPropertyMetadata(null, OnEffectChanged));
+                new FrameworkPropertyMetadata(null, OnVisualizerEffectChanged));
 
         /// <summary>
         /// 感度補正値の依存関係プロパティです。
@@ -723,7 +723,7 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         /// <param name="dependencyObject">変更対象のコントロールです。</param>
         /// <param name="e">変更イベントデータです。</param>
-        private static void OnEffectChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
+        private static void OnVisualizerEffectChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
         {
             var control = (AudioVisualizerControl)dependencyObject;
             ResetEffectState(e.OldValue as IVisualizerEffect);
@@ -1009,7 +1009,7 @@ namespace AudioVisualizer.Wpf
                 m_PendingFrame = null;
             }
 
-            ResetEffectState(Effect ?? m_DefaultEffect);
+            ResetEffectState(VisualizerEffect ?? m_DefaultEffect);
             m_CurrentFrame = null;
             m_CurrentRenderData = null;
             InvalidateVisual();
@@ -1079,7 +1079,7 @@ namespace AudioVisualizer.Wpf
 
             try
             {
-                var effect = Effect is { } selected && selected.Metadata.SupportedInputSources.Contains(InputSource)
+                var effect = VisualizerEffect is { } selected && selected.Metadata.SupportedInputSources.Contains(InputSource)
                     ? selected
                     : m_DefaultEffect;
                 var rawRenderData = effect.BuildRenderData(m_CurrentFrame, CreateEffectContext());

@@ -113,13 +113,15 @@ dotnet run --project AudioVisualizer.SampleApp/AudioVisualizer.SampleApp.csproj
         DeviceId="{Binding SelectedDeviceId}"
         UseDefaultDevice="{Binding UseDefaultDevice}"
         IsActive="{Binding IsActive, Mode=TwoWay}"
-        Effect="{Binding SelectedEffect}"
+        VisualizerEffect="{Binding SelectedEffect}"
         BarCount="{Binding BarCount}"
         Sensitivity="{Binding Sensitivity}"
         Smoothing="{Binding Smoothing}"
         SpectrumProfile="{Binding SelectedSpectrumProfile}" />
 </Window>
 ```
+
+If existing XAML or C# assigns an audio effect to `Effect`, update the assignment to `VisualizerEffect`. Use `Effect` for WPF visual effects.
 
 ## 🧰 Technology Stack
 

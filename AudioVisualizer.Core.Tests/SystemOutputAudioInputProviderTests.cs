@@ -627,6 +627,26 @@ namespace AudioVisualizer.Core.Tests
         }
 
         /// <summary>
+        /// 開始処理で例外が発生したセッションから通知購読を外し、セッションを破棄します。
+        /// </summary>
+        [Test]
+        public void Start_WhenSessionStartThrows_DetachesAndDisposesSession()
+        {
+            var device = new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true);
+            var devices = new FakeAudioDeviceService(new[] { device }, Array.Empty<AudioDeviceInfo>(), device, null);
+            var session = new FakeAudioCaptureSession { StartException = new InvalidOperationException() };
+            using var provider = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), devices, new FakeAudioCaptureFactory(session));
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
+
+            var result = provider.Start(settings);
+
+            Assert.That(result.Succeeded, Is.False);
+            Assert.That(provider.IsCapturing, Is.False);
+            Assert.That(session.HasSubscribers, Is.False);
+            Assert.That(session.DisposeCallCount, Is.EqualTo(1));
+        }
+
+        /// <summary>
         /// 取得側の予期しない終了が、状態とエラーとして利用側に伝わります。
         /// </summary>
         [Test]
@@ -906,6 +926,21 @@ namespace AudioVisualizer.Core.Tests
             /// </summary>
             public int StopCallCount { get; private set; }
 
+            /// <summary>
+            /// 開始時に送出する例外を指定します。
+            /// </summary>
+            public Exception? StartException { get; init; }
+
+            /// <summary>
+            /// 通知の購読が残っているかを取得します。
+            /// </summary>
+            public bool HasSubscribers => SamplesCaptured is not null || RecordingStopped is not null;
+
+            /// <summary>
+            /// 解放要求を受けた回数を取得します。
+            /// </summary>
+            public int DisposeCallCount { get; private set; }
+
             #endregion
 
             #region 公開メソッド
@@ -915,6 +950,10 @@ namespace AudioVisualizer.Core.Tests
             /// </summary>
             public void Start()
             {
+                if (StartException is not null)
+                {
+                    throw StartException;
+                }
             }
 
             /// <summary>
@@ -926,10 +965,11 @@ namespace AudioVisualizer.Core.Tests
             }
 
             /// <summary>
-            /// 解放処理のダミー実装です。
+            /// 解放要求の回数を記録します。
             /// </summary>
             public void Dispose()
             {
+                DisposeCallCount++;
             }
 
             /// <summary>

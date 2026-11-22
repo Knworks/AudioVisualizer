@@ -227,11 +227,11 @@ namespace AudioVisualizer.Core.Audio
 
                 StopCapture();
                 var captureSession = m_CaptureFactory.CreateCapture(settings.InputSource, targetDevice.DeviceId);
+                m_CaptureSession = captureSession;
                 captureSession.SamplesCaptured += OnSamplesCaptured;
                 captureSession.RecordingStopped += OnRecordingStopped;
                 captureSession.Start();
 
-                m_CaptureSession = captureSession;
                 m_CurrentDeviceId = targetDevice.DeviceId;
                 m_ActiveCapture = new CaptureState(captureSession, settings);
                 return AudioInputStartResult.Success();

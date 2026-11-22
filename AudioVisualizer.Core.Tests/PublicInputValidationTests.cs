@@ -22,6 +22,17 @@ namespace AudioVisualizer.Core.Tests
                 Throws.TypeOf<ArgumentException>());
         }
 
+        /// <summary>解析と描画でバー数の上限を共有することを検証します。</summary>
+        [Test]
+        public void BarCount_WhenExceedingSharedLimit_IsRejected()
+        {
+            const int tooManyBars = VisualizerSettings.MaximumBarCount + 1;
+            Assert.That(() => new VisualizerSettings(InputSource.Microphone, null, true, true, 1, 0, tooManyBars),
+                Throws.TypeOf<ArgumentOutOfRangeException>());
+            Assert.That(() => new VisualizerEffectContext(InputSource.Microphone, 1, 0, tooManyBars, SpectrumProfile.Raw),
+                Throws.TypeOf<ArgumentOutOfRangeException>());
+        }
+
         /// <summary>未定義の入力種別を検証します。</summary>
         [Test]
         public void InputSource_WhenUndefined_IsRejected()

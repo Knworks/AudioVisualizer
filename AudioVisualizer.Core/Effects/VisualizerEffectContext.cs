@@ -75,9 +75,9 @@ namespace AudioVisualizer.Core.Effects
                 throw new ArgumentOutOfRangeException(nameof(smoothing), "Smoothing must be between 0.0 and 1.0.");
             }
 
-            if (barCount < 1)
+            if (barCount < 1 || barCount > VisualizerSettings.MaximumBarCount)
             {
-                throw new ArgumentOutOfRangeException(nameof(barCount), "Bar count must be greater than zero.");
+                throw new ArgumentOutOfRangeException(nameof(barCount), "Bar count must be between 1 and 512.");
             }
 
             if (!Enum.IsDefined(spectrumProfile))

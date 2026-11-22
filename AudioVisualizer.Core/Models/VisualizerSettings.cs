@@ -7,6 +7,9 @@ namespace AudioVisualizer.Core.Models
     /// </summary>
     public sealed class VisualizerSettings
     {
+        /// <summary>解析と描画で指定できるバー数の上限です。</summary>
+        public const int MaximumBarCount = 512;
+
         #region プロパティ
 
         /// <summary>
@@ -93,9 +96,9 @@ namespace AudioVisualizer.Core.Models
                 throw new ArgumentOutOfRangeException(nameof(smoothing), "Smoothing must be between 0.0 and 1.0.");
             }
 
-            if (barCount < 1)
+            if (barCount < 1 || barCount > MaximumBarCount)
             {
-                throw new ArgumentOutOfRangeException(nameof(barCount), "Bar count must be greater than zero.");
+                throw new ArgumentOutOfRangeException(nameof(barCount), "Bar count must be between 1 and 512.");
             }
 
             if (!useDefaultDevice && string.IsNullOrWhiteSpace(deviceId))

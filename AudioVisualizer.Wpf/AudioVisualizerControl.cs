@@ -36,7 +36,7 @@ namespace AudioVisualizer.Wpf
         /// <summary>
         /// 描画するバー数から独立した解析点数です。
         /// </summary>
-        private const int CaptureAnalysisPointCount = 512;
+        private const int CaptureAnalysisPointCount = VisualizerSettings.MaximumBarCount;
 
         /// <summary>
         /// 公開プロパティの既定スペクトラム計算プロファイルです。
@@ -768,7 +768,7 @@ namespace AudioVisualizer.Wpf
         /// <returns>有効値の場合は <see langword="true"/>。</returns>
         private static bool IsValidBarCount(object value)
         {
-            return value is int barCount && barCount > 0;
+            return value is int barCount && barCount >= 1 && barCount <= VisualizerSettings.MaximumBarCount;
         }
 
         /// <summary>

@@ -16,6 +16,43 @@ namespace AudioVisualizer.Wpf.Tests
     [Apartment(ApartmentState.STA)]
     public class WaveformLineEffectTests
     {
+        /// <summary>点数が同じでも X 座標が変わった場合は最新値を使用します。</summary>
+        [Test]
+        public void Polyline_WhenPointPositionsChange_UsesLatestPoints()
+        {
+            var provider = new FakeAudioInputProvider();
+            var control = new AudioVisualizerControl(provider, new ShiftedPolylineEffect(), new BarSpectrumRenderer())
+            {
+                IsActive = true,
+                Smoothing = 0.5,
+            };
+            var timestamp = DateTimeOffset.UnixEpoch;
+            provider.RaiseFrame(new VisualizerFrame(new[] { 0.25 }, 0, timestamp));
+            provider.RaiseFrame(new VisualizerFrame(new[] { 0.75 }, 1, timestamp.AddMilliseconds(16)));
+
+            var points = ((PolylineRenderData)control.CurrentRenderData!).Points;
+            Assert.That(points[1].X, Is.EqualTo(0.75));
+            Assert.That(points[1].Y, Is.EqualTo(1));
+        }
+
+        /// <summary>フレームが指定する X 座標で折れ線を作るテスト用エフェクトです。</summary>
+        private sealed class ShiftedPolylineEffect : IVisualizerEffect
+        {
+            public EffectMetadata Metadata { get; } =
+                new("shift", "Shift", "1.0.0", null, null, new[] { InputSource.SystemOutput });
+
+            public VisualizerRenderData BuildRenderData(VisualizerFrame frame, VisualizerEffectContext context)
+            {
+                var points = new[]
+                {
+                    new NormalizedPoint(0, frame.PeakLevel),
+                    new NormalizedPoint(frame.SpectrumValues[0], frame.PeakLevel),
+                    new NormalizedPoint(1, frame.PeakLevel),
+                };
+                return new PolylineRenderData(Metadata.Id, frame.Timestamp, points);
+            }
+        }
+
         /// <summary>平滑化が前フレームからの実時間に応じて進むことを確認します。</summary>
         [TestCase(16, 0.5)]
         [TestCase(32, 0.25)]
@@ -291,16 +328,15 @@ namespace AudioVisualizer.Wpf.Tests
         }
 
         /// <summary>
-        /// AudioVisualizerControl が現在より点数の多い折れ線描画データを平滑化する場合は追加点をそのまま採用することを確認します。
+        /// 点数が異なる折れ線では最新の点列をそのまま採用することを確認します。
         /// ■入力
         /// ・1. Smoothing = 0.5 の AudioVisualizerControl
         /// ・2. 2 点の後に 3 点となる 2 フレーム
         /// ■確認内容
-        /// ・1. 既存点は補間される
-        /// ・2. 追加された末尾点は最新値のまま反映される
+        /// ・1. 全点が最新値のまま反映される
         /// </summary>
         [Test]
-        public void Given_WaveformRenderData_When_PointCountIncreasesDuringSmoothing_Then_NewPointsUseLatestValues()
+        public void Waveform_WhenPointCountChanges_UsesLatestPoints()
         {
             // 準備
             var provider = new FakeAudioInputProvider();
@@ -326,8 +362,8 @@ namespace AudioVisualizer.Wpf.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(renderData.Points, Has.Count.EqualTo(3));
-                Assert.That(renderData.Points[0].Y, Is.EqualTo(0.5).Within(0.0001));
-                Assert.That(renderData.Points[1].Y, Is.EqualTo(0.25).Within(0.0001));
+                Assert.That(renderData.Points[0].Y, Is.EqualTo(0.0).Within(0.0001));
+                Assert.That(renderData.Points[1].Y, Is.EqualTo(0.5).Within(0.0001));
                 Assert.That(renderData.Points[2].Y, Is.EqualTo(1.0).Within(0.0001));
             });
         }

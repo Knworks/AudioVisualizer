@@ -1289,18 +1289,26 @@ namespace AudioVisualizer.Wpf
             PolylineRenderData nextPolylineRenderData,
             double previousWeight)
         {
-            var smoothedPoints = new NormalizedPoint[nextPolylineRenderData.Points.Count];
-            for (var index = 0; index < nextPolylineRenderData.Points.Count; index++)
+            var currentPoints = currentPolylineRenderData.Points;
+            var nextPoints = nextPolylineRenderData.Points;
+            if (currentPoints.Count != nextPoints.Count)
             {
-                var nextPoint = nextPolylineRenderData.Points[index];
-                if (index >= currentPolylineRenderData.Points.Count)
-                {
-                    smoothedPoints[index] = nextPoint;
-                    continue;
-                }
+                return nextPolylineRenderData;
+            }
 
-                var currentPoint = currentPolylineRenderData.Points[index];
-                var smoothedY = (currentPoint.Y * previousWeight) + (nextPoint.Y * (1.0 - previousWeight));
+            for (var index = 0; index < nextPoints.Count; index++)
+            {
+                if (currentPoints[index].X != nextPoints[index].X)
+                {
+                    return nextPolylineRenderData;
+                }
+            }
+
+            var smoothedPoints = new NormalizedPoint[nextPoints.Count];
+            for (var index = 0; index < nextPoints.Count; index++)
+            {
+                var nextPoint = nextPoints[index];
+                var smoothedY = (currentPoints[index].Y * previousWeight) + (nextPoint.Y * (1.0 - previousWeight));
                 smoothedPoints[index] = new NormalizedPoint(nextPoint.X, smoothedY);
             }
 

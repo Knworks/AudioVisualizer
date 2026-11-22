@@ -273,6 +273,35 @@ namespace AudioVisualizer.Core.Tests
             Assert.That(frame.SpectrumValues.Max(), Is.GreaterThan(0.3));
         }
 
+        /// <summary>
+        /// 同相、片側だけ、逆相のステレオでも、同じ音の周波数と振幅を保ちます。
+        /// </summary>
+        [TestCase(1)]
+        [TestCase(0)]
+        [TestCase(-1)]
+        public void Spectrum_WhenStereoContainsSameTone_MatchesMonoSpectrum(int rightGain)
+        {
+            const int sampleRate = 48000;
+            const int sampleCount = 1024;
+            const double frequency = 3000;
+            var mono = new float[sampleCount];
+            var stereo = new float[sampleCount * 2];
+
+            for (var index = 0; index < sampleCount; index++)
+            {
+                mono[index] = (float)(0.2 * Math.Sin(2 * Math.PI * frequency * index / sampleRate));
+                stereo[index * 2] = mono[index];
+                stereo[(index * 2) + 1] = mono[index] * rightGain;
+            }
+
+            var analyzer = new AudioFrameAnalyzer();
+            var timestamp = DateTimeOffset.UtcNow;
+            var monoFrame = analyzer.CreateFrame(new AudioSampleBuffer(mono, sampleRate, 1, timestamp), m_Settings);
+            var stereoFrame = analyzer.CreateFrame(new AudioSampleBuffer(stereo, sampleRate, 2, timestamp), m_Settings);
+
+            Assert.That(stereoFrame.SpectrumValues, Is.EqualTo(monoFrame.SpectrumValues).Within(1e-7));
+        }
+
         #endregion
     }
 }

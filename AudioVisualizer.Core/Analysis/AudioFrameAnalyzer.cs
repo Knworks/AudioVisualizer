@@ -42,7 +42,7 @@ namespace AudioVisualizer.Core.Analysis
             var normalizedSamples = ToNormalizedSamples(sampleBuffer);
             var peakLevel = CalculatePeakLevel(normalizedSamples);
             var waveformValues = BuildWaveformValues(normalizedSamples, settings.BarCount, settings.Sensitivity);
-            var spectrumValues = BuildSpectrumValues(normalizedSamples, settings.BarCount, settings.Sensitivity);
+            var spectrumValues = BuildSpectrumValues(normalizedSamples, sampleBuffer.Channels, settings.BarCount, settings.Sensitivity);
 
             return new VisualizerFrame(spectrumValues, waveformValues, peakLevel, sampleBuffer.Timestamp);
         }
@@ -129,38 +129,56 @@ namespace AudioVisualizer.Core.Analysis
         }
 
         /// <summary>
-        /// サンプル列から表示用のスペクトラム配列を生成します。
+        /// チャンネルごとにスペクトラムを求め、各周波数帯域の最大振幅を採用します。
         /// </summary>
-        /// <param name="samples">解析対象のサンプル列です。</param>
+        /// <param name="samples">チャンネルが交互に並ぶ解析対象のサンプル列です。</param>
+        /// <param name="channels">入力のチャンネル数です。</param>
         /// <param name="outputLength">出力するスペクトラム要素数です。</param>
         /// <param name="sensitivity">感度係数です。</param>
         /// <returns>表示用に整形したスペクトラム配列です。</returns>
-        private static double[] BuildSpectrumValues(double[] samples, int outputLength, double sensitivity)
+        private static double[] BuildSpectrumValues(double[] samples, int channels, int outputLength, double sensitivity)
         {
             var result = new double[outputLength];
-            if (samples.Length == 0)
+            var windowSize = Math.Min(samples.Length / channels, MaxAnalysisWindowSize);
+            if (windowSize == 0)
             {
                 return result;
             }
 
-            var windowSize = Math.Min(samples.Length, MaxAnalysisWindowSize);
             if (windowSize == 1)
             {
-                result[0] = Math.Clamp(Math.Abs(samples[0]) * sensitivity, 0.0, 1.0);
+                var peak = 0.0;
+                for (var channel = 0; channel < channels; channel++)
+                {
+                    peak = Math.Max(peak, Math.Abs(samples[channel]));
+                }
+
+                result[0] = Math.Clamp(peak * sensitivity, 0.0, 1.0);
                 return result;
             }
 
             var fftSize = (int)BitOperations.RoundUpToPowerOf2((uint)windowSize);
             var bins = new Complex[fftSize];
-            for (var index = 0; index < windowSize; index++)
+            var positiveBinCount = fftSize / 2;
+            var maximumPowerByBin = new double[positiveBinCount + 1];
+            for (var channel = 0; channel < channels; channel++)
             {
-                var window = windowSize == 2 ? 1.0 : FastFourierTransform.HannWindow(index, windowSize);
-                bins[index].X = (float)(samples[index] * window);
+                Array.Clear(bins);
+                for (var index = 0; index < windowSize; index++)
+                {
+                    var window = windowSize == 2 ? 1.0 : FastFourierTransform.HannWindow(index, windowSize);
+                    bins[index].X = (float)(samples[(index * channels) + channel] * window);
+                }
+
+                FastFourierTransform.FFT(true, BitOperations.Log2((uint)fftSize), bins);
+                for (var bin = 1; bin <= positiveBinCount; bin++)
+                {
+                    var real = (double)bins[bin].X;
+                    var imaginary = (double)bins[bin].Y;
+                    maximumPowerByBin[bin] = Math.Max(maximumPowerByBin[bin], (real * real) + (imaginary * imaginary));
+                }
             }
 
-            FastFourierTransform.FFT(true, BitOperations.Log2((uint)fftSize), bins);
-
-            var positiveBinCount = fftSize / 2;
             var scale = (double)fftSize / windowSize * sensitivity * SpectrumScale;
             for (var barIndex = 0; barIndex < outputLength; barIndex++)
             {
@@ -169,9 +187,7 @@ namespace AudioVisualizer.Core.Analysis
                 var maximumPower = 0.0;
                 for (var bin = startBin; bin < Math.Max(startBin + 1, endBin); bin++)
                 {
-                    var real = (double)bins[bin].X;
-                    var imaginary = (double)bins[bin].Y;
-                    maximumPower = Math.Max(maximumPower, (real * real) + (imaginary * imaginary));
+                    maximumPower = Math.Max(maximumPower, maximumPowerByBin[bin]);
                 }
 
                 result[barIndex] = Math.Clamp(Math.Sqrt(maximumPower) * scale, 0.0, 1.0);

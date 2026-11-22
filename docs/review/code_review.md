@@ -183,6 +183,8 @@
 
 **コード確認。** `Low` から `High` の4区分は、スペクトラムの要素数を等分した区間の平均で決まる。フレームに周波数の情報がないため、異なるサンプルレートでも固定帯域を示すことができない。仮に48 kHzモノラルのナイキスト周波数までを等分した場合、最初の区分だけで概ね6 kHzまでを含む。メーター用途の帯域境界をHzで定義し、周波数情報に基づき集計する。 [帯域の計算](../AudioVisualizer.Wpf/Effects/BandLevelMeterEffect.cs#L81) [フレームの公開契約](../AudioVisualizer.Core/Models/VisualizerFrame.cs#L10) [固定帯域の設計](./02_architect.md#L168)
 
+**修正済み。** FFT点をサンプルレートからHzへ変換し、4つの固定帯域（境界20/250/1,000/4,000/20,000 Hz）それぞれの最大レベルを表示する。既存の手動生成フレームには従来の区分を適用する。24 kHzと48 kHzで同じ音が同じ帯域に表示されることを含め、帯域メーターの全18テストが成功した。
+
 ### 🎙️ M16 Coreを直接利用すると取得無効の設定でもキャプチャが開始する
 
 **コード確認。** `VisualizerSettings.IsActive` は音声取得を有効化するかどうかを示すが、公開の `SystemOutputAudioInputProvider.Start` はこの値を参照しない。WPFは独自に開始を制御するため通常経路ではガードされる。Coreの直接利用では `IsActive = false` の設定でも指定入力を取得する。開始要求と有効フラグの優先関係を契約で明示し、無効時にデバイスを開かない挙動を検証する。 [有効フラグの説明](../AudioVisualizer.Core/Models/VisualizerSettings.cs#L26) [開始処理](../AudioVisualizer.Core/Audio/SystemOutputAudioInputProvider.cs#L132)

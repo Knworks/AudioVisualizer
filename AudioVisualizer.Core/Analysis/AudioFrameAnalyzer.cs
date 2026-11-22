@@ -55,9 +55,9 @@ namespace AudioVisualizer.Core.Analysis
             var peakLevel = CalculatePeakLevel(normalizedSamples);
             var waveformSamples = waveformHistory?.Append(normalizedSamples, sampleBuffer.SampleRate, sampleBuffer.Channels) ?? normalizedSamples;
             var (waveformValues, waveformRanges) = BuildWaveformValues(SelectWaveformChannel(waveformSamples, sampleBuffer.Channels), settings.BarCount, settings.Sensitivity);
-            var spectrumValues = BuildSpectrumValues(normalizedSamples, sampleBuffer.Channels, settings.BarCount, settings.Sensitivity);
+            var (spectrumValues, bandLevels) = BuildSpectrumValues(normalizedSamples, sampleBuffer.Channels, sampleBuffer.SampleRate, settings.BarCount, settings.Sensitivity);
 
-            return new VisualizerFrame(spectrumValues, waveformValues, peakLevel, sampleBuffer.Timestamp, waveformRanges);
+            return new VisualizerFrame(spectrumValues, waveformValues, peakLevel, sampleBuffer.Timestamp, waveformRanges, bandLevels);
         }
 
         #endregion
@@ -204,16 +204,18 @@ namespace AudioVisualizer.Core.Analysis
         /// </summary>
         /// <param name="samples">チャンネルが交互に並ぶ解析対象のサンプル列です。</param>
         /// <param name="channels">入力のチャンネル数です。</param>
+        /// <param name="sampleRate">入力のサンプルレートです。</param>
         /// <param name="outputLength">出力するスペクトラム要素数です。</param>
         /// <param name="sensitivity">感度係数です。</param>
-        /// <returns>表示用に整形したスペクトラム配列です。</returns>
-        private static double[] BuildSpectrumValues(double[] samples, int channels, int outputLength, double sensitivity)
+        /// <returns>スペクトラム配列と固定周波数帯域のレベルです。</returns>
+        private static (double[] Spectrum, (double Low, double LowMid, double HighMid, double High) Bands) BuildSpectrumValues(
+            double[] samples, int channels, int sampleRate, int outputLength, double sensitivity)
         {
             var result = new double[outputLength];
             var windowSize = Math.Min(samples.Length / channels, MaxAnalysisWindowSize);
             if (windowSize == 0)
             {
-                return result;
+                return (result, default);
             }
 
             if (windowSize == 1)
@@ -225,7 +227,7 @@ namespace AudioVisualizer.Core.Analysis
                 }
 
                 result[0] = Math.Clamp(peak * sensitivity, 0.0, 1.0);
-                return result;
+                return (result, default);
             }
 
             var fftSize = (int)BitOperations.RoundUpToPowerOf2((uint)windowSize);
@@ -264,7 +266,40 @@ namespace AudioVisualizer.Core.Analysis
                 result[barIndex] = Math.Clamp(Math.Sqrt(maximumPower) * scale * sensitivity, 0.0, 1.0);
             }
 
-            return result;
+            var bandLevels = CalculateBandLevels(maximumPowerByBin, (double)sampleRate / fftSize, scale, sensitivity);
+            return (result, bandLevels);
+        }
+
+        /// <summary>FFTの正周波数をHzで区分し、各帯域の最大レベルを求めます。</summary>
+        private static (double Low, double LowMid, double HighMid, double High) CalculateBandLevels(
+            double[] maximumPowerByBin, double binWidthHz, double scale, double sensitivity)
+        {
+            Span<double> maximumPowerByBand = stackalloc double[4];
+            maximumPowerByBand.Clear();
+            for (var bin = 1; bin < maximumPowerByBin.Length; bin++)
+            {
+                var frequency = bin * binWidthHz;
+                if (frequency < 20 || frequency > 20_000)
+                {
+                    continue;
+                }
+
+                var band = frequency switch
+                {
+                    < 250 => 0,
+                    < 1_000 => 1,
+                    < 4_000 => 2,
+                    _ => 3,
+                };
+                maximumPowerByBand[band] = Math.Max(maximumPowerByBand[band], maximumPowerByBin[bin]);
+            }
+
+            for (var band = 0; band < maximumPowerByBand.Length; band++)
+            {
+                maximumPowerByBand[band] = Math.Clamp(Math.Sqrt(maximumPowerByBand[band]) * scale * sensitivity, 0.0, 1.0);
+            }
+
+            return (maximumPowerByBand[0], maximumPowerByBand[1], maximumPowerByBand[2], maximumPowerByBand[3]);
         }
 
         #endregion

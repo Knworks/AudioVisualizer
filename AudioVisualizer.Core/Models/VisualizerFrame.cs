@@ -17,6 +17,12 @@ namespace AudioVisualizer.Core.Models
         public IReadOnlyList<double> SpectrumValues { get; }
 
         /// <summary>
+        /// 20–250 Hz、250–1,000 Hz、1,000–4,000 Hz、4,000–20,000 Hz の最大レベルを取得します。
+        /// 手動で作成したフレームでは null です。
+        /// </summary>
+        public (double Low, double LowMid, double HighMid, double High)? FrequencyBandLevels { get; }
+
+        /// <summary>
         /// フレームに含まれる波形値を取得します。
         /// </summary>
         public IReadOnlyList<double> WaveformValues { get; }
@@ -51,7 +57,7 @@ namespace AudioVisualizer.Core.Models
         /// <exception cref="ArgumentNullException"><paramref name="waveformValues"/> が <see langword="null"/> の場合にスローされます。</exception>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="peakLevel"/> が負数の場合にスローされます。</exception>
         public VisualizerFrame(IEnumerable<double> spectrumValues, IEnumerable<double> waveformValues, double peakLevel, DateTimeOffset timestamp)
-            : this(spectrumValues, waveformValues, peakLevel, timestamp, Array.Empty<(double, double)>())
+            : this(spectrumValues, waveformValues, peakLevel, timestamp, Array.Empty<(double, double)>(), null)
         {
         }
 
@@ -63,12 +69,14 @@ namespace AudioVisualizer.Core.Models
         /// <param name="peakLevel">フレームのピークレベルです。</param>
         /// <param name="timestamp">フレームの生成時刻です。</param>
         /// <param name="waveformRanges">波形の区間ごとの振幅範囲です。</param>
+        /// <param name="frequencyBandLevels">FFTから求めた固定周波数帯域別の最大レベルです。</param>
         internal VisualizerFrame(
             IEnumerable<double> spectrumValues,
             IEnumerable<double> waveformValues,
             double peakLevel,
             DateTimeOffset timestamp,
-            IReadOnlyList<(double Minimum, double Maximum)> waveformRanges)
+            IReadOnlyList<(double Minimum, double Maximum)> waveformRanges,
+            (double Low, double LowMid, double HighMid, double High)? frequencyBandLevels)
         {
             if (spectrumValues is null)
             {
@@ -98,6 +106,7 @@ namespace AudioVisualizer.Core.Models
             }
 
             SpectrumValues = spectrum;
+            FrequencyBandLevels = frequencyBandLevels;
             WaveformValues = waveform;
             WaveformRanges = Array.AsReadOnly(waveformRanges.ToArray());
             PeakLevel = peakLevel;

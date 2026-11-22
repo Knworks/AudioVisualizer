@@ -62,12 +62,18 @@ namespace AudioVisualizer.Wpf.Effects
             var xOffset = (slotWidth - actualMeterWidth) / 2.0;
             var bands = new BandLevelMeterItem[s_BandLabels.Length];
 
+            var frequencyLevels = frame.FrequencyBandLevels;
             for (var index = 0; index < s_BandLabels.Length; index++)
             {
-                var level = Math.Clamp(
-                    SampleBandLevel(frame.SpectrumValues, index, s_BandLabels.Length) * context.Sensitivity,
-                    0.0,
-                    1.0);
+                var bandLevel = (frequencyLevels, index) switch
+                {
+                    ({ } levels, 0) => levels.Low,
+                    ({ } levels, 1) => levels.LowMid,
+                    ({ } levels, 2) => levels.HighMid,
+                    ({ } levels, 3) => levels.High,
+                    _ => SampleBandLevel(frame.SpectrumValues, index, s_BandLabels.Length),
+                };
+                var level = Math.Clamp(bandLevel * context.Sensitivity, 0.0, 1.0);
                 bands[index] = new BandLevelMeterItem((slotWidth * index) + xOffset, actualMeterWidth, level, s_BandLabels[index]);
             }
 

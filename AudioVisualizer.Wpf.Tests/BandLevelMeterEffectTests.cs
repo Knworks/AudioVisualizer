@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Windows;
 using System.Windows.Media;
+using AudioVisualizer.Core.Analysis;
 using AudioVisualizer.Core.Audio;
 using AudioVisualizer.Core.Effects;
 using AudioVisualizer.Core.Models;
@@ -19,6 +20,30 @@ namespace AudioVisualizer.Wpf.Tests
     public class BandLevelMeterEffectTests
     {
         #region 公開メソッド
+
+        /// <summary>サンプルレートが異なっても同じ音が同じ帯域で最大になることを確認します。</summary>
+        [TestCase(24_000, 150, 0)]
+        [TestCase(48_000, 150, 0)]
+        [TestCase(24_000, 700, 1)]
+        [TestCase(48_000, 700, 1)]
+        [TestCase(24_000, 2_000, 2)]
+        [TestCase(48_000, 2_000, 2)]
+        [TestCase(24_000, 6_000, 3)]
+        [TestCase(48_000, 6_000, 3)]
+        public void AnalyzedTone_AppearsInTheSameBandAtDifferentSampleRates(int sampleRate, int frequency, int expectedBand)
+        {
+            var samples = Enumerable.Range(0, 1024)
+                .Select(index => (float)(0.25 * Math.Sin(2 * Math.PI * frequency * index / sampleRate)));
+            var buffer = new AudioSampleBuffer(samples, sampleRate, 1, DateTimeOffset.UtcNow);
+            var settings = new VisualizerSettings(InputSource.Microphone, null, true, true, 1, 0, 4);
+            var frame = new AudioFrameAnalyzer().CreateFrame(buffer, settings);
+            var context = new VisualizerEffectContext(InputSource.Microphone, 1, 0, 4, SpectrumProfile.Raw);
+
+            var data = (BandLevelMeterRenderData)new BandLevelMeterEffect().BuildRenderData(frame, context);
+
+            Assert.That(data.Bands[expectedBand].Level, Is.GreaterThan(0.3));
+            Assert.That(data.Bands.Where((_, index) => index != expectedBand).Max(band => band.Level), Is.LessThan(0.1));
+        }
 
         /// <summary>
         /// BandLevelMeterEffect が固定 4 帯域のメーターデータを生成することを確認します。
@@ -448,6 +473,8 @@ namespace AudioVisualizer.Wpf.Tests
 
             #region 公開メソッド
 
+
+
             /// <summary>
             /// フレーム生成イベントです。
             /// </summary>
@@ -517,6 +544,8 @@ namespace AudioVisualizer.Wpf.Tests
 
             #region 公開メソッド
 
+
+
             /// <summary>
             /// 描画処理をテストから実行します。
             /// </summary>
@@ -584,6 +613,8 @@ namespace AudioVisualizer.Wpf.Tests
             #endregion
 
             #region 公開メソッド
+
+
 
             /// <summary>
             /// 呼び出し回数に応じたレンダーデータを返します。

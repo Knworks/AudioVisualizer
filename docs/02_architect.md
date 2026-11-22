@@ -166,7 +166,7 @@ AudioVisualizer/
     * `PeakHoldBarEffect`
       通常バーに加えてピーク保持線を表示するエフェクト。
     * `BandLevelMeterEffect`
-      低域から高域までの固定帯域レベルをメーター表示するエフェクト。
+      FFTの周波数点から帯域ごとの最大レベルを求め、Low（20–250 Hz）、LowMid（250–1,000 Hz）、HighMid（1,000–4,000 Hz）、High（4,000–20,000 Hz）の4帯域を表示する。周波数情報のない手動生成フレームでは従来どおりスペクトラムを4等分した平均値を使う。
   * エフェクトは `Metadata.SupportedInputSources` により対応 `InputSource` を宣言する。
   * 現在の入力種別に非対応のエフェクトは適用しない。
 * **出力**：

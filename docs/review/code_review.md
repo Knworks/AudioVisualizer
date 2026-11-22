@@ -99,6 +99,8 @@
 
 **コード確認。** 32ビットIEEE Floatと16ビット幅の変換しかない。符号付き24・32ビットPCMなどが渡ると初回のデータ通知で例外が出る。16ビットはエンコーディングを確認せずPCMとして解釈する。実機で未対応形式を返すデバイスは未確認。対応フォーマットへの変換、または開始前の明示的な拒否を実装し、PCM変換を実機に依存せず検証できる形にする。 [PCMの変換](../AudioVisualizer.Core/Audio/WasapiAudioCaptureFactory.cs#L139) [NAudio 2.3.0のMixFormat](https://github.com/naudio/NAudio/blob/v2.3.0/NAudio.Wasapi/WasapiCapture.cs#L68-L99)
 
+**修正済み。** 8・16・24・32ビット整数PCMと32ビットIEEE Floatに対応し、エンコードとビット幅を取得開始前に確認する。整数の符号・振幅、Float、未対応形式の拒否を実機に依存しないテストで検証した。全183テストが成功した。
+
 ### 📐 M02 波形では感度スライダーが効かない
 
 **実行確認。** WPFは取得時の感度を常に `1.0` で渡し、波形エフェクトは描画時に `context.Sensitivity` を使用しない。検証で感度を1から5へ変えても同じ入力のY座標が0.45のままだった。波形描画の前に感度を一度適用し、符号とクリップを含めてWPFの公開プロパティ経由で確認する。 [キャプチャ設定](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L653) [波形の座標変換](../AudioVisualizer.Wpf/Effects/WaveformLineEffect.cs#L35)

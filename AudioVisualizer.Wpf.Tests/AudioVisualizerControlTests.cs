@@ -454,8 +454,8 @@ namespace AudioVisualizer.Wpf.Tests
             {
                 IsActive = true,
             };
-            var firstFrame = new VisualizerFrame(new[] { 0.1 }, new[] { 0.0 }, 0.1, DateTimeOffset.UtcNow);
-            var secondFrame = new VisualizerFrame(new[] { 0.9 }, new[] { 0.0 }, 0.9, DateTimeOffset.UtcNow.AddMilliseconds(16));
+            var firstFrame = new VisualizerFrame(new[] { 0.1 }, new[] { 0.0 }, 0.1, DateTimeOffset.UnixEpoch);
+            var secondFrame = new VisualizerFrame(new[] { 0.9 }, new[] { 0.0 }, 0.9, DateTimeOffset.UnixEpoch.AddMilliseconds(16));
 
             // 実行
             Task.Run(() =>

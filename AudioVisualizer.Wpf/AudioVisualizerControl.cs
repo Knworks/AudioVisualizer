@@ -215,7 +215,7 @@ namespace AudioVisualizer.Wpf
         /// 描画平滑化係数を取得または設定します。
         /// `0.0` はほぼ生の反応で、値を大きくするほど前フレームを残してなめらかに見せます。
         /// 例えば `0.2` から `0.4` は俊敏、`0.7` 以上はゆったりした追従感になります。
-        /// `0.0` から `1.0` の範囲だけを受け付けます。
+        /// 16 ミリ秒あたりに残す割合です。0.0 は補間なし、1.0 は 0.99 として扱います。
         /// </summary>
         public double Smoothing
         {
@@ -1195,33 +1195,36 @@ namespace AudioVisualizer.Wpf
         /// <returns>平滑化適用後のレンダーデータです。</returns>
         private VisualizerRenderData ApplySmoothing(VisualizerRenderData? currentRenderData, VisualizerRenderData nextRenderData)
         {
-            if (Smoothing <= 0)
+            if (Smoothing <= 0 || currentRenderData is null || nextRenderData.Timestamp <= currentRenderData.Timestamp)
             {
                 return nextRenderData;
             }
 
+            var elapsed = (nextRenderData.Timestamp - currentRenderData.Timestamp).TotalMilliseconds;
+            var previousWeight = Math.Pow(Math.Min(Smoothing, 0.99), elapsed / 16.0);
+
             if (currentRenderData is BarSpectrumRenderData currentBarRenderData &&
                 nextRenderData is BarSpectrumRenderData nextBarRenderData)
             {
-                return ApplyBarSmoothing(currentBarRenderData, nextBarRenderData);
+                return ApplyBarSmoothing(currentBarRenderData, nextBarRenderData, previousWeight);
             }
 
             if (currentRenderData is PolylineRenderData currentPolylineRenderData &&
                 nextRenderData is PolylineRenderData nextPolylineRenderData)
             {
-                return ApplyPolylineSmoothing(currentPolylineRenderData, nextPolylineRenderData);
+                return ApplyPolylineSmoothing(currentPolylineRenderData, nextPolylineRenderData, previousWeight);
             }
 
             if (currentRenderData is PeakHoldBarRenderData currentPeakHoldBarRenderData &&
                 nextRenderData is PeakHoldBarRenderData nextPeakHoldBarRenderData)
             {
-                return ApplyPeakHoldBarSmoothing(currentPeakHoldBarRenderData, nextPeakHoldBarRenderData);
+                return ApplyPeakHoldBarSmoothing(currentPeakHoldBarRenderData, nextPeakHoldBarRenderData, previousWeight);
             }
 
             if (currentRenderData is BandLevelMeterRenderData currentBandLevelMeterRenderData &&
                 nextRenderData is BandLevelMeterRenderData nextBandLevelMeterRenderData)
             {
-                return ApplyBandLevelMeterSmoothing(currentBandLevelMeterRenderData, nextBandLevelMeterRenderData);
+                return ApplyBandLevelMeterSmoothing(currentBandLevelMeterRenderData, nextBandLevelMeterRenderData, previousWeight);
             }
 
             return nextRenderData;
@@ -1231,11 +1234,13 @@ namespace AudioVisualizer.Wpf
         /// バー描画データへ平滑化を適用します。
         /// </summary>
         /// <param name="currentBarRenderData">現在描画中のバー描画データです。</param>
+        /// <param name="previousWeight">前の描画値を残す割合です。</param>
         /// <param name="nextBarRenderData">次に描画するバー描画データです。</param>
         /// <returns>平滑化後のバー描画データです。</returns>
-        private VisualizerRenderData ApplyBarSmoothing(
+        private static VisualizerRenderData ApplyBarSmoothing(
             BarSpectrumRenderData currentBarRenderData,
-            BarSpectrumRenderData nextBarRenderData)
+            BarSpectrumRenderData nextBarRenderData,
+            double previousWeight)
         {
             var smoothedBars = new BarRenderItem[nextBarRenderData.Bars.Count];
             for (var index = 0; index < nextBarRenderData.Bars.Count; index++)
@@ -1248,8 +1253,8 @@ namespace AudioVisualizer.Wpf
                 }
 
                 var currentBar = currentBarRenderData.Bars[index];
-                var smoothedHeight = (currentBar.Height * Smoothing) + (nextBar.Height * (1.0 - Smoothing));
-                var smoothedLevel = (currentBar.Level * Smoothing) + (nextBar.Level * (1.0 - Smoothing));
+                var smoothedHeight = (currentBar.Height * previousWeight) + (nextBar.Height * (1.0 - previousWeight));
+                var smoothedLevel = (currentBar.Level * previousWeight) + (nextBar.Level * (1.0 - previousWeight));
                 smoothedBars[index] = new BarRenderItem(nextBar.X, nextBar.Width, smoothedHeight, smoothedLevel);
             }
 
@@ -1260,11 +1265,13 @@ namespace AudioVisualizer.Wpf
         /// 折れ線描画データへ平滑化を適用します。
         /// </summary>
         /// <param name="currentPolylineRenderData">現在描画中の折れ線描画データです。</param>
+        /// <param name="previousWeight">前の描画値を残す割合です。</param>
         /// <param name="nextPolylineRenderData">次に描画する折れ線描画データです。</param>
         /// <returns>平滑化後の折れ線描画データです。</returns>
-        private VisualizerRenderData ApplyPolylineSmoothing(
+        private static VisualizerRenderData ApplyPolylineSmoothing(
             PolylineRenderData currentPolylineRenderData,
-            PolylineRenderData nextPolylineRenderData)
+            PolylineRenderData nextPolylineRenderData,
+            double previousWeight)
         {
             var smoothedPoints = new NormalizedPoint[nextPolylineRenderData.Points.Count];
             for (var index = 0; index < nextPolylineRenderData.Points.Count; index++)
@@ -1277,7 +1284,7 @@ namespace AudioVisualizer.Wpf
                 }
 
                 var currentPoint = currentPolylineRenderData.Points[index];
-                var smoothedY = (currentPoint.Y * Smoothing) + (nextPoint.Y * (1.0 - Smoothing));
+                var smoothedY = (currentPoint.Y * previousWeight) + (nextPoint.Y * (1.0 - previousWeight));
                 smoothedPoints[index] = new NormalizedPoint(nextPoint.X, smoothedY);
             }
 
@@ -1289,11 +1296,13 @@ namespace AudioVisualizer.Wpf
         /// バー本体のみを補間し、ピーク保持線はエフェクト側の保持と減衰結果をそのまま使用します。
         /// </summary>
         /// <param name="currentPeakHoldBarRenderData">現在描画中のピーク保持バー描画データです。</param>
+        /// <param name="previousWeight">前の描画値を残す割合です。</param>
         /// <param name="nextPeakHoldBarRenderData">次に描画するピーク保持バー描画データです。</param>
         /// <returns>平滑化後のピーク保持バー描画データです。</returns>
-        private VisualizerRenderData ApplyPeakHoldBarSmoothing(
+        private static VisualizerRenderData ApplyPeakHoldBarSmoothing(
             PeakHoldBarRenderData currentPeakHoldBarRenderData,
-            PeakHoldBarRenderData nextPeakHoldBarRenderData)
+            PeakHoldBarRenderData nextPeakHoldBarRenderData,
+            double previousWeight)
         {
             var smoothedBars = new BarRenderItem[nextPeakHoldBarRenderData.Bars.Count];
             for (var index = 0; index < nextPeakHoldBarRenderData.Bars.Count; index++)
@@ -1306,8 +1315,8 @@ namespace AudioVisualizer.Wpf
                 }
 
                 var currentBar = currentPeakHoldBarRenderData.Bars[index];
-                var smoothedHeight = (currentBar.Height * Smoothing) + (nextBar.Height * (1.0 - Smoothing));
-                var smoothedLevel = (currentBar.Level * Smoothing) + (nextBar.Level * (1.0 - Smoothing));
+                var smoothedHeight = (currentBar.Height * previousWeight) + (nextBar.Height * (1.0 - previousWeight));
+                var smoothedLevel = (currentBar.Level * previousWeight) + (nextBar.Level * (1.0 - previousWeight));
                 smoothedBars[index] = new BarRenderItem(nextBar.X, nextBar.Width, smoothedHeight, smoothedLevel);
             }
 
@@ -1322,11 +1331,13 @@ namespace AudioVisualizer.Wpf
         /// 固定帯域メーター描画データへ平滑化を適用します。
         /// </summary>
         /// <param name="currentBandLevelMeterRenderData">現在描画中の固定帯域メーター描画データです。</param>
+        /// <param name="previousWeight">前の描画値を残す割合です。</param>
         /// <param name="nextBandLevelMeterRenderData">次に描画する固定帯域メーター描画データです。</param>
         /// <returns>平滑化後の固定帯域メーター描画データです。</returns>
-        private VisualizerRenderData ApplyBandLevelMeterSmoothing(
+        private static VisualizerRenderData ApplyBandLevelMeterSmoothing(
             BandLevelMeterRenderData currentBandLevelMeterRenderData,
-            BandLevelMeterRenderData nextBandLevelMeterRenderData)
+            BandLevelMeterRenderData nextBandLevelMeterRenderData,
+            double previousWeight)
         {
             var smoothedBands = new BandLevelMeterItem[nextBandLevelMeterRenderData.Bands.Count];
             for (var index = 0; index < nextBandLevelMeterRenderData.Bands.Count; index++)
@@ -1339,7 +1350,7 @@ namespace AudioVisualizer.Wpf
                 }
 
                 var currentBand = currentBandLevelMeterRenderData.Bands[index];
-                var smoothedLevel = (currentBand.Level * Smoothing) + (nextBand.Level * (1.0 - Smoothing));
+                var smoothedLevel = (currentBand.Level * previousWeight) + (nextBand.Level * (1.0 - previousWeight));
                 smoothedBands[index] = new BandLevelMeterItem(nextBand.X, nextBand.Width, smoothedLevel, nextBand.Label);
             }
 

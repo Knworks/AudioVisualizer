@@ -351,12 +351,12 @@ namespace AudioVisualizer.Wpf.Tests
                 new[] { 1.0, 1.0, 0.2, 0.2, 0.1, 0.1, 0.0, 0.0 },
                 new[] { 0.0 },
                 1.0,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UnixEpoch);
             var secondFrame = new VisualizerFrame(
                 new[] { 0.0, 0.0, 0.8, 0.8, 0.4, 0.4, 0.2, 0.2 },
                 new[] { 0.0 },
                 0.8,
-                DateTimeOffset.UtcNow.AddMilliseconds(16));
+                DateTimeOffset.UnixEpoch.AddMilliseconds(16));
 
             // 実行
             provider.RaiseFrame(firstFrame);
@@ -399,7 +399,7 @@ namespace AudioVisualizer.Wpf.Tests
             var effect = new SequenceBandLevelMeterEffect(
                 new BandLevelMeterRenderData(
                     "band-level-meter",
-                    DateTimeOffset.UtcNow,
+                    DateTimeOffset.UnixEpoch,
                     new[]
                     {
                         new BandLevelMeterItem(0.1, 0.2, 1.0, "Low"),
@@ -407,7 +407,7 @@ namespace AudioVisualizer.Wpf.Tests
                     }),
                 new BandLevelMeterRenderData(
                     "band-level-meter",
-                    DateTimeOffset.UtcNow.AddMilliseconds(16),
+                    DateTimeOffset.UnixEpoch.AddMilliseconds(16),
                     new[]
                     {
                         new BandLevelMeterItem(0.05, 0.15, 0.0, "Low"),

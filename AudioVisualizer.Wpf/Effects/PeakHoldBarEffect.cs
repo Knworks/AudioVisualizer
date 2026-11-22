@@ -11,9 +11,9 @@ namespace AudioVisualizer.Wpf.Effects
         #region 定数
 
         /// <summary>
-        /// フレームごとのピーク減衰量です。
+        /// 1 秒あたりのピーク減衰量です。
         /// </summary>
-        private const double PeakDecayPerFrame = 0.04;
+        private const double PeakDecayPerSecond = 2.5;
 
         /// <summary>
         /// ピーク保持線の最小表示高さです。
@@ -33,6 +33,7 @@ namespace AudioVisualizer.Wpf.Effects
         /// 直近フレームのピーク保持高さです。
         /// </summary>
         private double[] m_PeakHeights = Array.Empty<double>();
+        private DateTimeOffset? m_LastFrameTimestamp;
 
         #endregion
 
@@ -68,17 +69,23 @@ namespace AudioVisualizer.Wpf.Effects
             var sourceRenderData = (BarSpectrumRenderData)m_SourceEffect.BuildRenderData(frame, context);
             if (sourceRenderData.Bars.Count == 0)
             {
-                m_PeakHeights = Array.Empty<double>();
+                Reset();
                 return new PeakHoldBarRenderData(Metadata.Id, frame.Timestamp, Array.Empty<BarRenderItem>(), Array.Empty<PeakMarkerItem>());
             }
 
             EnsurePeakBufferSize(sourceRenderData.Bars.Count);
+            var elapsed = frame.Timestamp - (m_LastFrameTimestamp ?? frame.Timestamp);
+            var decay = Math.Max(0, elapsed.TotalSeconds) * PeakDecayPerSecond;
+            if (m_LastFrameTimestamp is null || elapsed > TimeSpan.Zero)
+            {
+                m_LastFrameTimestamp = frame.Timestamp;
+            }
 
             var peakMarkers = new PeakMarkerItem[sourceRenderData.Bars.Count];
             for (var index = 0; index < sourceRenderData.Bars.Count; index++)
             {
                 var bar = sourceRenderData.Bars[index];
-                var nextPeakHeight = CalculateNextPeakHeight(m_PeakHeights[index], bar.Height);
+                var nextPeakHeight = Math.Max(bar.Height, m_PeakHeights[index] - decay);
                 m_PeakHeights[index] = nextPeakHeight;
                 peakMarkers[index] = new PeakMarkerItem(bar.X, bar.Width, Math.Max(nextPeakHeight, MinimumMarkerHeight));
             }
@@ -92,6 +99,7 @@ namespace AudioVisualizer.Wpf.Effects
         public void Reset()
         {
             m_PeakHeights = Array.Empty<double>();
+            m_LastFrameTimestamp = null;
         }
 
         #endregion
@@ -110,22 +118,6 @@ namespace AudioVisualizer.Wpf.Effects
             }
 
             m_PeakHeights = new double[barCount];
-        }
-
-        /// <summary>
-        /// 次フレームのピーク保持高さを算出します。
-        /// </summary>
-        /// <param name="currentPeakHeight">現在のピーク保持高さです。</param>
-        /// <param name="currentBarHeight">現在フレームのバー高さです。</param>
-        /// <returns>次フレームのピーク保持高さです。</returns>
-        private static double CalculateNextPeakHeight(double currentPeakHeight, double currentBarHeight)
-        {
-            if (currentBarHeight >= currentPeakHeight)
-            {
-                return currentBarHeight;
-            }
-
-            return Math.Max(currentBarHeight, currentPeakHeight - PeakDecayPerFrame);
         }
 
         #endregion

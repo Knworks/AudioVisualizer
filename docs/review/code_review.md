@@ -197,6 +197,8 @@
 
 **コード確認。** ピークは描画の評価1回ごとに一定量減衰し、平滑化は経過時間を使わない。同じ時刻のフレームも設定を変更するたびに再評価される。フレーム落ちや設定操作で減衰速度が変わり、`Smoothing = 1.0` では既存点が更新されず表示が固定される。経過時間に基づく設定にするか、端点を含め現在の契約を明文化する。 [ピーク減衰](../AudioVisualizer.Wpf/Effects/PeakHoldBarEffect.cs#L121) [設定変更による再描画](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L545) [平滑化式](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L841)
 
+**修正済み。** 平滑化は16ミリ秒を基準に前フレームを残す割合を経過時間で補正し、最大設定でも新しい値へ追従する。同時刻の再評価では描画値を補間せず、ピークは1秒あたり2.5の速度で減衰する。時刻を固定した回帰テストを含めWPFの全99テストが成功した。
+
 ### 🎨 L02 継承されたForegroundの変更がキャッシュへ反映されない
 
 **実行確認。** `Foreground` は `PrimaryBrush` を指定しない場合の描画色だが、描画用ブラシを更新するコールバックは `PrimaryBrush` と `SecondaryBrush` にしか付いていない。検証で `Foreground` を変更しても描画ブラシがその値へ変わらなかった。テーマ由来の色も含め、`Foreground` の変更で描画ブラシを更新する。 [ブラシ用プロパティ](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L339) [描画用ブラシのキャッシュ](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L763) [既定テーマ](../AudioVisualizer.Wpf/Themes/Generic.xaml#L6)

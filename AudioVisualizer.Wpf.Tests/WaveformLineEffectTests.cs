@@ -16,6 +16,25 @@ namespace AudioVisualizer.Wpf.Tests
     [Apartment(ApartmentState.STA)]
     public class WaveformLineEffectTests
     {
+        /// <summary>平滑化が前フレームからの実時間に応じて進むことを確認します。</summary>
+        [TestCase(16, 0.5)]
+        [TestCase(32, 0.25)]
+        public void Smoothing_WithLongerInterval_KeepsLessOfPreviousFrame(int milliseconds, double expectedY)
+        {
+            var provider = new FakeAudioInputProvider();
+            var control = new AudioVisualizerControl(provider, new WaveformLineEffect(), new BarSpectrumRenderer())
+            {
+                IsActive = true,
+                BarCount = 2,
+                Smoothing = 0.5,
+            };
+            var timestamp = DateTimeOffset.UnixEpoch;
+            provider.RaiseFrame(new VisualizerFrame(Array.Empty<double>(), new[] { -1.0, -1.0 }, 1, timestamp));
+            provider.RaiseFrame(new VisualizerFrame(Array.Empty<double>(), new[] { 1.0, 1.0 }, 1, timestamp.AddMilliseconds(milliseconds)));
+
+            Assert.That(((PolylineRenderData)control.CurrentRenderData!).Points[0].Y, Is.EqualTo(expectedY).Within(1e-9));
+        }
+
         #region 公開メソッド
 
         /// <summary>
@@ -214,8 +233,8 @@ namespace AudioVisualizer.Wpf.Tests
                 Effect = new WaveformLineEffect(),
                 Smoothing = 0.5,
             };
-            var firstFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { -1.0, -1.0 }, 1.0, DateTimeOffset.UtcNow);
-            var secondFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { 1.0, 1.0 }, 1.0, DateTimeOffset.UtcNow.AddMilliseconds(16));
+            var firstFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { -1.0, -1.0 }, 1.0, DateTimeOffset.UnixEpoch);
+            var secondFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { 1.0, 1.0 }, 1.0, DateTimeOffset.UnixEpoch.AddMilliseconds(16));
 
             // 実行
             provider.RaiseFrame(firstFrame);
@@ -254,8 +273,8 @@ namespace AudioVisualizer.Wpf.Tests
                 Effect = new WaveformLineEffect(),
                 Smoothing = 0.0,
             };
-            var firstFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { -1.0, -1.0 }, 1.0, DateTimeOffset.UtcNow);
-            var secondFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { 1.0, 1.0 }, 1.0, DateTimeOffset.UtcNow.AddMilliseconds(16));
+            var firstFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { -1.0, -1.0 }, 1.0, DateTimeOffset.UnixEpoch);
+            var secondFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { 1.0, 1.0 }, 1.0, DateTimeOffset.UnixEpoch.AddMilliseconds(16));
 
             // 実行
             provider.RaiseFrame(firstFrame);
@@ -295,8 +314,8 @@ namespace AudioVisualizer.Wpf.Tests
                 Effect = new WaveformLineEffect(),
                 Smoothing = 0.5,
             };
-            var firstFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { -1.0, 1.0 }, 1.0, DateTimeOffset.UtcNow);
-            var secondFrame = new VisualizerFrame(new[] { 0.1, 0.2, 0.3 }, new[] { 1.0, 0.0, -1.0 }, 1.0, DateTimeOffset.UtcNow.AddMilliseconds(16));
+            var firstFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { -1.0, 1.0 }, 1.0, DateTimeOffset.UnixEpoch);
+            var secondFrame = new VisualizerFrame(new[] { 0.1, 0.2, 0.3 }, new[] { 1.0, 0.0, -1.0 }, 1.0, DateTimeOffset.UnixEpoch.AddMilliseconds(16));
 
             // 実行
             provider.RaiseFrame(firstFrame);

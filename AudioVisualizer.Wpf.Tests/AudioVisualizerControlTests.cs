@@ -1149,6 +1149,34 @@ namespace AudioVisualizer.Wpf.Tests
         }
 
         /// <summary>
+        /// 同じ型の描画データを返すエフェクトへの切り替えでも旧描画値が混ざりません。
+        /// </summary>
+        [Test]
+        public void Effect_WhenSwitchingBetweenBarEffects_DiscardsSmoothingHistory()
+        {
+            var provider = new FakeAudioInputProvider();
+            var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer())
+            {
+                BarCount = 4,
+                Smoothing = 0.8,
+                IsActive = true,
+                SpectrumProfile = SpectrumProfile.Raw,
+            };
+            var frame = new VisualizerFrame(new[] { 0.1, 0.2, 0.3, 0.4 }, 0.4, DateTimeOffset.UtcNow);
+            provider.RaiseFrame(frame);
+            var previous = (BarSpectrumRenderData)control.CurrentRenderData!;
+            var effect = new MirrorBarEffect();
+
+            control.Effect = effect;
+
+            var current = (BarSpectrumRenderData)control.CurrentRenderData!;
+            var context = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.8, 4, SpectrumProfile.Raw);
+            var expected = (BarSpectrumRenderData)effect.BuildRenderData(frame, context);
+            Assert.That(current.Bars.Select(bar => bar.Height), Is.EqualTo(expected.Bars.Select(bar => bar.Height)));
+            Assert.That(current.Bars.Select(bar => bar.Height), Is.Not.EqualTo(previous.Bars.Select(bar => bar.Height)));
+        }
+
+        /// <summary>
         /// 入力開始回数とフレーム通知を制御できる偽の音声入力プロバイダーです。
         /// </summary>
         private sealed class FakeAudioInputProvider : IAudioInputProvider, IDisposable

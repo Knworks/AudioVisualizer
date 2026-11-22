@@ -676,6 +676,7 @@ namespace AudioVisualizer.Wpf
             var control = (AudioVisualizerControl)dependencyObject;
             ResetEffectState(e.OldValue as IVisualizerEffect);
             ResetEffectState(e.NewValue as IVisualizerEffect);
+            control.m_CurrentRenderData = null;
             control.UpdateRenderData();
             control.InvalidateVisual();
         }

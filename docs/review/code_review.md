@@ -141,6 +141,8 @@
 
 **コード確認。** 切替処理はエフェクト内部の状態をリセットするが、直前の描画データを残す。平滑化は型が同じかどうかだけで判定するため、Spectrum BarとMirror Barを切り替えると旧エフェクトのバーの高さが新エフェクトへ混ざる。既定の平滑化設定では切替直後の混入が大きい。描画の対応関係が変わる場合は平滑化の履歴を破棄する。 [切替処理](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L531) [平滑化の対象判定](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L801)
 
+**修正済み。** エフェクトを切り替える際に描画履歴を消去してから最新フレームを再描画する。スペクトラムとミラーバーの切替直後に、旧エフェクトのバー高さが混ざらないことを確認した。全192テストが成功した。
+
 ### 🖥️ M09 高負荷時にフレーム処理がUIスレッドを占有する
 
 **コード確認。** Dispatcherは保留フレームを1件に集約するが、コールバック内で空になるまで処理を続ける。エフェクト処理中に毎回新フレームが届くとDispatcherへ処理を返せず、入力や画面描画が遅れる。開始・停止の同期処理もUIスレッドで行われ、停止時は取得スレッドの終了待ちが入る。Dispatcherの実行1回あたりの仕事量を制限し、取得の状態遷移をUIスレッドから外す。 [フレーム処理](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L730) [停止処理](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L626) [NAudio 2.3.0の終了待ち](https://github.com/naudio/NAudio/blob/v2.3.0/NAudio.Wasapi/WasapiCapture.cs#L303-L315)

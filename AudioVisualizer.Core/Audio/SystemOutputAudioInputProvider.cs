@@ -58,6 +58,16 @@ namespace AudioVisualizer.Core.Audio
         private bool m_IsDisposed;
 
         /// <summary>
+        /// 自動復旧に使用する、現在の取得要求です。
+        /// </summary>
+        private VisualizerSettings? m_RequestedSettings;
+
+        /// <summary>
+        /// 最後に通知した取得エラーです。
+        /// </summary>
+        private volatile string? m_CaptureError;
+
+        /// <summary>
         /// 現在接続している音声デバイス識別子です。
         /// </summary>
         private string? m_CurrentDeviceId;
@@ -75,6 +85,11 @@ namespace AudioVisualizer.Core.Audio
         /// 現在音声入力が有効かどうかを示す値を取得します。
         /// </summary>
         public bool IsCapturing => m_ActiveCapture is not null;
+
+        /// <summary>
+        /// 取得開始または継続ができない場合のエラーを取得します。
+        /// </summary>
+        public string? CaptureError => m_CaptureError;
 
         #endregion
 
@@ -181,7 +196,10 @@ namespace AudioVisualizer.Core.Audio
             {
                 ObjectDisposedException.ThrowIf(m_IsDisposed, this);
                 Interlocked.Increment(ref m_RequestVersion);
-                return StartCapture(settings);
+                m_RequestedSettings = settings;
+                var result = StartCapture(settings);
+                PublishCaptureStatus(result.ErrorMessage);
+                return result;
             }
         }
 
@@ -193,22 +211,24 @@ namespace AudioVisualizer.Core.Audio
         /// <returns>開始処理の結果です。</returns>
         private AudioInputStartResult StartCapture(VisualizerSettings settings, bool reconnect = false)
         {
-            var targetDevice = ResolveTargetDevice(settings);
-            if (targetDevice is null)
-            {
-                return AudioInputStartResult.Failed("指定された音声デバイスが見つかりません。");
-            }
-
-            if (reconnect && string.Equals(m_CurrentDeviceId, targetDevice.DeviceId, StringComparison.Ordinal))
-            {
-                return AudioInputStartResult.Success();
-            }
-
             try
             {
+                var targetDevice = ResolveTargetDevice(settings);
+                if (targetDevice is null)
+                {
+                    StopCapture();
+                    return AudioInputStartResult.Failed("指定された音声デバイスが見つかりません。");
+                }
+
+                if (reconnect && string.Equals(m_CurrentDeviceId, targetDevice.DeviceId, StringComparison.Ordinal))
+                {
+                    return AudioInputStartResult.Success();
+                }
+
                 StopCapture();
                 var captureSession = m_CaptureFactory.CreateCapture(settings.InputSource, targetDevice.DeviceId);
                 captureSession.SamplesCaptured += OnSamplesCaptured;
+                captureSession.RecordingStopped += OnRecordingStopped;
                 captureSession.Start();
 
                 m_CaptureSession = captureSession;
@@ -216,10 +236,17 @@ namespace AudioVisualizer.Core.Audio
                 m_ActiveCapture = new CaptureState(captureSession, settings);
                 return AudioInputStartResult.Success();
             }
-            catch (Exception)
+            catch (Exception exception)
             {
-                ReleaseCaptureSession();
-                m_CurrentDeviceId = null;
+                Trace.TraceError("{0}", exception);
+                try
+                {
+                    StopCapture();
+                }
+                catch (Exception cleanupException)
+                {
+                    Trace.TraceError("{0}", cleanupException);
+                }
                 return AudioInputStartResult.Failed("音声入力の開始に失敗しました。");
             }
         }
@@ -232,7 +259,15 @@ namespace AudioVisualizer.Core.Audio
             lock (m_CaptureSync)
             {
                 Interlocked.Increment(ref m_RequestVersion);
-                StopCapture();
+                m_RequestedSettings = null;
+                try
+                {
+                    StopCapture();
+                }
+                finally
+                {
+                    PublishCaptureStatus(null);
+                }
             }
         }
 
@@ -248,8 +283,8 @@ namespace AudioVisualizer.Core.Audio
             }
             finally
             {
-                ReleaseCaptureSession();
                 m_CurrentDeviceId = null;
+                ReleaseCaptureSession();
             }
         }
 
@@ -261,6 +296,11 @@ namespace AudioVisualizer.Core.Audio
         /// 新しい解析済みフレームが生成されたときに発生します。
         /// </summary>
         public event EventHandler<VisualizerFrameEventArgs>? FrameProduced;
+
+        /// <summary>
+        /// 取得状態または取得エラーを確認できるタイミングで発生します。
+        /// </summary>
+        public event EventHandler? CaptureStatusChanged;
 
         /// <summary>
         /// 既定音声デバイスの変更通知を受け取り、必要時だけ再接続します。
@@ -283,20 +323,54 @@ namespace AudioVisualizer.Core.Audio
             lock (m_CaptureSync)
             {
                 if (m_IsDisposed || requestVersion != m_RequestVersion ||
-                    m_ActiveCapture?.Settings is not { UseDefaultDevice: true } settings || settings.InputSource != inputSource)
+                    m_RequestedSettings is not { UseDefaultDevice: true } settings || settings.InputSource != inputSource)
                 {
                     return;
                 }
 
-                try
-                {
-                    _ = StartCapture(settings, reconnect: true);
-                }
-                catch (Exception exception)
-                {
-                    Trace.TraceError("{0}", exception);
-                }
+                var result = StartCapture(settings, reconnect: true);
+                PublishCaptureStatus(result.ErrorMessage);
             }
+        }
+
+        /// <summary>
+        /// 取得側からの停止通知を受け取り、同じセッションがまだ有効なら終了を反映します。
+        /// </summary>
+        /// <param name="sender">停止した取得セッションです。</param>
+        /// <param name="e">取得終了時の情報です。</param>
+        private void OnRecordingStopped(object? sender, EventArgs e)
+        {
+            m_QueueReconnect(() =>
+            {
+                lock (m_CaptureSync)
+                {
+                    if (m_ActiveCapture is not { } capture || !ReferenceEquals(sender, capture.Session))
+                    {
+                        return;
+                    }
+
+                    try
+                    {
+                        StopCapture();
+                    }
+                    catch (Exception exception)
+                    {
+                        Trace.TraceError("{0}", exception);
+                    }
+
+                    PublishCaptureStatus("音声入力が停止しました。");
+                }
+            });
+        }
+
+        /// <summary>
+        /// 最新のキャプチャ状態を購読者へ通知します。
+        /// </summary>
+        /// <param name="error">取得エラーです。正常な場合は null です。</param>
+        private void PublishCaptureStatus(string? error)
+        {
+            m_CaptureError = error;
+            CaptureStatusChanged?.Invoke(this, EventArgs.Empty);
         }
 
         /// <summary>
@@ -341,9 +415,11 @@ namespace AudioVisualizer.Core.Audio
                 return;
             }
 
-            m_CaptureSession.SamplesCaptured -= OnSamplesCaptured;
-            m_CaptureSession.Dispose();
+            var session = m_CaptureSession;
             m_CaptureSession = null;
+            session.SamplesCaptured -= OnSamplesCaptured;
+            session.RecordingStopped -= OnRecordingStopped;
+            session.Dispose();
         }
 
         /// <summary>

@@ -203,7 +203,9 @@
             Background="#FF0F172A"
             CornerRadius="16">
             <visualizer:AudioVisualizerControl
+                x:Name="AudioVisualizer"
                 BarCount="{Binding BarCount}"
+                CaptureErrorChanged="OnCaptureErrorChanged"
                 DeviceId="{Binding SelectedDeviceId}"
                 Effect="{Binding SelectedEffect}"
                 InputSource="{Binding SelectedInputSource}"
@@ -216,11 +218,25 @@
                 UseDefaultDevice="{Binding UseDefaultDevice}" />
         </Border>
 
-        <TextBlock
-            Grid.Row="2"
-            Margin="4,12,4,0"
-            Foreground="#FF475569"
-            Text="{x:Static properties:Strings.FooterDescription}"
-            TextWrapping="Wrap" />
+        <StackPanel Grid.Row="2" Margin="4,12,4,0">
+            <TextBlock
+                Foreground="#FFB45309"
+                Text="{Binding CaptureError, ElementName=AudioVisualizer}"
+                TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding CaptureError, ElementName=AudioVisualizer}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+            <TextBlock
+                Foreground="#FF475569"
+                Text="{x:Static properties:Strings.FooterDescription}"
+                TextWrapping="Wrap" />
+        </StackPanel>
     </Grid>
 </Window>

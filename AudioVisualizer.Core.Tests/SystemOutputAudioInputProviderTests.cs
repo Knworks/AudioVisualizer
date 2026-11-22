@@ -591,6 +591,65 @@ namespace AudioVisualizer.Core.Tests
             Assert.That(captures.LastDeviceId, Is.EqualTo(second.DeviceId));
         }
 
+        /// <summary>
+        /// 既定デバイス消失後に再接続が失敗しても、次の変更時に取得が復旧します。
+        /// </summary>
+        [Test]
+        public void DefaultCapture_WhenDeviceDisappearsAndReconnectFails_RecoversOnNextChange()
+        {
+            var first = new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true);
+            var second = new AudioDeviceInfo("render-2", "Headphones", InputSource.SystemOutput, false);
+            var devices = new FakeAudioDeviceService(new[] { first, second }, Array.Empty<AudioDeviceInfo>(), first, null);
+            var captures = new FakeAudioCaptureFactory(new FakeAudioCaptureSession());
+            var work = new Queue<Action>();
+            using var provider = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), devices, captures, work.Enqueue);
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
+
+            Assert.That(provider.Start(settings).Succeeded, Is.True);
+            devices.SetDefaultDevice(InputSource.SystemOutput, null);
+            devices.RaiseDefaultDeviceChanged(InputSource.SystemOutput, null);
+            work.Dequeue()();
+            Assert.That(provider.IsCapturing, Is.False);
+            Assert.That(provider.CaptureError, Is.Not.Null);
+
+            captures.SetNextException(new InvalidOperationException());
+            devices.SetDefaultDevice(InputSource.SystemOutput, second);
+            devices.RaiseDefaultDeviceChanged(InputSource.SystemOutput, second.DeviceId);
+            work.Dequeue()();
+            Assert.That(provider.IsCapturing, Is.False);
+            Assert.That(provider.CaptureError, Is.Not.Null);
+
+            devices.SetDefaultDevice(InputSource.SystemOutput, first);
+            devices.RaiseDefaultDeviceChanged(InputSource.SystemOutput, first.DeviceId);
+            work.Dequeue()();
+            Assert.That(provider.IsCapturing, Is.True);
+            Assert.That(provider.CaptureError, Is.Null);
+        }
+
+        /// <summary>
+        /// 取得側の予期しない終了が、状態とエラーとして利用側に伝わります。
+        /// </summary>
+        [Test]
+        public void RecordingStopped_WhenCaptureIsActive_UpdatesPublicStatus()
+        {
+            var device = new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true);
+            var devices = new FakeAudioDeviceService(new[] { device }, Array.Empty<AudioDeviceInfo>(), device, null);
+            var session = new FakeAudioCaptureSession();
+            var work = new Queue<Action>();
+            using var provider = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), devices, new FakeAudioCaptureFactory(session), work.Enqueue);
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
+            Assert.That(provider.Start(settings).Succeeded, Is.True);
+            var reportedStates = new List<(bool IsCapturing, string? Error)>();
+            provider.CaptureStatusChanged += (_, _) => reportedStates.Add((provider.IsCapturing, provider.CaptureError));
+
+            session.RaiseRecordingStopped();
+            work.Dequeue()();
+
+            Assert.That(reportedStates, Has.Count.EqualTo(1));
+            Assert.That(reportedStates[0].IsCapturing, Is.False);
+            Assert.That(reportedStates[0].Error, Is.Not.Null);
+        }
+
         #endregion
 
         #region 内部処理
@@ -827,7 +886,7 @@ namespace AudioVisualizer.Core.Tests
             /// </summary>
             /// <param name="inputSource">通知対象の入力種別です。</param>
             /// <param name="deviceId">新しい既定デバイス識別子です。</param>
-            public void RaiseDefaultDeviceChanged(InputSource inputSource, string deviceId)
+            public void RaiseDefaultDeviceChanged(InputSource inputSource, string? deviceId)
             {
                 DefaultDeviceChanged?.Invoke(this, new DefaultAudioDeviceChangedEventArgs(inputSource, deviceId));
             }
@@ -892,6 +951,19 @@ namespace AudioVisualizer.Core.Tests
             /// PCM サンプル通知イベントです。
             /// </summary>
             public event EventHandler<AudioSamplesCapturedEventArgs>? SamplesCaptured;
+
+            /// <summary>
+            /// 取得終了を通知します。
+            /// </summary>
+            public event EventHandler? RecordingStopped;
+
+            /// <summary>
+            /// 取得側からの終了イベントを発行します。
+            /// </summary>
+            public void RaiseRecordingStopped()
+            {
+                RecordingStopped?.Invoke(this, EventArgs.Empty);
+            }
 
             #endregion
         }

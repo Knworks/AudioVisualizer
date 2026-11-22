@@ -52,6 +52,11 @@ namespace AudioVisualizer.Wpf
         private readonly Func<IAudioInputProvider>? m_CreateAudioInputProvider;
 
         /// <summary>
+        /// コントロールが画面に配置されているかどうかを示します。
+        /// </summary>
+        private bool m_IsCaptureHostLoaded;
+
+        /// <summary>
         /// 既定で使用するバー型エフェクトです。
         /// </summary>
         private readonly IVisualizerEffect m_DefaultEffect;
@@ -148,6 +153,16 @@ namespace AudioVisualizer.Wpf
             get => (bool)GetValue(IsActiveProperty);
             set => SetValue(IsActiveProperty, value);
         }
+
+        /// <summary>
+        /// 音声入力を実際に取得しているかどうかを取得します。
+        /// </summary>
+        public bool IsCapturing => (bool)GetValue(IsCapturingProperty);
+
+        /// <summary>
+        /// 最新の音声取得エラーを取得します。
+        /// </summary>
+        public string? CaptureError => (string?)GetValue(CaptureErrorProperty);
 
         /// <summary>
         /// 利用する可視化エフェクトを取得または設定します。
@@ -283,6 +298,27 @@ namespace AudioVisualizer.Wpf
                 typeof(bool),
                 typeof(AudioVisualizerControl),
                 new FrameworkPropertyMetadata(false, OnIsActiveChanged));
+
+        private static readonly DependencyPropertyKey IsCapturingPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(IsCapturing), typeof(bool), typeof(AudioVisualizerControl), new FrameworkPropertyMetadata(false));
+
+        /// <summary>
+        /// 実際の音声取得状態の依存関係プロパティです。
+        /// </summary>
+        public static readonly DependencyProperty IsCapturingProperty = IsCapturingPropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey CaptureErrorPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(CaptureError), typeof(string), typeof(AudioVisualizerControl), new FrameworkPropertyMetadata(null));
+
+        /// <summary>
+        /// 音声取得エラーの依存関係プロパティです。
+        /// </summary>
+        public static readonly DependencyProperty CaptureErrorProperty = CaptureErrorPropertyKey.DependencyProperty;
+
+        /// <summary>
+        /// 音声取得エラーの内容が変化したときに発生します。
+        /// </summary>
+        public event EventHandler? CaptureErrorChanged;
 
         /// <summary>
         /// エフェクト指定の依存関係プロパティです。
@@ -533,17 +569,7 @@ namespace AudioVisualizer.Wpf
         /// <param name="e">画面への配置イベントです。</param>
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
-            if (m_AudioInputProvider is null && m_CreateAudioInputProvider is not null)
-            {
-                var provider = m_CreateAudioInputProvider();
-                lock (m_PendingFrameSync)
-                {
-                    m_AudioInputProvider = provider;
-                }
-
-                provider.FrameProduced += OnFrameProduced;
-            }
-
+            m_IsCaptureHostLoaded = true;
             if (IsActive)
             {
                 StartCapture();
@@ -557,6 +583,7 @@ namespace AudioVisualizer.Wpf
         /// <param name="e">画面からの取り外しイベントです。</param>
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
+            m_IsCaptureHostLoaded = false;
             var provider = m_AudioInputProvider;
             if (provider is null || m_CreateAudioInputProvider is null)
             {
@@ -570,6 +597,11 @@ namespace AudioVisualizer.Wpf
             }
 
             provider.FrameProduced -= OnFrameProduced;
+            if (provider is SystemOutputAudioInputProvider captureProvider)
+            {
+                captureProvider.CaptureStatusChanged -= OnCaptureStatusChanged;
+            }
+
             try
             {
                 if (provider is IDisposable disposable)
@@ -713,12 +745,52 @@ namespace AudioVisualizer.Wpf
         private void StartCapture()
         {
             var settings = CreateCaptureSettings();
-            if (settings is null || m_AudioInputProvider is not { IsCapturing: false } provider)
+            if (settings is null)
             {
                 return;
             }
 
-            _ = provider.Start(settings);
+            try
+            {
+                EnsureAudioInputProvider();
+            }
+            catch (Exception exception)
+            {
+                System.Diagnostics.Trace.TraceError("{0}", exception);
+                UpdateCaptureStatus(false, "音声入力の初期化に失敗しました。");
+                return;
+            }
+
+            if (m_AudioInputProvider is not { IsCapturing: false } provider)
+            {
+                return;
+            }
+
+            var result = provider.Start(settings);
+            UpdateCaptureStatus(provider.IsCapturing, result.ErrorMessage);
+        }
+
+        /// <summary>
+        /// 配置済みのコントロールが必要とする音声入力プロバイダーを準備します。
+        /// </summary>
+        private void EnsureAudioInputProvider()
+        {
+            if (m_AudioInputProvider is not null || !m_IsCaptureHostLoaded || m_CreateAudioInputProvider is null)
+            {
+                return;
+            }
+
+            var provider = m_CreateAudioInputProvider();
+            lock (m_PendingFrameSync)
+            {
+                m_AudioInputProvider = provider;
+            }
+
+            provider.FrameProduced += OnFrameProduced;
+            if (provider is SystemOutputAudioInputProvider captureProvider)
+            {
+                captureProvider.CaptureStatusChanged += OnCaptureStatusChanged;
+            }
         }
 
         /// <summary>
@@ -726,7 +798,63 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         private void StopCapture()
         {
-            m_AudioInputProvider?.Stop();
+            try
+            {
+                m_AudioInputProvider?.Stop();
+            }
+            finally
+            {
+                UpdateCaptureStatus(false, null);
+                ClearCaptureFrame();
+            }
+        }
+
+        /// <summary>
+        /// 取得状態の変更を、現在の入力プロバイダーから UI へ反映します。
+        /// </summary>
+        /// <param name="sender">状態が変更された入力プロバイダーです。</param>
+        /// <param name="e">変更イベントです。</param>
+        private void OnCaptureStatusChanged(object? sender, EventArgs e)
+        {
+            if (sender is not SystemOutputAudioInputProvider provider)
+            {
+                return;
+            }
+
+            _ = Dispatcher.InvokeAsync(() =>
+            {
+                if (ReferenceEquals(m_AudioInputProvider, provider) && IsActive)
+                {
+                    UpdateCaptureStatus(provider.IsCapturing, provider.CaptureError);
+                }
+            });
+        }
+
+        /// <summary>
+        /// 実際の取得状態と取得エラーを依存関係プロパティへ反映します。
+        /// </summary>
+        /// <param name="isCapturing">音声取得中かどうかを示します。</param>
+        /// <param name="error">音声取得エラーです。</param>
+        private void UpdateCaptureStatus(bool isCapturing, string? error)
+        {
+            SetValue(IsCapturingPropertyKey, isCapturing);
+            if (error is not null)
+            {
+                ClearCaptureFrame();
+            }
+
+            if (CaptureError != error)
+            {
+                SetValue(CaptureErrorPropertyKey, error);
+                CaptureErrorChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        /// <summary>
+        /// 保留中のフレームと画面の描画状態を消去します。
+        /// </summary>
+        private void ClearCaptureFrame()
+        {
             lock (m_PendingFrameSync)
             {
                 m_PendingFrame = null;

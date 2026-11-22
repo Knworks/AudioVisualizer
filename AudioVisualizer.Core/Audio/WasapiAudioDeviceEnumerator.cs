@@ -125,12 +125,12 @@ namespace AudioVisualizer.Core.Audio
                 DataFlow.Capture => InputSource.Microphone,
                 _ => (InputSource?)null,
             };
-            if (inputSource is null || string.IsNullOrWhiteSpace(e.DeviceId))
+            if (inputSource is null)
             {
                 return;
             }
 
-            DefaultDeviceChanged?.Invoke(this, new DefaultAudioDeviceChangedEventArgs(inputSource.Value, e.DeviceId));
+            DefaultDeviceChanged?.Invoke(this, new DefaultAudioDeviceChangedEventArgs(inputSource.Value, string.IsNullOrWhiteSpace(e.DeviceId) ? null : e.DeviceId));
         }
 
         #endregion

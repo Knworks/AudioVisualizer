@@ -51,6 +51,8 @@
 
 **対応案。** 取得の希望状態と実状態を分ける。開始・停止・故障をUIに伝え、既定デバイスの消失・復帰を扱う。取得希望が続く間は次の既定変更で復旧できるようにする。 [開始結果の破棄](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L607) [SampleAppのコマンド状態](../AudioVisualizer.SampleApp/ViewModels/MainWindowViewModel.cs#L434) [開始と再接続](../AudioVisualizer.Core/Audio/SystemOutputAudioInputProvider.cs#L132) [通知のフィルター](../AudioVisualizer.Core/Audio/WasapiAudioDeviceEnumerator.cs#L113) [取得イベントの購読](../AudioVisualizer.Core/Audio/WasapiAudioCaptureFactory.cs#L66) [Microsoftの既定デバイス不在通知](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immnotificationclient-ondefaultdevicechanged)
 
+**修正済み。** Coreが取得要求・実際の取得状態・エラーを管理し、既定デバイスの消失や再接続失敗後も次の既定変更で再試行する。WPFは取得状態とエラーを公開し、SampleAppでエラー表示と再試行を可能にした。開始失敗、取得終了、デバイス消失後の復旧を回帰テストし、全163テストが成功した。
+
 ### 🧹 H05 開始途中で失敗した取得セッションが解放されない
 
 **実行確認。** `Start` は新規セッションにサンプル通知を登録してから開始し、成功後に初めてフィールドへ代入する。開始処理で例外が出ると、失敗処理が参照するフィールドに新規セッションが入っていない。一時テストで、失敗セッションの `Dispose` が呼ばれず、通知購読が1件残ることを確認した。実機で失敗を繰り返すと、部分的に取得した資源が残り得る。

@@ -1040,6 +1040,29 @@ namespace AudioVisualizer.Wpf.Tests
         }
 
         /// <summary>
+        /// 開始失敗が取得要求とは独立したエラーとして画面に伝わることを確認します。
+        /// </summary>
+        [Test]
+        public void CaptureStatus_WhenStartFails_ReportsErrorAndClearsOnRetry()
+        {
+            var provider = new FakeAudioInputProvider { StartError = "Start failed." };
+            var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer());
+
+            control.IsActive = true;
+
+            Assert.That(control.IsActive, Is.True);
+            Assert.That(control.IsCapturing, Is.False);
+            Assert.That(control.CaptureError, Is.EqualTo("Start failed."));
+
+            provider.StartError = null;
+            control.IsActive = false;
+            control.IsActive = true;
+
+            Assert.That(control.IsCapturing, Is.True);
+            Assert.That(control.CaptureError, Is.Null);
+        }
+
+        /// <summary>
         /// 入力開始回数とフレーム通知を制御できる偽の音声入力プロバイダーです。
         /// </summary>
         private sealed class FakeAudioInputProvider : IAudioInputProvider, IDisposable
@@ -1050,6 +1073,11 @@ namespace AudioVisualizer.Wpf.Tests
             /// 入力開始が呼ばれた回数を取得します。
             /// </summary>
             public int StartCallCount { get; private set; }
+
+            /// <summary>
+            /// 開始時に返すエラーを指定します。
+            /// </summary>
+            public string? StartError { get; set; }
 
             /// <summary>
             /// 入力停止が呼ばれた回数を取得します。
@@ -1092,8 +1120,13 @@ namespace AudioVisualizer.Wpf.Tests
             public AudioInputStartResult Start(VisualizerSettings settings)
             {
                 StartCallCount++;
-                IsCapturing = true;
                 LastSettings = settings;
+                if (StartError is not null)
+                {
+                    return AudioInputStartResult.Failed(StartError);
+                }
+
+                IsCapturing = true;
                 return AudioInputStartResult.Success();
             }
 

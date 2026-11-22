@@ -17,7 +17,7 @@ namespace AudioVisualizer.Core.Audio
         /// <summary>
         /// 新しく既定になったデバイス識別子を取得します。
         /// </summary>
-        public string DeviceId { get; }
+        public string? DeviceId { get; }
 
         #endregion
 
@@ -27,10 +27,10 @@ namespace AudioVisualizer.Core.Audio
         /// <see cref="DefaultAudioDeviceChangedEventArgs"/> クラスの新しいインスタンスを初期化します。
         /// </summary>
         /// <param name="inputSource">変更対象の入力種別です。</param>
-        /// <param name="deviceId">新しく既定になったデバイス識別子です。</param>
-        public DefaultAudioDeviceChangedEventArgs(InputSource inputSource, string deviceId)
+        /// <param name="deviceId">新しく既定になったデバイス識別子です。既定がなくなった場合は null です。</param>
+        public DefaultAudioDeviceChangedEventArgs(InputSource inputSource, string? deviceId)
         {
-            if (string.IsNullOrWhiteSpace(deviceId))
+            if (deviceId is not null && string.IsNullOrWhiteSpace(deviceId))
             {
                 throw new ArgumentException("A default device ID is required.", nameof(deviceId));
             }

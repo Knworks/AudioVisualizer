@@ -97,6 +97,7 @@ namespace AudioVisualizer.Core.Audio
                 m_Device = device;
                 m_WaveFormat = capture.WaveFormat.AsStandardWaveFormat();
                 m_Capture.DataAvailable += OnDataAvailable;
+                m_Capture.RecordingStopped += OnRecordingStopped;
             }
 
             #endregion
@@ -109,6 +110,7 @@ namespace AudioVisualizer.Core.Audio
             public void Dispose()
             {
                 m_Capture.DataAvailable -= OnDataAvailable;
+                m_Capture.RecordingStopped -= OnRecordingStopped;
                 try
                 {
                     m_Capture.Dispose();
@@ -143,6 +145,26 @@ namespace AudioVisualizer.Core.Audio
             /// PCM サンプルが取得されたときに発生します。
             /// </summary>
             public event EventHandler<AudioSamplesCapturedEventArgs>? SamplesCaptured;
+
+            /// <summary>
+            /// 音声録音処理が終了したときに発生します。
+            /// </summary>
+            public event EventHandler? RecordingStopped;
+
+            /// <summary>
+            /// NAudio からの録音終了を取得管理側へ伝えます。
+            /// </summary>
+            /// <param name="sender">停止した NAudio の録音機です。</param>
+            /// <param name="e">録音が停止した理由です。</param>
+            private void OnRecordingStopped(object? sender, StoppedEventArgs e)
+            {
+                if (e.Exception is not null)
+                {
+                    System.Diagnostics.Trace.TraceError("{0}", e.Exception);
+                }
+
+                RecordingStopped?.Invoke(this, EventArgs.Empty);
+            }
 
             /// <summary>
             /// NAudio から届いた PCM バッファを内部イベントへ変換します。

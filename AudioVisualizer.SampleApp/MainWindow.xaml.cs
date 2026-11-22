@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using AudioVisualizer.Core.Audio;
 using AudioVisualizer.SampleApp.ViewModels;
+using AudioVisualizer.Wpf;
 
 namespace AudioVisualizer.SampleApp
 {
@@ -60,6 +61,19 @@ namespace AudioVisualizer.SampleApp
             finally
             {
                 m_OwnedAudioDeviceService?.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// 音声取得エラーが変わったときに開始操作の状態を更新します。
+        /// </summary>
+        /// <param name="sender">音声可視化コントロールです。</param>
+        /// <param name="e">エラーの変更通知です。</param>
+        private void OnCaptureErrorChanged(object? sender, EventArgs e)
+        {
+            if (sender is AudioVisualizerControl control && DataContext is MainWindowViewModel viewModel)
+            {
+                viewModel.SetCaptureError(control.CaptureError is not null);
             }
         }
     }

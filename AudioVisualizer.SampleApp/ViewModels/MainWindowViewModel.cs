@@ -77,6 +77,11 @@ namespace AudioVisualizer.SampleApp.ViewModels
         private bool m_IsActive;
 
         /// <summary>
+        /// 音声取得が失敗し、開始操作を再試行できるかどうかを示します。
+        /// </summary>
+        private bool m_HasCaptureError;
+
+        /// <summary>
         /// 画面へ表示する状態メッセージです。
         /// </summary>
         private string m_StatusMessage;
@@ -431,7 +436,7 @@ namespace AudioVisualizer.SampleApp.ViewModels
                 new BuiltInEffectOption(BuiltInVisualizerEffectKind.BandLevelMeter, Strings.BandLevelMeterEffectOptionLabel),
             };
 
-            StartCommand = new DelegateCommand(Start, () => !IsActive);
+            StartCommand = new DelegateCommand(Start, () => !IsActive || m_HasCaptureError);
             StopCommand = new DelegateCommand(Stop, () => IsActive);
             RefreshDevicesCommand = new DelegateCommand(RefreshDevices);
 
@@ -447,7 +452,25 @@ namespace AudioVisualizer.SampleApp.ViewModels
         /// </summary>
         public void Start()
         {
+            if (m_HasCaptureError)
+            {
+                IsActive = false;
+            }
+
             IsActive = true;
+        }
+
+        /// <summary>
+        /// 音声取得の失敗を受け、開始コマンドの可否を更新します。
+        /// </summary>
+        /// <param name="hasError">取得エラーが表示されているかどうかを示します。</param>
+        internal void SetCaptureError(bool hasError)
+        {
+            if (m_HasCaptureError != hasError)
+            {
+                m_HasCaptureError = hasError;
+                ((DelegateCommand)StartCommand).RaiseCanExecuteChanged();
+            }
         }
 
         /// <summary>

@@ -40,6 +40,28 @@ namespace AudioVisualizer.Wpf.Tests
         }
 
         /// <summary>
+        /// 表示点より周期の短い音は、各区間の上下の振幅を含む包絡線として表示されます。
+        /// </summary>
+        [Test]
+        public void Waveform_WhenHighFrequencyIsDownsampled_DrawsAmplitudeEnvelope()
+        {
+            const int sampleRate = 48000;
+            const int pointCount = 32;
+            var samples = Enumerable.Range(0, 576)
+                .Select(index => (float)(0.2 * Math.Sin(2 * Math.PI * 2000 * index / sampleRate)))
+                .ToArray();
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.0, pointCount);
+            var frame = new AudioVisualizer.Core.Analysis.AudioFrameAnalyzer().CreateFrame(
+                new AudioSampleBuffer(samples, sampleRate, 1, DateTimeOffset.UtcNow), settings);
+            var context = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.0, pointCount, SpectrumProfile.Raw);
+            var data = (PolylineRenderData)new WaveformLineEffect().BuildRenderData(frame, context);
+
+            Assert.That(data.Points, Has.Count.EqualTo((pointCount * 2) + 1));
+            Assert.That(data.Points.Take(pointCount).Select(point => point.Y), Is.All.LessThan(0.5));
+            Assert.That(data.Points.Skip(pointCount).Take(pointCount).Select(point => point.Y), Is.All.GreaterThan(0.5));
+        }
+
+        /// <summary>
         /// WaveformLineEffect が波形値を折れ線用の正規化点列へ変換することを確認します。
         /// ■入力
         /// ・1. waveformValues = [-1.0, 0.0, 1.0] を含む VisualizerFrame

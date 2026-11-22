@@ -41,10 +41,10 @@ namespace AudioVisualizer.Core.Analysis
 
             var normalizedSamples = ToNormalizedSamples(sampleBuffer);
             var peakLevel = CalculatePeakLevel(normalizedSamples);
-            var waveformValues = BuildWaveformValues(normalizedSamples, settings.BarCount, settings.Sensitivity);
+            var (waveformValues, waveformRanges) = BuildWaveformValues(normalizedSamples, settings.BarCount, settings.Sensitivity);
             var spectrumValues = BuildSpectrumValues(normalizedSamples, sampleBuffer.Channels, settings.BarCount, settings.Sensitivity);
 
-            return new VisualizerFrame(spectrumValues, waveformValues, peakLevel, sampleBuffer.Timestamp);
+            return new VisualizerFrame(spectrumValues, waveformValues, peakLevel, sampleBuffer.Timestamp, waveformRanges);
         }
 
         #endregion
@@ -93,29 +93,37 @@ namespace AudioVisualizer.Core.Analysis
         /// <param name="samples">解析対象のサンプル列です。</param>
         /// <param name="outputLength">出力する波形要素数です。</param>
         /// <param name="sensitivity">感度係数です。</param>
-        /// <returns>表示用に整形した波形配列です。</returns>
-        private static double[] BuildWaveformValues(double[] samples, int outputLength, double sensitivity)
+        /// <returns>波形の代表値と、間引き時の最小値・最大値です。</returns>
+        private static (double[] Values, (double Minimum, double Maximum)[] Ranges) BuildWaveformValues(
+            double[] samples, int outputLength, double sensitivity)
         {
             var result = new double[outputLength];
-            if (samples.Length == 0 || outputLength <= 0)
+            var ranges = samples.Length > outputLength ? new (double, double)[outputLength] : Array.Empty<(double, double)>();
+            if (samples.Length == 0)
             {
-                return result;
+                return (result, ranges);
             }
-
-            var bucketSize = Math.Max(1, samples.Length / outputLength);
             for (var bucketIndex = 0; bucketIndex < outputLength; bucketIndex++)
             {
-                var startIndex = bucketIndex * bucketSize;
+                var startIndex = samples.Length > outputLength
+                    ? (int)((long)bucketIndex * samples.Length / outputLength)
+                    : bucketIndex;
                 if (startIndex >= samples.Length)
                 {
                     break;
                 }
 
-                var endIndex = Math.Min(samples.Length, startIndex + bucketSize);
+                var endIndex = samples.Length > outputLength
+                    ? (int)((long)(bucketIndex + 1) * samples.Length / outputLength)
+                    : startIndex + 1;
+                var minimum = double.PositiveInfinity;
+                var maximum = double.NegativeInfinity;
                 var representativeValue = 0.0;
                 for (var sampleIndex = startIndex; sampleIndex < endIndex; sampleIndex++)
                 {
                     var currentSample = samples[sampleIndex];
+                    minimum = Math.Min(minimum, currentSample);
+                    maximum = Math.Max(maximum, currentSample);
                     if (Math.Abs(currentSample) > Math.Abs(representativeValue))
                     {
                         representativeValue = currentSample;
@@ -123,9 +131,13 @@ namespace AudioVisualizer.Core.Analysis
                 }
 
                 result[bucketIndex] = Math.Clamp(representativeValue * sensitivity, -1.0, 1.0);
+                if (ranges.Length > 0)
+                {
+                    ranges[bucketIndex] = (Math.Clamp(minimum * sensitivity, -1.0, 1.0), Math.Clamp(maximum * sensitivity, -1.0, 1.0));
+                }
             }
 
-            return result;
+            return (result, ranges);
         }
 
         /// <summary>

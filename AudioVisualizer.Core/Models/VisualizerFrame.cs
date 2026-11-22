@@ -22,6 +22,11 @@ namespace AudioVisualizer.Core.Models
         public IReadOnlyList<double> WaveformValues { get; }
 
         /// <summary>
+        /// 間引き前の波形の最小値と最大値を、左から右の表示区間ごとに取得します。
+        /// </summary>
+        public IReadOnlyList<(double Minimum, double Maximum)> WaveformRanges { get; }
+
+        /// <summary>
         /// フレームのピークレベルを取得します。
         /// </summary>
         public double PeakLevel { get; }
@@ -46,6 +51,24 @@ namespace AudioVisualizer.Core.Models
         /// <exception cref="ArgumentNullException"><paramref name="waveformValues"/> が <see langword="null"/> の場合にスローされます。</exception>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="peakLevel"/> が負数の場合にスローされます。</exception>
         public VisualizerFrame(IEnumerable<double> spectrumValues, IEnumerable<double> waveformValues, double peakLevel, DateTimeOffset timestamp)
+            : this(spectrumValues, waveformValues, peakLevel, timestamp, Array.Empty<(double, double)>())
+        {
+        }
+
+        /// <summary>
+        /// 解析済みフレームを波形の区間ごとの振幅範囲とともに初期化します。
+        /// </summary>
+        /// <param name="spectrumValues">スペクトラム値です。</param>
+        /// <param name="waveformValues">波形の代表値です。</param>
+        /// <param name="peakLevel">フレームのピークレベルです。</param>
+        /// <param name="timestamp">フレームの生成時刻です。</param>
+        /// <param name="waveformRanges">波形の区間ごとの振幅範囲です。</param>
+        internal VisualizerFrame(
+            IEnumerable<double> spectrumValues,
+            IEnumerable<double> waveformValues,
+            double peakLevel,
+            DateTimeOffset timestamp,
+            IReadOnlyList<(double Minimum, double Maximum)> waveformRanges)
         {
             if (spectrumValues is null)
             {
@@ -64,6 +87,7 @@ namespace AudioVisualizer.Core.Models
 
             SpectrumValues = spectrumValues.ToArray();
             WaveformValues = waveformValues.ToArray();
+            WaveformRanges = Array.AsReadOnly(waveformRanges.ToArray());
             PeakLevel = peakLevel;
             Timestamp = timestamp;
         }

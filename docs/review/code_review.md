@@ -215,6 +215,8 @@
 
 **コード確認。** ラベルは各帯域の幅に合わせた省略や非表示がなく、狭い領域では幅の長いラベルが重なる。高さがフォントより小さい場合、描画のY座標が負になる。また、`FormattedText` の `pixelsPerDip` が常に1.0で、実際のDPIを反映しない。ラベルの省略・非表示条件とDPIの取得を実装する。 [ラベルの位置計算](../AudioVisualizer.Wpf/Rendering/BandLevelMeterRenderer.cs#L61) [DPI指定](../AudioVisualizer.Wpf/Rendering/BandLevelMeterRenderer.cs#L132)
 
+**修正済み。** 描画先のDPI倍率で文字を測り、幅に収まらないラベルは末尾を省略する。省略記号の幅やラベルの高さが足りない場合はラベルを隠し、高さが極小なら全高をメーターに使う。高DPIと狭い領域を含む帯域メーターの全20テストが成功した。
+
 ### 📦 L05 読み取り専用として公開する配列の内容を書き換えられる
 
 **コード確認。** コンストラクターでコピーするが、配列をそのまま `IReadOnlyList<T>` として返す。配列型へキャストできるため、公開データを受け取った後も内容を変更できる。フレームを別スレッドで受け渡す場合や、レンダラーがデータ参照で座標をキャッシュする場合は、表示と公開値が一致しなくなり得る。公開するなら読み取り専用ラッパーか不変コレクションを使う。 [フレームの配列](../AudioVisualizer.Core/Models/VisualizerFrame.cs#L65) [描画点の配列](../AudioVisualizer.Core/Effects/PolylineRenderData.cs#L34) [参照ベースのキャッシュ](../AudioVisualizer.Wpf/Rendering/PolylineRenderer.cs#L106)

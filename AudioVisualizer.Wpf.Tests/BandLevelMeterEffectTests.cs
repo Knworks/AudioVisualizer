@@ -19,6 +19,33 @@ namespace AudioVisualizer.Wpf.Tests
     [Apartment(ApartmentState.STA)]
     public class BandLevelMeterEffectTests
     {
+        /// <summary>高DPIと狭い表示領域でラベルを帯域内に収めることを確認します。</summary>
+        [TestCase(20, 10, 1.75)]
+        [TestCase(80, 40, 2.0)]
+        public void MeterLabels_WhenSpaceIsLimited_StayWithinEachBand(double width, double height, double dpi)
+        {
+            var data = new BandLevelMeterRenderData("bands", DateTimeOffset.UnixEpoch, new[]
+            {
+                new BandLevelMeterItem(0.0, 0.5, 1, "A very long label"),
+                new BandLevelMeterItem(0.5, 0.5, 1, "Another long label"),
+            });
+            var drawing = new DrawingGroup();
+            using (var context = drawing.Open())
+            {
+                new BandLevelMeterRenderer().Render(context, data, new Size(width, height), Brushes.Green, dpi);
+            }
+
+            var labelGroups = drawing.Children.OfType<DrawingGroup>().ToArray();
+            Assert.That(labelGroups, Has.Length.EqualTo(height <= 18 ? 0 : 2));
+            for (var index = 0; index < labelGroups.Length; index++)
+            {
+                var bounds = labelGroups[index].Bounds;
+                Assert.That(bounds.Left, Is.GreaterThanOrEqualTo(index * width / 2));
+                Assert.That(bounds.Right, Is.LessThanOrEqualTo((index + 1) * width / 2));
+                Assert.That(bounds.Bottom, Is.LessThanOrEqualTo(height));
+            }
+        }
+
         #region 公開メソッド
 
         /// <summary>サンプルレートが異なっても同じ音が同じ帯域で最大になることを確認します。</summary>

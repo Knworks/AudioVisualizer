@@ -561,7 +561,7 @@ namespace AudioVisualizer.Wpf
             var renderSize = new Size(ActualWidth, ActualHeight);
             if (m_CurrentRenderData is BandLevelMeterRenderData)
             {
-                m_BandLevelMeterRenderer.Render(drawingContext, m_CurrentRenderData, renderSize, m_CurrentRenderBrush);
+                m_BandLevelMeterRenderer.Render(drawingContext, m_CurrentRenderData, renderSize, m_CurrentRenderBrush, VisualTreeHelper.GetDpi(this).PixelsPerDip);
                 return;
             }
 

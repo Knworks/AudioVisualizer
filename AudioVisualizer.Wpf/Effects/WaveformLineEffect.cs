@@ -44,7 +44,7 @@ namespace AudioVisualizer.Wpf.Effects
 
             if (frame.WaveformValues.Count == 1)
             {
-                var y = ConvertToNormalizedY(frame.WaveformValues[0]);
+                var y = ConvertToNormalizedY(frame.WaveformValues[0] * context.Sensitivity);
                 return new PolylineRenderData(
                     Metadata.Id,
                     frame.Timestamp,
@@ -59,7 +59,7 @@ namespace AudioVisualizer.Wpf.Effects
             for (var index = 0; index < frame.WaveformValues.Count; index++)
             {
                 var x = index / (double)(frame.WaveformValues.Count - 1);
-                var y = ConvertToNormalizedY(frame.WaveformValues[index]);
+                var y = ConvertToNormalizedY(frame.WaveformValues[index] * context.Sensitivity);
                 points[index] = new NormalizedPoint(x, y);
             }
 

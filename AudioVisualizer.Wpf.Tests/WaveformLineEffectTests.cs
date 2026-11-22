@@ -19,6 +19,27 @@ namespace AudioVisualizer.Wpf.Tests
         #region 公開メソッド
 
         /// <summary>
+        /// コントロールの感度変更を、符号を保った波形の拡大とクリップに反映します。
+        /// </summary>
+        [Test]
+        public void Control_WhenSensitivityChanges_ScalesAndClipsWaveform()
+        {
+            var provider = new FakeAudioInputProvider();
+            var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer())
+            {
+                IsActive = true,
+                Effect = new WaveformLineEffect(),
+                Smoothing = 0,
+            };
+            provider.RaiseFrame(new VisualizerFrame(Array.Empty<double>(), new[] { -0.4, -0.1, 0.1, 0.4 }, 0.4, DateTimeOffset.UtcNow));
+
+            control.Sensitivity = 5.0;
+
+            var data = (PolylineRenderData)control.CurrentRenderData!;
+            Assert.That(data.Points.Select(point => point.Y), Is.EqualTo(new[] { 1.0, 0.75, 0.25, 0.0 }).Within(1e-10));
+        }
+
+        /// <summary>
         /// WaveformLineEffect が波形値を折れ線用の正規化点列へ変換することを確認します。
         /// ■入力
         /// ・1. waveformValues = [-1.0, 0.0, 1.0] を含む VisualizerFrame

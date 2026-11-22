@@ -209,6 +209,8 @@
 
 **コード確認。** 公開プロパティは `Brush` 型を受け付けるが、`SecondaryBrush` を指定すると両者を単色に変換する。入力がグラデーションなら最初の色だけを使用し、画像ブラシなどは既定色になる。ブラシの種類次第で利用側指定が反映されない。合成可能な型と挙動を契約に明記するか、ブラシを保持して描画する。 [グラデーション生成](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L763) [単色の抽出](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L972)
 
+**修正済み。** 既存の描画契約を公開プロパティに明記した。補助ブラシがない場合は主ブラシをそのまま使用する。補助ブラシの指定時に使う単色・グラデーションの抽出規則と、画像などに適用する代替色を記載した。
+
 ### 🔠 L04 帯域ラベルが狭い領域と高DPIに適応しない
 
 **コード確認。** ラベルは各帯域の幅に合わせた省略や非表示がなく、狭い領域では幅の長いラベルが重なる。高さがフォントより小さい場合、描画のY座標が負になる。また、`FormattedText` の `pixelsPerDip` が常に1.0で、実際のDPIを反映しない。ラベルの省略・非表示条件とDPIの取得を実装する。 [ラベルの位置計算](../AudioVisualizer.Wpf/Rendering/BandLevelMeterRenderer.cs#L61) [DPI指定](../AudioVisualizer.Wpf/Rendering/BandLevelMeterRenderer.cs#L132)

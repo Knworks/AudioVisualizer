@@ -249,8 +249,8 @@ namespace AudioVisualizer.Wpf
 
         /// <summary>
         /// 主描画色を取得または設定します。
-        /// 単色ブラシならバーの基調色として使用し、`SecondaryBrush` を指定した場合はグラデーションの下側色になります。
-        /// 未指定時は `Foreground`、さらに未指定なら既定色を使用します。
+        /// 未指定時は Foreground を使います。SecondaryBrush が未指定なら、取得したブラシをそのまま描画します。
+        /// SecondaryBrush を指定したときの色の選び方は <see cref="SecondaryBrush"/> を参照してください。
         /// </summary>
         public Brush? PrimaryBrush
         {
@@ -260,8 +260,9 @@ namespace AudioVisualizer.Wpf
 
         /// <summary>
         /// 補助描画色を取得または設定します。
-        /// 指定するとバー上部に向かうグラデーション色として使われ、未指定時は単色表示になります。
-        /// 描画色だけを変え、音声入力の再接続は発生しません。
+        /// 指定時は、PrimaryBrush（未指定なら Foreground）を下端、SecondaryBrush を上端とするグラデーションを生成します。
+        /// 単色ブラシの色またはグラデーションの先頭の色を使います。画像・描画ブラシや空の
+        /// グラデーションには、下端に DeepSkyBlue、上端に White を使います。
         /// </summary>
         public Brush? SecondaryBrush
         {

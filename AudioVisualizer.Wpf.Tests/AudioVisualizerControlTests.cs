@@ -1118,6 +1118,37 @@ namespace AudioVisualizer.Wpf.Tests
         }
 
         /// <summary>
+        /// 対応外の入力では既定のスペクトラムを使用し、戻したときは選択したエフェクトを使用します。
+        /// </summary>
+        [Test]
+        public void Effect_WhenInputIsUnsupported_UsesDefaultUntilSupportedAgain()
+        {
+            var provider = new FakeAudioInputProvider();
+            var effect = new CountingVisualizerEffect
+            {
+                Metadata = new EffectMetadata("system-only", "System only", "1.0.0", null, null, new[] { InputSource.SystemOutput }),
+            };
+            var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer())
+            {
+                Effect = effect,
+                IsActive = true,
+            };
+            var frame = new VisualizerFrame(new[] { 0.6 }, new[] { 0.6 }, 0.6, DateTimeOffset.UtcNow);
+            provider.RaiseFrame(frame);
+            Assert.That(control.CurrentRenderData!.EffectId, Is.EqualTo("system-only"));
+
+            control.InputSource = InputSource.Microphone;
+            provider.RaiseFrame(frame);
+            Assert.That(control.CurrentRenderData!.EffectId, Is.EqualTo("spectrum-bars"));
+            Assert.That(effect.BuildCallCount, Is.EqualTo(1));
+
+            control.InputSource = InputSource.SystemOutput;
+            provider.RaiseFrame(frame);
+            Assert.That(control.CurrentRenderData!.EffectId, Is.EqualTo("system-only"));
+            Assert.That(effect.BuildCallCount, Is.EqualTo(2));
+        }
+
+        /// <summary>
         /// 入力開始回数とフレーム通知を制御できる偽の音声入力プロバイダーです。
         /// </summary>
         private sealed class FakeAudioInputProvider : IAudioInputProvider, IDisposable
@@ -1292,7 +1323,7 @@ namespace AudioVisualizer.Wpf.Tests
             /// <summary>
             /// エフェクトのメタデータを取得します。
             /// </summary>
-            public EffectMetadata Metadata { get; } = new(
+            public EffectMetadata Metadata { get; init; } = new(
                 "counting",
                 "Counting",
                 "1.0.0",

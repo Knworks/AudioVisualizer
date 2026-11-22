@@ -928,9 +928,11 @@ namespace AudioVisualizer.Wpf
                 return;
             }
 
-            var effect = Effect ?? m_DefaultEffect;
             try
             {
+                var effect = Effect is { } selected && selected.Metadata.SupportedInputSources.Contains(InputSource)
+                    ? selected
+                    : m_DefaultEffect;
                 var rawRenderData = effect.BuildRenderData(m_CurrentFrame, CreateEffectContext());
                 m_CurrentRenderData = ApplySmoothing(m_CurrentRenderData, rawRenderData);
             }

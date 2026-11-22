@@ -33,6 +33,11 @@ namespace AudioVisualizer.Wpf
         private const int DefaultBarCount = 32;
 
         /// <summary>
+        /// 描画するバー数から独立した解析点数です。
+        /// </summary>
+        private const int CaptureAnalysisPointCount = 512;
+
+        /// <summary>
         /// 公開プロパティの既定スペクトラム計算プロファイルです。
         /// </summary>
         private const SpectrumProfile DefaultSpectrumProfile = SpectrumProfile.Balanced;
@@ -893,7 +898,7 @@ namespace AudioVisualizer.Wpf
                 IsActive,
                 DefaultSensitivity,
                 0.0,
-                Math.Max(DefaultBarCount, BarCount));
+                CaptureAnalysisPointCount);
         }
 
         /// <summary>

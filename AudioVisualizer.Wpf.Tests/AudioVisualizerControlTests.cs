@@ -1091,6 +1091,33 @@ namespace AudioVisualizer.Wpf.Tests
         }
 
         /// <summary>
+        /// 描画バー数を変更しても取得設定が固定され、狭い周波数成分も表示されることを確認します。
+        /// </summary>
+        [Test]
+        public void BarCount_WhenChangedWhileActive_UsesFixedResolutionWithoutDroppingTone()
+        {
+            var provider = new FakeAudioInputProvider();
+            var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer())
+            {
+                BarCount = 52,
+                SpectrumProfile = SpectrumProfile.Raw,
+                Smoothing = 0,
+                IsActive = true,
+            };
+
+            var values = new double[provider.LastSettings!.BarCount];
+            values[7] = 0.8;
+            provider.RaiseFrame(new VisualizerFrame(values, Array.Empty<double>(), 0.8, DateTimeOffset.UtcNow));
+            control.BarCount = 64;
+
+            var data = (BarSpectrumRenderData)control.CurrentRenderData!;
+            Assert.That(provider.StartCallCount, Is.EqualTo(1));
+            Assert.That(provider.LastSettings.BarCount, Is.EqualTo(512));
+            Assert.That(data.Bars, Has.Count.EqualTo(64));
+            Assert.That(data.Bars[0].Height, Is.EqualTo(0.8));
+        }
+
+        /// <summary>
         /// 入力開始回数とフレーム通知を制御できる偽の音声入力プロバイダーです。
         /// </summary>
         private sealed class FakeAudioInputProvider : IAudioInputProvider, IDisposable

@@ -182,6 +182,9 @@ namespace AudioVisualizer.SampleApp.Properties
         /// </summary>
         public static string RevertedToDefaultDeviceMessage => GetString(nameof(RevertedToDefaultDeviceMessage));
 
+        /// <summary>明示的な入力デバイス選択を促すメッセージを取得します。</summary>
+        public static string SelectExplicitDeviceMessage => GetString(nameof(SelectExplicitDeviceMessage));
+
         #endregion
 
         #region 公開メソッド

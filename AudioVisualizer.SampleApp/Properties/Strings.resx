@@ -93,6 +93,9 @@
   <data name="DeviceLoadFailedMessage" xml:space="preserve">
     <value>Failed to load the device list. You can continue using the default device.</value>
   </data>
+  <data name="SelectExplicitDeviceMessage" xml:space="preserve">
+    <value>Select an input device to continue capture.</value>
+  </data>
   <data name="RevertedToDefaultDeviceMessage" xml:space="preserve">
     <value>No available devices were found, so the app returned to the default device.</value>
   </data>

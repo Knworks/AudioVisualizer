@@ -65,6 +65,9 @@ namespace AudioVisualizer.Wpf
         /// <summary>
         /// 所有する入力プロバイダーへの操作を順番に実行します。
         /// </summary>
+        private DispatcherOperation? m_PendingConnectionChange;
+        private (InputSource Source, bool UseDefault, string? DeviceId)? m_CaptureConnection;
+
         private Task m_CaptureOperations = Task.CompletedTask;
 
         /// <summary>
@@ -664,7 +667,21 @@ namespace AudioVisualizer.Wpf
                 return;
             }
 
-            control.RestartCapture();
+            if (control.m_CreateAudioInputProvider is null)
+            {
+                control.RestartCapture();
+                return;
+            }
+
+            control.m_PendingConnectionChange ??= control.Dispatcher.InvokeAsync(() =>
+            {
+                control.m_PendingConnectionChange = null;
+                if (control.IsActive && control.m_IsCaptureHostLoaded &&
+                    control.m_CaptureConnection != control.GetConnection())
+                {
+                    control.RestartCapture();
+                }
+            }, DispatcherPriority.Background);
         }
 
         /// <summary>
@@ -768,6 +785,7 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         private void StartCapture()
         {
+            m_CaptureConnection = GetConnection();
             var settings = CreateCaptureSettings();
             if (settings is null)
             {
@@ -867,6 +885,7 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         private void StopCapture()
         {
+            m_CaptureConnection = null;
             try
             {
                 Interlocked.Increment(ref m_CaptureRequestVersion);
@@ -986,6 +1005,11 @@ namespace AudioVisualizer.Wpf
         {
             StopCapture();
             StartCapture();
+        }
+
+        private (InputSource Source, bool UseDefault, string? DeviceId) GetConnection()
+        {
+            return (InputSource, UseDefaultDevice, UseDefaultDevice ? null : DeviceId);
         }
 
         /// <summary>

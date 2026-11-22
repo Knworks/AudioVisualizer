@@ -93,6 +93,9 @@
   <data name="DeviceLoadFailedMessage" xml:space="preserve">
     <value>デバイス一覧の取得に失敗しました。既定デバイス利用のまま操作できます。</value>
   </data>
+  <data name="SelectExplicitDeviceMessage" xml:space="preserve">
+    <value>音声取得を続けるには入力デバイスを選択してください。</value>
+  </data>
   <data name="RevertedToDefaultDeviceMessage" xml:space="preserve">
     <value>利用可能なデバイスがないため、既定デバイス利用に戻しました。</value>
   </data>

@@ -1043,6 +1043,34 @@ namespace AudioVisualizer.Wpf.Tests
             Assert.That(second.IsDisposed, Is.True);
         }
 
+        /// <summary>同じUI操作の入力設定をまとめ、最終設定で一度だけ再接続することを確認します。</summary>
+        [Test]
+        public void OwnedInput_WhenConnectionSettingsChangeTogether_ReconnectsOnce()
+        {
+            var provider = new FakeAudioInputProvider();
+            var control = new AudioVisualizerControl(() => provider)
+            {
+                UseDefaultDevice = false,
+                DeviceId = "output",
+                IsActive = true,
+            };
+            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+
+            control.InputSource = InputSource.Microphone;
+            control.DeviceId = null;
+            control.DeviceId = "microphone";
+            PumpDispatcher();
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+
+            Assert.That(provider.StartCallCount, Is.EqualTo(2));
+            Assert.That(provider.StopCallCount, Is.EqualTo(1));
+            Assert.That(provider.LastSettings!.InputSource, Is.EqualTo(InputSource.Microphone));
+            Assert.That(provider.LastSettings.DeviceId, Is.EqualTo("microphone"));
+            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+        }
+
         /// <summary>
         /// 開始失敗が取得要求とは独立したエラーとして画面に伝わることを確認します。
         /// </summary>

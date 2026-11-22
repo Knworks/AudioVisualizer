@@ -70,6 +70,7 @@ namespace AudioVisualizer.SampleApp.ViewModels
         /// 現在選択中の明示デバイス識別子です。
         /// </summary>
         private string? m_SelectedDeviceId;
+        private bool m_IsUpdatingDevices;
 
         /// <summary>
         /// 可視化の開始状態を保持します。
@@ -149,8 +150,8 @@ namespace AudioVisualizer.SampleApp.ViewModels
                 }
 
                 m_SelectedInputSource = value;
-                OnPropertyChanged();
                 LoadDevices();
+                OnPropertyChanged();
             }
         }
 
@@ -191,12 +192,17 @@ namespace AudioVisualizer.SampleApp.ViewModels
             get => m_SelectedDeviceId;
             set
             {
-                if (m_SelectedDeviceId == value)
+                if (m_IsUpdatingDevices || m_SelectedDeviceId == value)
                 {
                     return;
                 }
 
                 m_SelectedDeviceId = value;
+                if (!UseDefaultDevice && value is not null)
+                {
+                    StatusMessage = string.Empty;
+                }
+
                 OnPropertyChanged();
             }
         }
@@ -507,31 +513,36 @@ namespace AudioVisualizer.SampleApp.ViewModels
         /// </summary>
         private void LoadDevices()
         {
-            var previousDeviceId = SelectedDeviceId;
-
+            IReadOnlyList<AudioDeviceInfo> devices;
+            string? error = null;
             try
             {
-                var devices = m_AudioDeviceService.GetDevices(SelectedInputSource);
-                ReplaceDevices(devices);
-                ApplyDeviceSelection(previousDeviceId);
-
-                if (devices.Count == 0)
-                {
-                    StatusMessage = Strings.NoAvailableDevicesMessage;
-                    return;
-                }
-
-                StatusMessage = string.Empty;
+                devices = m_AudioDeviceService.GetDevices(SelectedInputSource);
             }
             catch (Exception)
             {
-                ReplaceDevices(Array.Empty<AudioDeviceInfo>());
-                SelectedDeviceId = null;
-                UseDefaultDevice = true;
-                StatusMessage = Strings.DeviceLoadFailedMessage;
+                devices = Array.Empty<AudioDeviceInfo>();
+                error = Strings.DeviceLoadFailedMessage;
             }
 
-            OnPropertyChanged(nameof(CanSelectDevice));
+            var previousDeviceId = SelectedDeviceId;
+            m_IsUpdatingDevices = true;
+            try
+            {
+                ReplaceDevices(devices);
+            }
+            finally
+            {
+                m_IsUpdatingDevices = false;
+            }
+
+            m_SelectedDeviceId = UseDefaultDevice
+                ? GetDefaultOrFirstDeviceId()
+                : devices.FirstOrDefault(device => string.Equals(device.DeviceId, previousDeviceId, StringComparison.Ordinal))?.DeviceId;
+            OnPropertyChanged(nameof(SelectedDeviceId));
+            StatusMessage = error ?? (devices.Count == 0
+                ? Strings.NoAvailableDevicesMessage
+                : !UseDefaultDevice && SelectedDeviceId is null ? Strings.SelectExplicitDeviceMessage : string.Empty);
         }
 
         /// <summary>
@@ -547,34 +558,6 @@ namespace AudioVisualizer.SampleApp.ViewModels
             }
 
             OnPropertyChanged(nameof(CanSelectDevice));
-        }
-
-        /// <summary>
-        /// 現在の設定に合わせて選択デバイスを整えます。
-        /// </summary>
-        /// <param name="previousDeviceId">一覧更新前の選択デバイス識別子です。</param>
-        private void ApplyDeviceSelection(string? previousDeviceId)
-        {
-            if (AvailableDevices.Count == 0)
-            {
-                SelectedDeviceId = null;
-                if (!UseDefaultDevice)
-                {
-                    UseDefaultDevice = true;
-                }
-
-                return;
-            }
-
-            if (UseDefaultDevice)
-            {
-                SelectedDeviceId = GetDefaultOrFirstDeviceId();
-                return;
-            }
-
-            var matchedDevice = AvailableDevices.FirstOrDefault(device => string.Equals(device.DeviceId, previousDeviceId, StringComparison.Ordinal));
-
-            SelectedDeviceId = matchedDevice?.DeviceId ?? GetDefaultOrFirstDeviceId();
         }
 
         /// <summary>

@@ -514,16 +514,16 @@ namespace AudioVisualizer.SampleApp.Tests
         }
 
         /// <summary>
-        /// MainWindowViewModel が一覧更新でデバイス消失時に既定デバイス利用へ戻すことを確認します。
+        /// MainWindowViewModel が入力切替後も明示選択モードを保持することを確認します。
         /// ■入力
         /// ・1. SystemOutput のみデバイスを持つ FakeAudioDeviceService
         /// ・2. UseDefaultDevice = false の状態で SelectedInputSource = Microphone
         /// ■確認内容
-        /// ・1. UseDefaultDevice が true に戻る
-        /// ・2. SelectedDeviceId が null になる
+        /// ・1. UseDefaultDevice が false のまま維持される
+        /// ・2. 選択と状態メッセージが更新される
         /// </summary>
         [Test]
-        public void Given_ExplicitMode_When_InputSourceChangesToEmptyDeviceList_Then_DefaultModeIsRestored()
+        public void Given_ExplicitMode_When_InputSourceChangesToEmptyDeviceList_PreservesExplicitMode()
         {
             // 準備
             var sut = new MainWindowViewModel(
@@ -540,9 +540,33 @@ namespace AudioVisualizer.SampleApp.Tests
             // 検証
             Assert.Multiple(() =>
             {
-                Assert.That(sut.UseDefaultDevice, Is.True);
+                Assert.That(sut.UseDefaultDevice, Is.False);
                 Assert.That(sut.SelectedDeviceId, Is.Null);
+                Assert.That(sut.StatusMessage, Is.EqualTo(Strings.NoAvailableDevicesMessage));
             });
+        }
+
+        /// <summary>一覧更新で消えたデバイスの代わりに別の入力を選ばないことを確認します。</summary>
+        [Test]
+        public void ExplicitSelection_WhenDeviceDisappears_RequiresUserSelection()
+        {
+            var devices = new List<AudioDeviceInfo>
+            {
+                new("mic-1", "First", InputSource.Microphone, true),
+                new("mic-2", "Second", InputSource.Microphone, false),
+            };
+            var sut = new MainWindowViewModel(new FakeAudioDeviceService(Array.Empty<AudioDeviceInfo>(), devices))
+            {
+                SelectedInputSource = InputSource.Microphone,
+                UseDefaultDevice = false,
+            };
+            devices.RemoveAt(0);
+
+            sut.RefreshDevices();
+
+            Assert.That(sut.UseDefaultDevice, Is.False);
+            Assert.That(sut.SelectedDeviceId, Is.Null);
+            Assert.That(sut.StatusMessage, Is.EqualTo(Strings.SelectExplicitDeviceMessage));
         }
 
         /// <summary>

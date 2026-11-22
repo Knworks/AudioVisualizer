@@ -153,6 +153,8 @@
 
 **コード確認。** 入力種別を先に通知し、その後で新しいデバイス一覧を読み込む。明示指定中は入力種別と旧デバイスIDの組み合わせで一度再接続を試みる。稼働中の一覧再構築でも、選択値が一時的に外れれば停止・再接続に至る。指定デバイスが消えた場合に別の既定・先頭デバイスを選ぶため、明示指定で使用するマイクも変わり得る。入力種別とデバイスIDを確定してから一度だけ反映し、指定機器が消えた場合は状態を表示する。 [入力変更](../AudioVisualizer.SampleApp/ViewModels/MainWindowViewModel.cs#L136) [一覧と選択の更新](../AudioVisualizer.SampleApp/ViewModels/MainWindowViewModel.cs#L485) [接続変更の処理](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L493)
 
+**修正済み。** WPFは同じDispatcher操作で変わった接続条件をまとめ、最終設定が変わったときだけ再接続する。SampleAppは一覧再構築中の選択解除を無視し、明示デバイスが消えた場合は選択を促して取得を停止する。再接続回数と代替デバイスを自動選択しない動作を検証し、全196テストが成功した。
+
 ### 🪟 M11 SampleAppのエラー表示が可視化領域に覆われる
 
 **コード確認。** `StatusMessage` 用のテキストと不透明背景の可視化領域が同じGrid行とほぼ同じ上端にある。後から記述された可視化領域が前面に描かれるため、デバイスがないなどのメッセージを隠す。別のGrid行へ置き、エラーがある状態の画面を確認する。 [メッセージと可視化領域の配置](../AudioVisualizer.SampleApp/MainWindow.xaml#L192)

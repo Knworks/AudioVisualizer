@@ -85,11 +85,6 @@ namespace AudioVisualizer.Wpf.Rendering
                 EndLineCap = PenLineCap.Round,
                 LineJoin = PenLineJoin.Round,
             };
-            if (pen.CanFreeze)
-            {
-                pen.Freeze();
-            }
-
             drawingContext.DrawGeometry(null, pen, geometry);
         }
 

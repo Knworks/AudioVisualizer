@@ -231,6 +231,48 @@ namespace AudioVisualizer.Core.Tests
             });
         }
 
+        /// <summary>
+        /// バーの代表周波数から外れた正弦波も、該当する線形周波数帯に現れることを確認します。
+        /// </summary>
+        [TestCase(468.75)]
+        [TestCase(796.875)]
+        [TestCase(2500)]
+        [TestCase(5400)]
+        [TestCase(9150)]
+        [TestCase(12300)]
+        [TestCase(17000)]
+        [TestCase(22700)]
+        public void Spectrum_WhenToneFrequencyVaries_ShowsItInTheExpectedBand(double frequency)
+        {
+            const int sampleRate = 48000;
+            const int sampleCount = 1024;
+            const int barCount = 32;
+            var samples = new float[sampleCount];
+            for (var index = 0; index < samples.Length; index++)
+            {
+                samples[index] = (float)(0.2 * Math.Sin(2 * Math.PI * frequency * index / sampleRate));
+            }
+
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, barCount);
+            var frame = new AudioFrameAnalyzer().CreateFrame(
+                new AudioSampleBuffer(samples, sampleRate, 1, DateTimeOffset.UtcNow), settings);
+            var bandIndex = (int)(frequency * barCount / (sampleRate / 2));
+
+            Assert.That(frame.SpectrumValues[bandIndex], Is.GreaterThan(0.30));
+        }
+
+        /// <summary>
+        /// 2 サンプルの窓でも交互に振れる入力を検出できることを確認します。
+        /// </summary>
+        [Test]
+        public void Spectrum_WhenInputHasTwoSamples_DetectsAlternatingSignal()
+        {
+            var frame = new AudioFrameAnalyzer().CreateFrame(
+                new AudioSampleBuffer(new[] { 0.05f, -0.05f }, 48000, 1, DateTimeOffset.UtcNow), m_Settings);
+
+            Assert.That(frame.SpectrumValues.Max(), Is.GreaterThan(0.3));
+        }
+
         #endregion
     }
 }

@@ -1,5 +1,8 @@
 using System;
+using System.Numerics;
 using AudioVisualizer.Core.Models;
+using NAudio.Dsp;
+using Complex = NAudio.Dsp.Complex;
 
 namespace AudioVisualizer.Core.Analysis
 {
@@ -11,7 +14,7 @@ namespace AudioVisualizer.Core.Analysis
         #region 定数
 
         /// <summary>
-        /// FFT 近似計算に使用する最大サンプル数です。
+        /// FFTに使用する最大サンプル数です。
         /// </summary>
         private const int MaxAnalysisWindowSize = 1024;
 
@@ -141,62 +144,40 @@ namespace AudioVisualizer.Core.Analysis
             }
 
             var windowSize = Math.Min(samples.Length, MaxAnalysisWindowSize);
-            if (windowSize < 2)
+            if (windowSize == 1)
             {
                 result[0] = Math.Clamp(Math.Abs(samples[0]) * sensitivity, 0.0, 1.0);
                 return result;
             }
 
-            var windowedSamples = ApplyHannWindow(samples, windowSize);
-            var maxFrequencyBin = Math.Max(1, windowSize / 2);
-            var denominator = Math.Max(1, outputLength - 1);
-
-            for (var barIndex = 0; barIndex < outputLength; barIndex++)
-            {
-                var frequencyBin = 1 + ((maxFrequencyBin - 1) * barIndex / denominator);
-                var magnitude = CalculateMagnitude(windowedSamples, frequencyBin);
-                result[barIndex] = Math.Clamp(magnitude * sensitivity * SpectrumScale, 0.0, 1.0);
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// サンプル列へハン窓を適用します。
-        /// </summary>
-        /// <param name="samples">窓関数適用前のサンプル列です。</param>
-        /// <param name="windowSize">適用対象のサンプル数です。</param>
-        /// <returns>ハン窓適用後のサンプル列です。</returns>
-        private static double[] ApplyHannWindow(double[] samples, int windowSize)
-        {
-            var result = new double[windowSize];
+            var fftSize = (int)BitOperations.RoundUpToPowerOf2((uint)windowSize);
+            var bins = new Complex[fftSize];
             for (var index = 0; index < windowSize; index++)
             {
-                var window = 0.5 - (0.5 * Math.Cos((2.0 * Math.PI * index) / (windowSize - 1)));
-                result[index] = samples[index] * window;
+                var window = windowSize == 2 ? 1.0 : FastFourierTransform.HannWindow(index, windowSize);
+                bins[index].X = (float)(samples[index] * window);
+            }
+
+            FastFourierTransform.FFT(true, BitOperations.Log2((uint)fftSize), bins);
+
+            var positiveBinCount = fftSize / 2;
+            var scale = (double)fftSize / windowSize * sensitivity * SpectrumScale;
+            for (var barIndex = 0; barIndex < outputLength; barIndex++)
+            {
+                var startBin = 1 + (int)((long)positiveBinCount * barIndex / outputLength);
+                var endBin = 1 + (int)((long)positiveBinCount * (barIndex + 1) / outputLength);
+                var maximumPower = 0.0;
+                for (var bin = startBin; bin < Math.Max(startBin + 1, endBin); bin++)
+                {
+                    var real = (double)bins[bin].X;
+                    var imaginary = (double)bins[bin].Y;
+                    maximumPower = Math.Max(maximumPower, (real * real) + (imaginary * imaginary));
+                }
+
+                result[barIndex] = Math.Clamp(Math.Sqrt(maximumPower) * scale, 0.0, 1.0);
             }
 
             return result;
-        }
-
-        /// <summary>
-        /// 指定周波数ビンの振幅を近似計算します。
-        /// </summary>
-        /// <param name="samples">窓関数適用済みサンプル列です。</param>
-        /// <param name="frequencyBin">算出対象の周波数ビンです。</param>
-        /// <returns>周波数ビンに対応する振幅です。</returns>
-        private static double CalculateMagnitude(double[] samples, int frequencyBin)
-        {
-            var real = 0.0;
-            var imaginary = 0.0;
-            for (var sampleIndex = 0; sampleIndex < samples.Length; sampleIndex++)
-            {
-                var angle = (2.0 * Math.PI * frequencyBin * sampleIndex) / samples.Length;
-                real += samples[sampleIndex] * Math.Cos(angle);
-                imaginary -= samples[sampleIndex] * Math.Sin(angle);
-            }
-
-            return Math.Sqrt((real * real) + (imaginary * imaginary)) / samples.Length;
         }
 
         #endregion

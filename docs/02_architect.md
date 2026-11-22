@@ -51,7 +51,8 @@ AudioVisualizer/
 │   ├── Views/
 │   └── ViewModels/
 ├── AudioVisualizer.Core.Tests/     # Core の単体テスト
-└── AudioVisualizer.Wpf.Tests/      # WPF 固有動作のテスト
+├── AudioVisualizer.Wpf.Tests/      # WPF 固有動作のテスト
+└── AudioVisualizer.SampleApp.Tests/ # サンプルの画面と状態管理のテスト
 ```
 
 ## 4. 🧩機能設計
@@ -377,7 +378,12 @@ flowchart LR
 * サイズ変更時に描画が破綻しないことを検証する。
 * `VisualizerRenderData` から `DrawingContext` への変換が例外なく行われることを検証する。
 
-### 🧪8.3 `AudioVisualizer.SampleApp`
+### 🧪8.3 `AudioVisualizer.SampleApp.Tests`
+
+* 入力種別切替、明示デバイス選択、デバイス一覧更新時の状態を検証する。
+* 開始・停止コマンドやエラー表示を検証する。
+
+### 🎛️8.4 `AudioVisualizer.SampleApp` の手動確認
 
 * システム再生音 / マイク入力の切替確認
 * 既定デバイス使用と明示デバイス指定の切替確認
@@ -400,7 +406,7 @@ flowchart LR
 ### 🏷️ブランド要件
 
 * GitHub で公開しやすい名称、構成、サンプルを維持する。
-* ソリューション名は `AudioVisualizer` とし、プロジェクトは `AudioVisualizer.Core`、`AudioVisualizer.Wpf`、`AudioVisualizer.SampleApp`、`AudioVisualizer.Core.Tests`、`AudioVisualizer.Wpf.Tests` で構成する。
+* ソリューション名は `AudioVisualizer` とし、プロジェクトは `AudioVisualizer.Core`、`AudioVisualizer.Wpf`、`AudioVisualizer.SampleApp`、`AudioVisualizer.Core.Tests`、`AudioVisualizer.Wpf.Tests`、`AudioVisualizer.SampleApp.Tests` で構成する。
 
 ### ⚡パフォーマンス最適化
 

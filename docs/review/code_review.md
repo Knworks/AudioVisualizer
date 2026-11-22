@@ -239,6 +239,8 @@
 
 **コード確認。** 日英READMEのツリーは公開対象の `docs/06_inplementation_plan.md` を掲げているが、追跡されているファイルはない。AGENTS.mdは検出されるテストがないと記載し、要件書と設計書のプロジェクト一覧にはSampleApp.Testsが載っていない。実際のソリューションを基準に記載を合わせる。 [README日本語版](../README.md#L174) [README英語版](../README.en.md#L174) [AGENTS.md](../AGENTS.md#L20) [要件の構成](./01_requirements.md#L113) [ソリューション](../AudioVisualizer.slnx)
 
+**修正済み。** 日英READMEのツリーを追跡ファイルに合わせ、AGENTS.mdと要件・設計書にSampleApp.Testsを反映した。ソリューションに含まれる6プロジェクトと文書の記載を照合した。
+
 ### 🧪 L09 Windows固有処理と品質ゲートの自動検証が不足している
 
 **コード確認。** リポジトリ上にGitHub Actionsなどの追跡されたCI定義が見当たらない。WASAPIの取得アダプターと列挙アダプターはカバレッジから除外され、既存の再接続テストは主に管理コード内の代替オブジェクトを使う。全テストが通過しても、OS通知と停止の順序、実デバイス切断、PCM変換を確認できない。Windowsの自動ビルド・テストと、ハードウェアに依存しない音声変換のテスト、実機の確認項目を設ける。 [取得アダプター](../AudioVisualizer.Core/Audio/WasapiAudioCaptureFactory.cs#L13) [列挙アダプター](../AudioVisualizer.Core/Audio/WasapiAudioDeviceEnumerator.cs#L14) [既存の再接続テスト](../AudioVisualizer.Core.Tests/SystemOutputAudioInputProviderTests.cs#L108)

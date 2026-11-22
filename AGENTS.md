@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-`AudioVisualizer.slnx` is the entry point for all projects. Keep non-UI logic in `AudioVisualizer.Core/`, WPF controls and themes in `AudioVisualizer.Wpf/`, and manual verification code in `AudioVisualizer.SampleApp/`. Tests belong in the matching test projects: `AudioVisualizer.Core.Tests/` and `AudioVisualizer.Wpf.Tests/`. Requirements and design notes live in `docs/`, currently centered on `docs/01_requirements.md`. Do not commit generated output from `bin/`, `obj/`, or local metadata such as `.serena/`.
+`AudioVisualizer.slnx` is the entry point for all projects. Keep non-UI logic in `AudioVisualizer.Core/`, WPF controls and themes in `AudioVisualizer.Wpf/`, and manual verification code in `AudioVisualizer.SampleApp/`. Tests belong in the matching test projects: `AudioVisualizer.Core.Tests/`, `AudioVisualizer.Wpf.Tests/`, and `AudioVisualizer.SampleApp.Tests/`. Requirements and design notes live in `docs/`, currently centered on `docs/01_requirements.md`. Do not commit generated output from `bin/`, `obj/`, or local metadata such as `.serena/`.
 
 ## Build, Test, and Development Commands
 
@@ -19,7 +19,7 @@ Follow the existing C# style: 4-space indentation, block-scoped namespaces, and 
 
 ## Testing Guidelines
 
-The repository uses NUnit with `Microsoft.NET.Test.Sdk`, `NUnit3TestAdapter`, and `coverlet.collector`. Add new tests to the corresponding `*.Tests` project and name files after the unit under test, for example `SpectrumRendererTests.cs`. Prefer method names that describe behavior, such as `Start_WhenDeviceMissing_Throws`. At the moment, the test projects are configured but no discoverable test cases are checked in yet.
+The repository uses NUnit with `Microsoft.NET.Test.Sdk`, `NUnit3TestAdapter`, and `coverlet.collector`. Add new tests to the corresponding `*.Tests` project and name files after the unit under test, for example `SpectrumRendererTests.cs`. Prefer method names that describe behavior, such as `Start_WhenDeviceMissing_Throws`. The solution includes discoverable tests for Core, WPF, and SampleApp.
 
 ## Commit & Pull Request Guidelines
 

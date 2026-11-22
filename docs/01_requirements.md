@@ -121,6 +121,7 @@
   * `AudioVisualizer.SampleApp`
   * `AudioVisualizer.Core.Tests`
   * `AudioVisualizer.Wpf.Tests`
+  * `AudioVisualizer.SampleApp.Tests`
 
 ## 6. 🛡️非機能要件
 
@@ -149,6 +150,7 @@
   * `AudioVisualizer.SampleApp`
   * `AudioVisualizer.Core.Tests`
   * `AudioVisualizer.Wpf.Tests`
+  * `AudioVisualizer.SampleApp.Tests`
 
 ### ⚡パフォーマンス最適化
 
@@ -174,6 +176,7 @@
 * TDD を前提に、テストしやすい責務分離を行うこと。
 * `AudioVisualizer.Core.Tests` で Core の仕様を検証できること。
 * `AudioVisualizer.Wpf.Tests` で WPF 固有の振る舞いを検証できること。
+* `AudioVisualizer.SampleApp.Tests` で入力選択、取得操作、画面の状態表示を検証できること。
 * エフェクト追加や将来の外部エフェクトパッケージ拡張に対応しやすい構造であること。
 * エフェクトの契約、メタデータ、描画責務を分離し、拡張時の変更範囲を局所化できること。
 * 組込エフェクトと外部エフェクトを同一の拡張モデルで扱えること。

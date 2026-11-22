@@ -184,7 +184,8 @@ AudioVisualizer/
 ├── docs/
 │   ├── 01_requirements.md
 │   ├── 02_architect.md
-│   └── 06_inplementation_plan.md
+│   └── review/
+│       └── code_review.md
 ├── AGENTS.md
 ├── LICENSE
 └── AudioVisualizer.slnx

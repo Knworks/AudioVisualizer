@@ -31,6 +31,16 @@ namespace AudioVisualizer.Core.Tests
             Assert.That(PcmSampleConverter.Convert(new byte[] { 0, 0, 128, 190 }, format), Is.EqualTo(new[] { -0.25f }));
         }
 
+        /// <summary>IEEE Floatの非有限値が無音に置き換わることを確認します。</summary>
+        [Test]
+        public void Convert_WhenFloatDataContainsNonFiniteSamples_ProducesSilence()
+        {
+            var format = WaveFormat.CreateIeeeFloatWaveFormat(48000, 1);
+            var buffer = new byte[] { 0, 0, 192, 127, 0, 0, 128, 127, 0, 0, 128, 255 };
+
+            Assert.That(PcmSampleConverter.Convert(buffer, format), Is.EqualTo(new[] { 0f, 0f, 0f }));
+        }
+
         /// <summary>
         /// ビット幅が合っていても対応外のエンコードを開始前に拒否します。
         /// </summary>

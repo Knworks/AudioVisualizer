@@ -245,6 +245,8 @@
 
 **コード確認。** リポジトリ上にGitHub Actionsなどの追跡されたCI定義が見当たらない。WASAPIの取得アダプターと列挙アダプターはカバレッジから除外され、既存の再接続テストは主に管理コード内の代替オブジェクトを使う。全テストが通過しても、OS通知と停止の順序、実デバイス切断、PCM変換を確認できない。Windowsの自動ビルド・テストと、ハードウェアに依存しない音声変換のテスト、実機の確認項目を設ける。 [取得アダプター](../AudioVisualizer.Core/Audio/WasapiAudioCaptureFactory.cs#L13) [列挙アダプター](../AudioVisualizer.Core/Audio/WasapiAudioDeviceEnumerator.cs#L14) [既存の再接続テスト](../AudioVisualizer.Core.Tests/SystemOutputAudioInputProviderTests.cs#L108)
 
+**修正済み。** Windows CIに.NET 10での復元、整形検査、Releaseビルド、全テストを追加した。PCM変換の回帰テストを拡張し、既定デバイス切替・抜き差し・停止の実機確認手順を設計書に追加した。Windowsローカルで同等のコマンドが成功し、全221テストが通過した。GitHub上での初回実行と実機確認は未実施。
+
 ### 🧬 L10 公開EffectプロパティがWPFの同名プロパティを隠す
 
 **コード確認。** `AudioVisualizerControl` は画像効果用の `UIElement.Effect` と異なる型で `new Effect` を公開する。派生コントロール上で一般的なWPFの `Effect` の指定が音声エフェクトの指定として解決されるため、汎用スタイルとの併用や利用者の型推論が紛らわしい。音声表示であることを明示する名前への移行と、既存XAMLの互換性を検討する。 [同名プロパティ](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L151) [依存プロパティ登録](../AudioVisualizer.Wpf/AudioVisualizerControl.cs#L285)

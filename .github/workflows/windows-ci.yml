@@ -1,0 +1,38 @@
+name: Windows CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install .NET 10
+        id: sdk
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+      - name: Select the installed SDK
+        env:
+          SDK_VERSION: ${{ steps.sdk.outputs.dotnet-version }}
+        run: dotnet new globaljson --sdk-version "$env:SDK_VERSION"
+      - name: Restore packages
+        run: dotnet restore AudioVisualizer.slnx
+      - name: Verify formatting
+        run: dotnet format AudioVisualizer.slnx --verify-no-changes --no-restore
+      - name: Build
+        run: dotnet build AudioVisualizer.slnx --configuration Release --no-restore
+      - name: Run tests
+        run: dotnet test AudioVisualizer.slnx --configuration Release --no-build

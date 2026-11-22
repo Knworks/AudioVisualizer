@@ -43,6 +43,8 @@
 
 **対応案。** 修正を含むバージョンか同等の修正を取り込んだ実装を選び、ループバックとマイクの切断、停止通知、再接続を確認する。依存関係の更新と、H04のアプリ側の停止通知処理を合わせて検証する。 [依存設定](../AudioVisualizer.Core/AudioVisualizer.Core.csproj#L10) [キャプチャ生成](../AudioVisualizer.Core/Audio/WasapiAudioCaptureFactory.cs#L24) [NAudio 2.3.0の取得スレッド](https://github.com/naudio/NAudio/blob/v2.3.0/NAudio.Wasapi/WasapiCapture.cs#L201-L219) [上流の修正PR](https://github.com/naudio/NAudio/pull/1369)
 
+**修正済み。** NAudio.Wasapi 3.3.0に更新し、マイクとループバックを `WasapiRecorder` に移行した。タグ付きソースで切断後の停止・リセット処理が例外を捕捉し、停止通知を発行することを確認した。ビルドは警告0件、全160テスト成功、NuGetの脆弱性スキャンは検出0件。実機抜線は未確認。 [修正版の停止処理](https://github.com/naudio/NAudio/blob/v3.3.0/src/NAudio.Wasapi/WasapiRecorder.cs)
+
 ### 🛑 H04 取得失敗を画面に通知せず、自動復旧も途切れる
 
 **実行確認とコード確認。** WPFは `Start` の結果を破棄し、SampleAppの開始ボタンは `IsActive` を設定する。開始に失敗すると、画面ではもう一度開始できず、利用者に理由も伝わらない。また、NAudioの `RecordingStopped` を購読していないため、取得スレッドが停止しても `IsCapturing` と最後の表示が残り得る。既定デバイスが不在になった通知は列挙アダプターで破棄される。既定デバイス変更で再開始に失敗する場合は、設定を消すため、後続の既定変更でも再試行しない。一時テストで、再開始失敗後に有効な既定デバイスへ変更しても取得要求が発行されないことを確認した。デバイス解決自体も `try` の外にあり、列挙例外は失敗結果に変換されない。

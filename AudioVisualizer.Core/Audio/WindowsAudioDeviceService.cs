@@ -24,7 +24,7 @@ public sealed class WindowsAudioDeviceService : IAudioDeviceService, IDisposable
         /// <see cref="WindowsAudioDeviceService"/> クラスの新しいインスタンスを初期化します。
         /// </summary>
         public WindowsAudioDeviceService()
-            : this(new WasapiAudioDeviceEnumerator())
+            : this(CreateDeviceEnumerator())
         {
         }
 
@@ -116,6 +116,20 @@ public sealed class WindowsAudioDeviceService : IAudioDeviceService, IDisposable
         #endregion
 
         #region 内部処理
+
+        /// <summary>
+        /// Windows 専用のデバイス列挙子を生成します。
+        /// </summary>
+        /// <returns>Windows の音声デバイス列挙子です。</returns>
+        private static IAudioPlatformDeviceEnumerator CreateDeviceEnumerator()
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                throw new PlatformNotSupportedException();
+            }
+
+            return new WasapiAudioDeviceEnumerator();
+        }
 
         /// <summary>
         /// 内部スナップショットを公開向けのデバイス情報へ変換します。

@@ -128,7 +128,7 @@ dotnet run --project AudioVisualizer.SampleApp/AudioVisualizer.SampleApp.csproj
 | C# / XAML | 実装言語 |  |  |
 | .NET | ランタイム | 10 | `net10.0` / `net10.0-windows` |
 | WPF | UI フレームワーク |  | `CustomControl` ベース |
-| NAudio | 音声入力 | 2.3.0 | WASAPI を利用 |
+| NAudio.Wasapi | 音声入力 | 3.3.0 | WASAPI を利用 |
 | NUnit | テスト | 4.3.2 | 単体テスト |
 | Microsoft.NET.Test.Sdk | テスト実行基盤 | 17.14.0 |  |
 | NUnit3TestAdapter | テストアダプター | 5.0.0 |  |

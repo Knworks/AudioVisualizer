@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using AudioVisualizer.Core.Audio;
 using AudioVisualizer.Core.Effects;
 using AudioVisualizer.Core.Models;
@@ -33,6 +34,11 @@ namespace AudioVisualizer.Wpf
         private const int DefaultBarCount = 32;
 
         /// <summary>
+        /// 描画するバー数から独立した解析点数です。
+        /// </summary>
+        private const int CaptureAnalysisPointCount = VisualizerSettings.MaximumBarCount;
+
+        /// <summary>
         /// 公開プロパティの既定スペクトラム計算プロファイルです。
         /// </summary>
         private const SpectrumProfile DefaultSpectrumProfile = SpectrumProfile.Balanced;
@@ -44,7 +50,42 @@ namespace AudioVisualizer.Wpf
         /// <summary>
         /// 音声入力の開始と停止を担当する入力プロバイダーです。
         /// </summary>
-        private readonly IAudioInputProvider m_AudioInputProvider;
+        private IAudioInputProvider? m_AudioInputProvider;
+
+        /// <summary>
+        /// 画面に配置されるたびに所有する入力プロバイダーを生成します。
+        /// </summary>
+        private readonly Func<IAudioInputProvider>? m_CreateAudioInputProvider;
+
+        /// <summary>
+        /// コントロールが画面に配置されているかどうかを示します。
+        /// </summary>
+        private bool m_IsCaptureHostLoaded;
+
+        /// <summary>
+        /// 接続条件の変更をまとめて適用するために予約した Dispatcher 操作。
+        /// </summary>
+        private DispatcherOperation? m_PendingConnectionChange;
+
+        /// <summary>
+        /// 最後に取得開始を指示したときの入力種別、既定デバイスの使用有無、明示指定したデバイスの ID。
+        /// </summary>
+        private (InputSource Source, bool UseDefault, string? DeviceId)? m_CaptureConnection;
+
+        /// <summary>
+        /// 入力プロバイダーの操作を直列化するために保持する、最後に予約した操作のタスク。
+        /// </summary>
+        private Task m_CaptureOperations = Task.CompletedTask;
+
+        /// <summary>
+        /// UI が最後に指示した取得操作の世代です。
+        /// </summary>
+        private long m_CaptureRequestVersion;
+
+        /// <summary>
+        /// 入力プロバイダーへ反映された最後の取得開始の世代です。
+        /// </summary>
+        private long m_StartedCaptureVersion;
 
         /// <summary>
         /// 既定で使用するバー型エフェクトです。
@@ -89,7 +130,7 @@ namespace AudioVisualizer.Wpf
         /// <summary>
         /// UI スレッドで未反映の最新フレームです。
         /// </summary>
-        private VisualizerFrame? m_PendingFrame;
+        private VisualizerFrameEventArgs? m_PendingFrame;
 
         /// <summary>
         /// UI スレッドへのフレーム反映が予約済みかどうかを示します。
@@ -145,14 +186,24 @@ namespace AudioVisualizer.Wpf
         }
 
         /// <summary>
+        /// 音声入力を実際に取得しているかどうかを取得します。
+        /// </summary>
+        public bool IsCapturing => (bool)GetValue(IsCapturingProperty);
+
+        /// <summary>
+        /// 最新の音声取得エラーを取得します。
+        /// </summary>
+        public string? CaptureError => (string?)GetValue(CaptureErrorProperty);
+
+        /// <summary>
         /// 利用する可視化エフェクトを取得または設定します。
         /// <see langword="null"/> の場合は既定のバー表示エフェクトを使用します。
         /// エフェクト変更は再接続を行わず、次回描画から反映されます。
         /// </summary>
-        public new IVisualizerEffect? Effect
+        public IVisualizerEffect? VisualizerEffect
         {
-            get => (IVisualizerEffect?)GetValue(EffectProperty);
-            set => SetValue(EffectProperty, value);
+            get => (IVisualizerEffect?)GetValue(VisualizerEffectProperty);
+            set => SetValue(VisualizerEffectProperty, value);
         }
 
         /// <summary>
@@ -171,7 +222,7 @@ namespace AudioVisualizer.Wpf
         /// 描画平滑化係数を取得または設定します。
         /// `0.0` はほぼ生の反応で、値を大きくするほど前フレームを残してなめらかに見せます。
         /// 例えば `0.2` から `0.4` は俊敏、`0.7` 以上はゆったりした追従感になります。
-        /// `0.0` から `1.0` の範囲だけを受け付けます。
+        /// 16 ミリ秒あたりに残す割合です。0.0 は補間なし、1.0 は 0.99 として扱います。
         /// </summary>
         public double Smoothing
         {
@@ -205,8 +256,8 @@ namespace AudioVisualizer.Wpf
 
         /// <summary>
         /// 主描画色を取得または設定します。
-        /// 単色ブラシならバーの基調色として使用し、`SecondaryBrush` を指定した場合はグラデーションの下側色になります。
-        /// 未指定時は `Foreground`、さらに未指定なら既定色を使用します。
+        /// 未指定時は Foreground を使います。SecondaryBrush が未指定なら、取得したブラシをそのまま描画します。
+        /// SecondaryBrush を指定したときの色の選び方は <see cref="SecondaryBrush"/> を参照してください。
         /// </summary>
         public Brush? PrimaryBrush
         {
@@ -216,8 +267,9 @@ namespace AudioVisualizer.Wpf
 
         /// <summary>
         /// 補助描画色を取得または設定します。
-        /// 指定するとバー上部に向かうグラデーション色として使われ、未指定時は単色表示になります。
-        /// 描画色だけを変え、音声入力の再接続は発生しません。
+        /// 指定時は、PrimaryBrush（未指定なら Foreground）を下端、SecondaryBrush を上端とするグラデーションを生成します。
+        /// 単色ブラシの色またはグラデーションの先頭の色を使います。画像・描画ブラシや空の
+        /// グラデーションには、下端に DeepSkyBlue、上端に White を使います。
         /// </summary>
         public Brush? SecondaryBrush
         {
@@ -229,6 +281,11 @@ namespace AudioVisualizer.Wpf
         /// テスト確認用の現在レンダーデータを取得します。
         /// </summary>
         internal VisualizerRenderData? CurrentRenderData => m_CurrentRenderData;
+
+        /// <summary>
+        /// 現在までに予約された取得操作の完了を取得します。
+        /// </summary>
+        internal Task CaptureOperations => m_CaptureOperations;
 
         /// <summary>
         /// テスト確認用の現在描画ブラシを取得します。
@@ -247,7 +304,8 @@ namespace AudioVisualizer.Wpf
                 nameof(InputSource),
                 typeof(InputSource),
                 typeof(AudioVisualizerControl),
-                new FrameworkPropertyMetadata(InputSource.SystemOutput, OnConnectionSettingChanged));
+                new FrameworkPropertyMetadata(InputSource.SystemOutput, OnConnectionSettingChanged),
+                value => value is InputSource source && Enum.IsDefined(source));
 
         /// <summary>
         /// 既定デバイス利用可否の依存関係プロパティです。
@@ -280,14 +338,49 @@ namespace AudioVisualizer.Wpf
                 new FrameworkPropertyMetadata(false, OnIsActiveChanged));
 
         /// <summary>
+        /// 取得状態をコントロール内部から更新するための依存関係プロパティキー。
+        /// </summary>
+        private static readonly DependencyPropertyKey IsCapturingPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(IsCapturing), typeof(bool), typeof(AudioVisualizerControl), new FrameworkPropertyMetadata(false));
+
+        /// <summary>
+        /// 実際の音声取得状態の依存関係プロパティです。
+        /// </summary>
+        public static readonly DependencyProperty IsCapturingProperty = IsCapturingPropertyKey.DependencyProperty;
+
+        /// <summary>
+        /// 取得エラーをコントロール内部から更新するための依存関係プロパティキー。
+        /// </summary>
+        private static readonly DependencyPropertyKey CaptureErrorPropertyKey =
+            DependencyProperty.RegisterReadOnly(nameof(CaptureError), typeof(string), typeof(AudioVisualizerControl), new FrameworkPropertyMetadata(null));
+
+        /// <summary>
+        /// 音声取得エラーの依存関係プロパティです。
+        /// </summary>
+        public static readonly DependencyProperty CaptureErrorProperty = CaptureErrorPropertyKey.DependencyProperty;
+
+        #endregion
+
+        #region イベントハンドラ
+
+        /// <summary>
+        /// 音声取得エラーの内容が変化したときに発生します。
+        /// </summary>
+        public event EventHandler? CaptureErrorChanged;
+
+        #endregion
+
+        #region 依存関係プロパティ
+
+        /// <summary>
         /// エフェクト指定の依存関係プロパティです。
         /// </summary>
-        public static new readonly DependencyProperty EffectProperty =
+        public static readonly DependencyProperty VisualizerEffectProperty =
             DependencyProperty.Register(
-                nameof(Effect),
+                nameof(VisualizerEffect),
                 typeof(IVisualizerEffect),
                 typeof(AudioVisualizerControl),
-                new FrameworkPropertyMetadata(null, OnEffectChanged));
+                new FrameworkPropertyMetadata(null, OnVisualizerEffectChanged));
 
         /// <summary>
         /// 感度補正値の依存関係プロパティです。
@@ -355,7 +448,7 @@ namespace AudioVisualizer.Wpf
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="AudioVisualizerControl"/> クラスの静的メンバーを初期化します。
@@ -363,13 +456,25 @@ namespace AudioVisualizer.Wpf
         static AudioVisualizerControl()
         {
             DefaultStyleKeyProperty.OverrideMetadata(typeof(AudioVisualizerControl), new FrameworkPropertyMetadata(typeof(AudioVisualizerControl)));
+            var defaultForeground = new SolidColorBrush(Color.FromRgb(0x3B, 0xA7, 0xFF));
+            defaultForeground.Freeze();
+            ForegroundProperty.OverrideMetadata(typeof(AudioVisualizerControl), new FrameworkPropertyMetadata(defaultForeground));
         }
 
         /// <summary>
         /// <see cref="AudioVisualizerControl"/> クラスの新しいインスタンスを初期化します。
         /// </summary>
         public AudioVisualizerControl()
-            : this(new SystemOutputAudioInputProvider(), new SpectrumBarEffect(), new BarSpectrumRenderer(), new PolylineRenderer(), new BandLevelMeterRenderer())
+            : this(static () => new SystemOutputAudioInputProvider())
+        {
+        }
+
+        /// <summary>
+        /// 画面のライフサイクルに合わせて入力プロバイダーを生成するコントロールを初期化します。
+        /// </summary>
+        /// <param name="createAudioInputProvider">音声入力プロバイダーの生成処理です。</param>
+        internal AudioVisualizerControl(Func<IAudioInputProvider> createAudioInputProvider)
+            : this(null, new SpectrumBarEffect(), new BarSpectrumRenderer(), new PolylineRenderer(), new BandLevelMeterRenderer(), createAudioInputProvider)
         {
         }
 
@@ -414,19 +519,61 @@ namespace AudioVisualizer.Wpf
             BarSpectrumRenderer renderer,
             PolylineRenderer polylineRenderer,
             BandLevelMeterRenderer bandLevelMeterRenderer)
+            : this(audioInputProvider, defaultEffect, renderer, polylineRenderer, bandLevelMeterRenderer, null)
         {
-            m_AudioInputProvider = audioInputProvider ?? throw new ArgumentNullException(nameof(audioInputProvider));
+        }
+
+        /// <summary>
+        /// 描画処理と音声入力の依存関係を設定します。
+        /// </summary>
+        /// <param name="audioInputProvider">呼び出し元が管理する音声入力プロバイダーです。</param>
+        /// <param name="defaultEffect">既定エフェクトです。</param>
+        /// <param name="renderer">バー型描画レンダラーです。</param>
+        /// <param name="polylineRenderer">折れ線描画レンダラーです。</param>
+        /// <param name="bandLevelMeterRenderer">固定帯域メーター描画レンダラーです。</param>
+        /// <param name="createAudioInputProvider">コントロールが所有する入力プロバイダーの生成処理です。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="defaultEffect"/> または <paramref name="renderer"/> または <paramref name="polylineRenderer"/> または <paramref name="bandLevelMeterRenderer"/> が <see langword="null"/> である場合にスローされます。</exception>
+        private AudioVisualizerControl(
+            IAudioInputProvider? audioInputProvider,
+            IVisualizerEffect defaultEffect,
+            BarSpectrumRenderer renderer,
+            PolylineRenderer polylineRenderer,
+            BandLevelMeterRenderer bandLevelMeterRenderer,
+            Func<IAudioInputProvider>? createAudioInputProvider)
+        {
+            m_AudioInputProvider = audioInputProvider;
+            m_CreateAudioInputProvider = createAudioInputProvider;
             m_DefaultEffect = defaultEffect ?? throw new ArgumentNullException(nameof(defaultEffect));
             m_BarRenderer = renderer ?? throw new ArgumentNullException(nameof(renderer));
             m_PolylineRenderer = polylineRenderer ?? throw new ArgumentNullException(nameof(polylineRenderer));
             m_BandLevelMeterRenderer = bandLevelMeterRenderer ?? throw new ArgumentNullException(nameof(bandLevelMeterRenderer));
-            m_AudioInputProvider.FrameProduced += OnFrameProduced;
+            if (audioInputProvider is not null)
+            {
+                audioInputProvider.FrameProduced += OnFrameProduced;
+            }
+
+            Loaded += OnLoaded;
+            Unloaded += OnUnloaded;
             RefreshRenderBrush();
         }
 
         #endregion
 
         #region オーバーライド
+
+        /// <summary>
+        /// 継承やテーマによる Foreground の変更を描画ブラシへ反映します。
+        /// </summary>
+        /// <param name="e">依存関係プロパティの変更内容です。</param>
+        protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+        {
+            base.OnPropertyChanged(e);
+            if (e.Property == ForegroundProperty && PrimaryBrush is null)
+            {
+                RefreshRenderBrush();
+                InvalidateVisual();
+            }
+        }
 
         /// <summary>
         /// 現在保持しているレンダーデータを描画します。
@@ -438,7 +585,7 @@ namespace AudioVisualizer.Wpf
             var renderSize = new Size(ActualWidth, ActualHeight);
             if (m_CurrentRenderData is BandLevelMeterRenderData)
             {
-                m_BandLevelMeterRenderer.Render(drawingContext, m_CurrentRenderData, renderSize, m_CurrentRenderBrush);
+                m_BandLevelMeterRenderer.Render(drawingContext, m_CurrentRenderData, renderSize, m_CurrentRenderBrush, VisualTreeHelper.GetDpi(this).PixelsPerDip);
                 return;
             }
 
@@ -474,16 +621,70 @@ namespace AudioVisualizer.Wpf
         {
             if (Dispatcher.CheckAccess())
             {
-                ApplyFrame(e.Frame);
+                if (ReferenceEquals(sender, m_AudioInputProvider) && e.IsCurrent && CanApplyCaptureFrame())
+                {
+                    ApplyFrame(e.Frame);
+                }
+
                 return;
             }
 
-            QueuePendingFrame(e.Frame);
+            QueuePendingFrame(sender, e);
         }
 
-        #endregion
+        /// <summary>
+        /// 画面への配置時に音声入力を準備し、有効な設定で取得を開始します。
+        /// </summary>
+        /// <param name="sender">イベント送信元です。</param>
+        /// <param name="e">画面への配置イベントです。</param>
+        private void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            m_IsCaptureHostLoaded = true;
+            if (IsActive)
+            {
+                StartCapture();
+            }
+        }
 
-        #region 内部処理
+        /// <summary>
+        /// 画面から外されたときに音声取得を停止し、所有する資源を解放します。
+        /// </summary>
+        /// <param name="sender">イベント送信元です。</param>
+        /// <param name="e">画面からの取り外しイベントです。</param>
+        private void OnUnloaded(object sender, RoutedEventArgs e)
+        {
+            m_IsCaptureHostLoaded = false;
+            var provider = m_AudioInputProvider;
+            if (provider is null || m_CreateAudioInputProvider is null)
+            {
+                StopCapture();
+                return;
+            }
+
+            lock (m_PendingFrameSync)
+            {
+                m_AudioInputProvider = null;
+            }
+
+            provider.FrameProduced -= OnFrameProduced;
+            if (provider is SystemOutputAudioInputProvider captureProvider)
+            {
+                captureProvider.CaptureStatusChanged -= OnCaptureStatusChanged;
+            }
+
+            QueueCaptureOperation(() =>
+            {
+                if (provider is IDisposable disposable)
+                {
+                    disposable.Dispose();
+                }
+                else
+                {
+                    provider.Stop();
+                }
+            });
+            StopCapture();
+        }
 
         /// <summary>
         /// 接続条件に関わる依存関係プロパティ変更を処理します。
@@ -503,7 +704,21 @@ namespace AudioVisualizer.Wpf
                 return;
             }
 
-            control.RestartCapture();
+            if (control.m_CreateAudioInputProvider is null)
+            {
+                control.RestartCapture();
+                return;
+            }
+
+            control.m_PendingConnectionChange ??= control.Dispatcher.InvokeAsync(() =>
+            {
+                control.m_PendingConnectionChange = null;
+                if (control.IsActive && control.m_IsCaptureHostLoaded &&
+                    control.m_CaptureConnection != control.GetConnection())
+                {
+                    control.RestartCapture();
+                }
+            }, DispatcherPriority.Background);
         }
 
         /// <summary>
@@ -528,11 +743,12 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         /// <param name="dependencyObject">変更対象のコントロールです。</param>
         /// <param name="e">変更イベントデータです。</param>
-        private static void OnEffectChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
+        private static void OnVisualizerEffectChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
         {
             var control = (AudioVisualizerControl)dependencyObject;
             ResetEffectState(e.OldValue as IVisualizerEffect);
             ResetEffectState(e.NewValue as IVisualizerEffect);
+            control.m_CurrentRenderData = null;
             control.UpdateRenderData();
             control.InvalidateVisual();
         }
@@ -561,6 +777,10 @@ namespace AudioVisualizer.Wpf
             control.InvalidateVisual();
         }
 
+        #endregion
+
+        #region 内部メソッド
+
         /// <summary>
         /// Sensitivity の入力値妥当性を検証します。
         /// </summary>
@@ -568,7 +788,7 @@ namespace AudioVisualizer.Wpf
         /// <returns>有効値の場合は <see langword="true"/>。</returns>
         private static bool IsValidSensitivity(object value)
         {
-            return value is double sensitivity && sensitivity > 0;
+            return value is double sensitivity && double.IsFinite(sensitivity) && sensitivity > 0;
         }
 
         /// <summary>
@@ -588,7 +808,7 @@ namespace AudioVisualizer.Wpf
         /// <returns>有効値の場合は <see langword="true"/>。</returns>
         private static bool IsValidBarCount(object value)
         {
-            return value is int barCount && barCount > 0;
+            return value is int barCount && barCount >= 1 && barCount <= VisualizerSettings.MaximumBarCount;
         }
 
         /// <summary>
@@ -606,18 +826,99 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         private void StartCapture()
         {
+            m_CaptureConnection = GetConnection();
             var settings = CreateCaptureSettings();
             if (settings is null)
             {
                 return;
             }
 
-            if (m_AudioInputProvider.IsCapturing)
+            try
+            {
+                EnsureAudioInputProvider();
+            }
+            catch (Exception exception)
+            {
+                System.Diagnostics.Trace.TraceError("{0}", exception);
+                UpdateCaptureStatus(false, "音声入力の初期化に失敗しました。");
+                return;
+            }
+
+            if (m_AudioInputProvider is not { } provider)
             {
                 return;
             }
 
-            _ = m_AudioInputProvider.Start(settings);
+            if (m_CreateAudioInputProvider is null)
+            {
+                if (!provider.IsCapturing)
+                {
+                    var result = provider.Start(settings);
+                    UpdateCaptureStatus(provider.IsCapturing, result.ErrorMessage);
+                }
+
+                return;
+            }
+
+            var version = Interlocked.Increment(ref m_CaptureRequestVersion);
+            QueueCaptureOperation(() =>
+            {
+                if (version != Interlocked.Read(ref m_CaptureRequestVersion))
+                {
+                    return;
+                }
+
+                string? error;
+                try
+                {
+                    error = provider.Start(settings).ErrorMessage;
+                }
+                catch (Exception exception)
+                {
+                    System.Diagnostics.Trace.TraceError("{0}", exception);
+                    error = "音声入力の開始に失敗しました。";
+                }
+
+                Interlocked.Exchange(ref m_StartedCaptureVersion, version);
+                _ = Dispatcher.InvokeAsync(() =>
+                {
+                    if (ReferenceEquals(m_AudioInputProvider, provider) && IsActive &&
+                        version == Interlocked.Read(ref m_CaptureRequestVersion))
+                    {
+                        if (provider is SystemOutputAudioInputProvider captureProvider)
+                        {
+                            UpdateCaptureStatus(captureProvider.IsCapturing, captureProvider.CaptureError ?? (captureProvider.IsCapturing ? null : error));
+                        }
+                        else
+                        {
+                            UpdateCaptureStatus(provider.IsCapturing, error);
+                        }
+                    }
+                });
+            });
+        }
+
+        /// <summary>
+        /// 配置済みのコントロールが必要とする音声入力プロバイダーを準備します。
+        /// </summary>
+        private void EnsureAudioInputProvider()
+        {
+            if (m_AudioInputProvider is not null || !m_IsCaptureHostLoaded || m_CreateAudioInputProvider is null)
+            {
+                return;
+            }
+
+            var provider = m_CreateAudioInputProvider();
+            lock (m_PendingFrameSync)
+            {
+                m_AudioInputProvider = provider;
+            }
+
+            provider.FrameProduced += OnFrameProduced;
+            if (provider is SystemOutputAudioInputProvider captureProvider)
+            {
+                captureProvider.CaptureStatusChanged += OnCaptureStatusChanged;
+            }
         }
 
         /// <summary>
@@ -625,13 +926,122 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         private void StopCapture()
         {
-            m_AudioInputProvider.Stop();
+            m_CaptureConnection = null;
+            try
+            {
+                Interlocked.Increment(ref m_CaptureRequestVersion);
+                if (m_AudioInputProvider is { } provider)
+                {
+                    if (m_CreateAudioInputProvider is not null)
+                    {
+                        QueueCaptureOperation(provider.Stop);
+                    }
+                    else
+                    {
+                        provider.Stop();
+                    }
+                }
+            }
+            finally
+            {
+                UpdateCaptureStatus(false, null);
+                ClearCaptureFrame();
+            }
+        }
+
+        /// <summary>
+        /// 所有する入力プロバイダーへの操作を UI スレッドの外で順番に実行します。
+        /// </summary>
+        /// <param name="operation">取得に対する操作です。</param>
+        private void QueueCaptureOperation(Action operation)
+        {
+            m_CaptureOperations = m_CaptureOperations.ContinueWith(
+                _ =>
+                {
+                    try
+                    {
+                        operation();
+                    }
+                    catch (Exception exception)
+                    {
+                        System.Diagnostics.Trace.TraceError("{0}", exception);
+                    }
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.None,
+                TaskScheduler.Default);
+        }
+
+        /// <summary>
+        /// 通知時の取得が現在の指示に対応しているかを判定します。
+        /// </summary>
+        /// <returns>描画や稼働状態を反映できる場合は true です。</returns>
+        private bool CanApplyCaptureFrame()
+        {
+            return m_CreateAudioInputProvider is null ||
+                Interlocked.Read(ref m_CaptureRequestVersion) == Interlocked.Read(ref m_StartedCaptureVersion);
+        }
+
+        #endregion
+
+        #region イベントハンドラ
+
+        /// <summary>
+        /// 取得状態の変更を、現在の入力プロバイダーから UI へ反映します。
+        /// </summary>
+        /// <param name="sender">状態が変更された入力プロバイダーです。</param>
+        /// <param name="e">変更イベントです。</param>
+        private void OnCaptureStatusChanged(object? sender, EventArgs e)
+        {
+            if (sender is not SystemOutputAudioInputProvider provider)
+            {
+                return;
+            }
+
+            _ = Dispatcher.InvokeAsync(() =>
+            {
+                if (ReferenceEquals(m_AudioInputProvider, provider) && IsActive && CanApplyCaptureFrame())
+                {
+                    UpdateCaptureStatus(provider.IsCapturing, provider.CaptureError);
+                }
+            });
+        }
+
+        #endregion
+
+        #region 内部メソッド
+
+        /// <summary>
+        /// 実際の取得状態と取得エラーを依存関係プロパティへ反映します。
+        /// </summary>
+        /// <param name="isCapturing">音声取得中かどうかを示します。</param>
+        /// <param name="error">音声取得エラーです。</param>
+        private void UpdateCaptureStatus(bool isCapturing, string? error)
+        {
+            SetValue(IsCapturingPropertyKey, isCapturing);
+            if (error is not null)
+            {
+                ClearCaptureFrame();
+            }
+
+            if (CaptureError != error)
+            {
+                SetValue(CaptureErrorPropertyKey, error);
+                CaptureErrorChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        /// <summary>
+        /// 保留中のフレームと画面の描画状態を消去します。
+        /// </summary>
+        private void ClearCaptureFrame()
+        {
             lock (m_PendingFrameSync)
             {
                 m_PendingFrame = null;
             }
 
-            ResetEffectState(Effect ?? m_DefaultEffect);
+            ResetEffectState(VisualizerEffect ?? m_DefaultEffect);
             m_CurrentFrame = null;
             m_CurrentRenderData = null;
             InvalidateVisual();
@@ -644,6 +1054,15 @@ namespace AudioVisualizer.Wpf
         {
             StopCapture();
             StartCapture();
+        }
+
+        /// <summary>
+        /// 再接続の要否を判定するため、現在の入力接続条件を取得します。
+        /// </summary>
+        /// <returns>入力種別、既定デバイスの使用有無、明示指定したデバイスの ID。既定デバイスを使用する場合、ID は null です。</returns>
+        private (InputSource Source, bool UseDefault, string? DeviceId) GetConnection()
+        {
+            return (InputSource, UseDefaultDevice, UseDefaultDevice ? null : DeviceId);
         }
 
         /// <summary>
@@ -664,13 +1083,14 @@ namespace AudioVisualizer.Wpf
                 IsActive,
                 DefaultSensitivity,
                 0.0,
-                Math.Max(DefaultBarCount, BarCount));
+                CaptureAnalysisPointCount);
         }
 
         /// <summary>
         /// 受信したフレームを保持し、レンダーデータへ変換します。
         /// </summary>
         /// <param name="frame">受信した解析済みフレームです。</param>
+        /// <exception cref="ArgumentNullException">表示が有効で、<paramref name="frame"/> が <see langword="null"/> である場合にスローされます。</exception>
         private void ApplyFrame(VisualizerFrame frame)
         {
             if (!IsActive)
@@ -694,22 +1114,39 @@ namespace AudioVisualizer.Wpf
                 return;
             }
 
-            var effect = Effect ?? m_DefaultEffect;
-            var rawRenderData = effect.BuildRenderData(m_CurrentFrame, CreateEffectContext());
-            m_CurrentRenderData = ApplySmoothing(m_CurrentRenderData, rawRenderData);
+            try
+            {
+                var effect = VisualizerEffect is { } selected && selected.Metadata.SupportedInputSources.Contains(InputSource)
+                    ? selected
+                    : m_DefaultEffect;
+                var rawRenderData = effect.BuildRenderData(m_CurrentFrame, CreateEffectContext());
+                m_CurrentRenderData = ApplySmoothing(m_CurrentRenderData, rawRenderData);
+            }
+            catch (Exception exception)
+            {
+                System.Diagnostics.Trace.TraceError("{0}", exception);
+                m_CurrentRenderData = null;
+            }
         }
 
         /// <summary>
         /// バックグラウンドから到着した最新フレームを UI スレッドへ集約して通知します。
         /// </summary>
+        /// <param name="sender">フレームを生成した音声入力プロバイダーです。</param>
         /// <param name="frame">反映対象の最新フレームです。</param>
-        private void QueuePendingFrame(VisualizerFrame frame)
+        /// <exception cref="ArgumentNullException"><paramref name="frame"/> が <see langword="null"/> である場合にスローされます。</exception>
+        private void QueuePendingFrame(object? sender, VisualizerFrameEventArgs frame)
         {
             ArgumentNullException.ThrowIfNull(frame);
 
             var shouldSchedule = false;
             lock (m_PendingFrameSync)
             {
+                if (!ReferenceEquals(sender, m_AudioInputProvider) || !frame.IsCurrent || !CanApplyCaptureFrame())
+                {
+                    return;
+                }
+
                 m_PendingFrame = frame;
                 if (!m_IsPendingFrameDispatchQueued)
                 {
@@ -720,7 +1157,7 @@ namespace AudioVisualizer.Wpf
 
             if (shouldSchedule)
             {
-                _ = Dispatcher.InvokeAsync(ProcessPendingFrames);
+                _ = Dispatcher.InvokeAsync(ProcessPendingFrames, DispatcherPriority.Background);
             }
         }
 
@@ -729,21 +1166,33 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         private void ProcessPendingFrames()
         {
-            while (true)
+            try
             {
-                VisualizerFrame? frame;
+                VisualizerFrameEventArgs? frame;
                 lock (m_PendingFrameSync)
                 {
                     frame = m_PendingFrame;
                     m_PendingFrame = null;
-                    if (frame is null)
-                    {
-                        m_IsPendingFrameDispatchQueued = false;
-                        return;
-                    }
                 }
 
-                ApplyFrame(frame);
+                if (frame is { IsCurrent: true } && CanApplyCaptureFrame())
+                {
+                    ApplyFrame(frame.Frame);
+                }
+            }
+            finally
+            {
+                bool shouldSchedule;
+                lock (m_PendingFrameSync)
+                {
+                    shouldSchedule = m_PendingFrame is not null;
+                    m_IsPendingFrameDispatchQueued = shouldSchedule;
+                }
+
+                if (shouldSchedule)
+                {
+                    _ = Dispatcher.InvokeAsync(ProcessPendingFrames, DispatcherPriority.Background);
+                }
             }
         }
 
@@ -800,33 +1249,36 @@ namespace AudioVisualizer.Wpf
         /// <returns>平滑化適用後のレンダーデータです。</returns>
         private VisualizerRenderData ApplySmoothing(VisualizerRenderData? currentRenderData, VisualizerRenderData nextRenderData)
         {
-            if (Smoothing <= 0)
+            if (Smoothing <= 0 || currentRenderData is null || nextRenderData.Timestamp <= currentRenderData.Timestamp)
             {
                 return nextRenderData;
             }
 
+            var elapsed = (nextRenderData.Timestamp - currentRenderData.Timestamp).TotalMilliseconds;
+            var previousWeight = Math.Pow(Math.Min(Smoothing, 0.99), elapsed / 16.0);
+
             if (currentRenderData is BarSpectrumRenderData currentBarRenderData &&
                 nextRenderData is BarSpectrumRenderData nextBarRenderData)
             {
-                return ApplyBarSmoothing(currentBarRenderData, nextBarRenderData);
+                return ApplyBarSmoothing(currentBarRenderData, nextBarRenderData, previousWeight);
             }
 
             if (currentRenderData is PolylineRenderData currentPolylineRenderData &&
                 nextRenderData is PolylineRenderData nextPolylineRenderData)
             {
-                return ApplyPolylineSmoothing(currentPolylineRenderData, nextPolylineRenderData);
+                return ApplyPolylineSmoothing(currentPolylineRenderData, nextPolylineRenderData, previousWeight);
             }
 
             if (currentRenderData is PeakHoldBarRenderData currentPeakHoldBarRenderData &&
                 nextRenderData is PeakHoldBarRenderData nextPeakHoldBarRenderData)
             {
-                return ApplyPeakHoldBarSmoothing(currentPeakHoldBarRenderData, nextPeakHoldBarRenderData);
+                return ApplyPeakHoldBarSmoothing(currentPeakHoldBarRenderData, nextPeakHoldBarRenderData, previousWeight);
             }
 
             if (currentRenderData is BandLevelMeterRenderData currentBandLevelMeterRenderData &&
                 nextRenderData is BandLevelMeterRenderData nextBandLevelMeterRenderData)
             {
-                return ApplyBandLevelMeterSmoothing(currentBandLevelMeterRenderData, nextBandLevelMeterRenderData);
+                return ApplyBandLevelMeterSmoothing(currentBandLevelMeterRenderData, nextBandLevelMeterRenderData, previousWeight);
             }
 
             return nextRenderData;
@@ -836,11 +1288,13 @@ namespace AudioVisualizer.Wpf
         /// バー描画データへ平滑化を適用します。
         /// </summary>
         /// <param name="currentBarRenderData">現在描画中のバー描画データです。</param>
+        /// <param name="previousWeight">前の描画値を残す割合です。</param>
         /// <param name="nextBarRenderData">次に描画するバー描画データです。</param>
         /// <returns>平滑化後のバー描画データです。</returns>
-        private VisualizerRenderData ApplyBarSmoothing(
+        private static VisualizerRenderData ApplyBarSmoothing(
             BarSpectrumRenderData currentBarRenderData,
-            BarSpectrumRenderData nextBarRenderData)
+            BarSpectrumRenderData nextBarRenderData,
+            double previousWeight)
         {
             var smoothedBars = new BarRenderItem[nextBarRenderData.Bars.Count];
             for (var index = 0; index < nextBarRenderData.Bars.Count; index++)
@@ -853,8 +1307,8 @@ namespace AudioVisualizer.Wpf
                 }
 
                 var currentBar = currentBarRenderData.Bars[index];
-                var smoothedHeight = (currentBar.Height * Smoothing) + (nextBar.Height * (1.0 - Smoothing));
-                var smoothedLevel = (currentBar.Level * Smoothing) + (nextBar.Level * (1.0 - Smoothing));
+                var smoothedHeight = (currentBar.Height * previousWeight) + (nextBar.Height * (1.0 - previousWeight));
+                var smoothedLevel = (currentBar.Level * previousWeight) + (nextBar.Level * (1.0 - previousWeight));
                 smoothedBars[index] = new BarRenderItem(nextBar.X, nextBar.Width, smoothedHeight, smoothedLevel);
             }
 
@@ -865,24 +1319,34 @@ namespace AudioVisualizer.Wpf
         /// 折れ線描画データへ平滑化を適用します。
         /// </summary>
         /// <param name="currentPolylineRenderData">現在描画中の折れ線描画データです。</param>
+        /// <param name="previousWeight">前の描画値を残す割合です。</param>
         /// <param name="nextPolylineRenderData">次に描画する折れ線描画データです。</param>
         /// <returns>平滑化後の折れ線描画データです。</returns>
-        private VisualizerRenderData ApplyPolylineSmoothing(
+        private static VisualizerRenderData ApplyPolylineSmoothing(
             PolylineRenderData currentPolylineRenderData,
-            PolylineRenderData nextPolylineRenderData)
+            PolylineRenderData nextPolylineRenderData,
+            double previousWeight)
         {
-            var smoothedPoints = new NormalizedPoint[nextPolylineRenderData.Points.Count];
-            for (var index = 0; index < nextPolylineRenderData.Points.Count; index++)
+            var currentPoints = currentPolylineRenderData.Points;
+            var nextPoints = nextPolylineRenderData.Points;
+            if (currentPoints.Count != nextPoints.Count)
             {
-                var nextPoint = nextPolylineRenderData.Points[index];
-                if (index >= currentPolylineRenderData.Points.Count)
-                {
-                    smoothedPoints[index] = nextPoint;
-                    continue;
-                }
+                return nextPolylineRenderData;
+            }
 
-                var currentPoint = currentPolylineRenderData.Points[index];
-                var smoothedY = (currentPoint.Y * Smoothing) + (nextPoint.Y * (1.0 - Smoothing));
+            for (var index = 0; index < nextPoints.Count; index++)
+            {
+                if (currentPoints[index].X != nextPoints[index].X)
+                {
+                    return nextPolylineRenderData;
+                }
+            }
+
+            var smoothedPoints = new NormalizedPoint[nextPoints.Count];
+            for (var index = 0; index < nextPoints.Count; index++)
+            {
+                var nextPoint = nextPoints[index];
+                var smoothedY = (currentPoints[index].Y * previousWeight) + (nextPoint.Y * (1.0 - previousWeight));
                 smoothedPoints[index] = new NormalizedPoint(nextPoint.X, smoothedY);
             }
 
@@ -894,11 +1358,13 @@ namespace AudioVisualizer.Wpf
         /// バー本体のみを補間し、ピーク保持線はエフェクト側の保持と減衰結果をそのまま使用します。
         /// </summary>
         /// <param name="currentPeakHoldBarRenderData">現在描画中のピーク保持バー描画データです。</param>
+        /// <param name="previousWeight">前の描画値を残す割合です。</param>
         /// <param name="nextPeakHoldBarRenderData">次に描画するピーク保持バー描画データです。</param>
         /// <returns>平滑化後のピーク保持バー描画データです。</returns>
-        private VisualizerRenderData ApplyPeakHoldBarSmoothing(
+        private static VisualizerRenderData ApplyPeakHoldBarSmoothing(
             PeakHoldBarRenderData currentPeakHoldBarRenderData,
-            PeakHoldBarRenderData nextPeakHoldBarRenderData)
+            PeakHoldBarRenderData nextPeakHoldBarRenderData,
+            double previousWeight)
         {
             var smoothedBars = new BarRenderItem[nextPeakHoldBarRenderData.Bars.Count];
             for (var index = 0; index < nextPeakHoldBarRenderData.Bars.Count; index++)
@@ -911,8 +1377,8 @@ namespace AudioVisualizer.Wpf
                 }
 
                 var currentBar = currentPeakHoldBarRenderData.Bars[index];
-                var smoothedHeight = (currentBar.Height * Smoothing) + (nextBar.Height * (1.0 - Smoothing));
-                var smoothedLevel = (currentBar.Level * Smoothing) + (nextBar.Level * (1.0 - Smoothing));
+                var smoothedHeight = (currentBar.Height * previousWeight) + (nextBar.Height * (1.0 - previousWeight));
+                var smoothedLevel = (currentBar.Level * previousWeight) + (nextBar.Level * (1.0 - previousWeight));
                 smoothedBars[index] = new BarRenderItem(nextBar.X, nextBar.Width, smoothedHeight, smoothedLevel);
             }
 
@@ -927,11 +1393,13 @@ namespace AudioVisualizer.Wpf
         /// 固定帯域メーター描画データへ平滑化を適用します。
         /// </summary>
         /// <param name="currentBandLevelMeterRenderData">現在描画中の固定帯域メーター描画データです。</param>
+        /// <param name="previousWeight">前の描画値を残す割合です。</param>
         /// <param name="nextBandLevelMeterRenderData">次に描画する固定帯域メーター描画データです。</param>
         /// <returns>平滑化後の固定帯域メーター描画データです。</returns>
-        private VisualizerRenderData ApplyBandLevelMeterSmoothing(
+        private static VisualizerRenderData ApplyBandLevelMeterSmoothing(
             BandLevelMeterRenderData currentBandLevelMeterRenderData,
-            BandLevelMeterRenderData nextBandLevelMeterRenderData)
+            BandLevelMeterRenderData nextBandLevelMeterRenderData,
+            double previousWeight)
         {
             var smoothedBands = new BandLevelMeterItem[nextBandLevelMeterRenderData.Bands.Count];
             for (var index = 0; index < nextBandLevelMeterRenderData.Bands.Count; index++)
@@ -944,7 +1412,7 @@ namespace AudioVisualizer.Wpf
                 }
 
                 var currentBand = currentBandLevelMeterRenderData.Bands[index];
-                var smoothedLevel = (currentBand.Level * Smoothing) + (nextBand.Level * (1.0 - Smoothing));
+                var smoothedLevel = (currentBand.Level * previousWeight) + (nextBand.Level * (1.0 - previousWeight));
                 smoothedBands[index] = new BandLevelMeterItem(nextBand.X, nextBand.Width, smoothedLevel, nextBand.Label);
             }
 
@@ -959,7 +1427,14 @@ namespace AudioVisualizer.Wpf
         {
             if (effect is IResettableVisualizerEffect resettableVisualizerEffect)
             {
-                resettableVisualizerEffect.Reset();
+                try
+                {
+                    resettableVisualizerEffect.Reset();
+                }
+                catch (Exception exception)
+                {
+                    System.Diagnostics.Trace.TraceError("{0}", exception);
+                }
             }
         }
 

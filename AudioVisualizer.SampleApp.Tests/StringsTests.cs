@@ -114,13 +114,14 @@ namespace AudioVisualizer.SampleApp.Tests
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// 指定カルチャでテスト処理を実行し、終了後に元のカルチャへ戻します。
         /// </summary>
         /// <param name="culture">テスト実行中に適用するカルチャです。</param>
         /// <param name="action">指定カルチャで実行する処理です。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="culture"/> または <paramref name="action"/> が <see langword="null"/> である場合にスローされます。</exception>
         private static void RunWithCulture(CultureInfo culture, Action action)
         {
             ArgumentNullException.ThrowIfNull(culture);

@@ -20,10 +20,10 @@ namespace AudioVisualizer.Core.Audio
         #region 公開メソッド
 
         /// <summary>
-        /// 音声入力を開始します。
+        /// 有効な設定では音声入力を開始し、無効な設定では音声入力を停止します。
         /// </summary>
         /// <param name="settings">入力開始に使用する設定です。</param>
-        /// <returns>開始処理の結果です。</returns>
+        /// <returns>設定の適用結果です。</returns>
         AudioInputStartResult Start(VisualizerSettings settings);
 
         /// <summary>

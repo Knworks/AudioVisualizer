@@ -19,6 +19,25 @@ namespace AudioVisualizer.Wpf.Tests
         #region 公開メソッド
 
         /// <summary>
+        /// 同じ時刻の再描画ではピークを減衰させないことを確認します。
+        /// </summary>
+        [Test]
+        public void PeakAtSameTimestamp_DoesNotDecayAgain()
+        {
+            var effect = new PeakHoldBarEffect();
+            var context = new VisualizerEffectContext(InputSource.SystemOutput, 1, 0, 1, SpectrumProfile.Raw);
+            var timestamp = DateTimeOffset.UnixEpoch;
+            effect.BuildRenderData(new VisualizerFrame(new[] { 1.0 }, 1, timestamp), context);
+            var later = new VisualizerFrame(new[] { 0.0 }, 0, timestamp.AddMilliseconds(80));
+
+            var first = (PeakHoldBarRenderData)effect.BuildRenderData(later, context);
+            var repeated = (PeakHoldBarRenderData)effect.BuildRenderData(later, context);
+
+            Assert.That(first.PeakMarkers[0].Height, Is.EqualTo(0.8).Within(1e-9));
+            Assert.That(repeated.PeakMarkers[0].Height, Is.EqualTo(first.PeakMarkers[0].Height));
+        }
+
+        /// <summary>
         /// PeakHoldBarEffect がバー本体とピーク保持線を生成することを確認します。
         /// ■入力
         /// ・1. 4 本表示の VisualizerEffectContext
@@ -61,8 +80,8 @@ namespace AudioVisualizer.Wpf.Tests
             // 準備
             var effect = new PeakHoldBarEffect();
             var context = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.0, 4, SpectrumProfile.Balanced);
-            var highFrame = new VisualizerFrame(new[] { 1.0, 1.0, 1.0, 1.0 }, new[] { 0.0 }, 1.0, DateTimeOffset.UtcNow);
-            var lowFrame = new VisualizerFrame(new[] { 0.2, 0.2, 0.2, 0.2 }, new[] { 0.0 }, 0.2, DateTimeOffset.UtcNow.AddMilliseconds(16));
+            var highFrame = new VisualizerFrame(new[] { 1.0, 1.0, 1.0, 1.0 }, new[] { 0.0 }, 1.0, DateTimeOffset.UnixEpoch);
+            var lowFrame = new VisualizerFrame(new[] { 0.2, 0.2, 0.2, 0.2 }, new[] { 0.0 }, 0.2, DateTimeOffset.UnixEpoch.AddMilliseconds(16));
 
             // 実行
             var firstResult = (PeakHoldBarRenderData)effect.BuildRenderData(highFrame, context);
@@ -93,11 +112,11 @@ namespace AudioVisualizer.Wpf.Tests
             var control = new TestableAudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer(), new PolylineRenderer())
             {
                 IsActive = true,
-                Effect = new PeakHoldBarEffect(),
+                VisualizerEffect = new PeakHoldBarEffect(),
                 Smoothing = 0.5,
             };
-            var firstFrame = new VisualizerFrame(new[] { 1.0, 1.0, 1.0, 1.0 }, new[] { 0.0 }, 1.0, DateTimeOffset.UtcNow);
-            var secondFrame = new VisualizerFrame(new[] { 0.2, 0.2, 0.2, 0.2 }, new[] { 0.0 }, 0.2, DateTimeOffset.UtcNow.AddMilliseconds(16));
+            var firstFrame = new VisualizerFrame(new[] { 1.0, 1.0, 1.0, 1.0 }, new[] { 0.0 }, 1.0, DateTimeOffset.UnixEpoch);
+            var secondFrame = new VisualizerFrame(new[] { 0.2, 0.2, 0.2, 0.2 }, new[] { 0.0 }, 0.2, DateTimeOffset.UnixEpoch.AddMilliseconds(16));
             var verificationEffect = new PeakHoldBarEffect();
             var effectContext = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.5, 32, SpectrumProfile.Balanced);
             var firstRenderData = (PeakHoldBarRenderData)verificationEffect.BuildRenderData(firstFrame, effectContext);
@@ -136,7 +155,7 @@ namespace AudioVisualizer.Wpf.Tests
             var effect = new SequencePeakHoldEffect(
                 new PeakHoldBarRenderData(
                     "peak-hold-bars",
-                    DateTimeOffset.UtcNow,
+                    DateTimeOffset.UnixEpoch,
                     new[]
                     {
                         new BarRenderItem(0.1, 0.2, 1.0, 1.0),
@@ -149,7 +168,7 @@ namespace AudioVisualizer.Wpf.Tests
                     }),
                 new PeakHoldBarRenderData(
                     "peak-hold-bars",
-                    DateTimeOffset.UtcNow.AddMilliseconds(16),
+                    DateTimeOffset.UnixEpoch.AddMilliseconds(16),
                     new[]
                     {
                         new BarRenderItem(0.05, 0.15, 0.0, 0.0),
@@ -167,7 +186,7 @@ namespace AudioVisualizer.Wpf.Tests
             var control = new TestableAudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer(), new PolylineRenderer())
             {
                 IsActive = true,
-                Effect = effect,
+                VisualizerEffect = effect,
                 Smoothing = 0.5,
             };
             var frame = new VisualizerFrame(new[] { 0.0 }, new[] { 0.0 }, 0.0, DateTimeOffset.UtcNow);
@@ -205,8 +224,8 @@ namespace AudioVisualizer.Wpf.Tests
             // 準備
             var effect = new PeakHoldBarEffect();
             var context = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.0, 4, SpectrumProfile.Balanced);
-            var filledFrame = new VisualizerFrame(new[] { 1.0, 0.8, 0.6, 0.4 }, new[] { 0.0 }, 1.0, DateTimeOffset.UtcNow);
-            var emptyFrame = new VisualizerFrame(Array.Empty<double>(), new[] { 0.0 }, 0.0, DateTimeOffset.UtcNow.AddMilliseconds(16));
+            var filledFrame = new VisualizerFrame(new[] { 1.0, 0.8, 0.6, 0.4 }, new[] { 0.0 }, 1.0, DateTimeOffset.UnixEpoch);
+            var emptyFrame = new VisualizerFrame(Array.Empty<double>(), new[] { 0.0 }, 0.0, DateTimeOffset.UnixEpoch.AddMilliseconds(16));
 
             // 実行
             effect.BuildRenderData(filledFrame, context);
@@ -234,8 +253,8 @@ namespace AudioVisualizer.Wpf.Tests
             // 準備
             var effect = new PeakHoldBarEffect();
             var context = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.0, 4, SpectrumProfile.Balanced);
-            var highFrame = new VisualizerFrame(new[] { 1.0, 1.0, 1.0, 1.0 }, new[] { 0.0 }, 1.0, DateTimeOffset.UtcNow);
-            var lowFrame = new VisualizerFrame(new[] { 0.2, 0.2, 0.2, 0.2 }, new[] { 0.0 }, 0.2, DateTimeOffset.UtcNow.AddMilliseconds(16));
+            var highFrame = new VisualizerFrame(new[] { 1.0, 1.0, 1.0, 1.0 }, new[] { 0.0 }, 1.0, DateTimeOffset.UnixEpoch);
+            var lowFrame = new VisualizerFrame(new[] { 0.2, 0.2, 0.2, 0.2 }, new[] { 0.0 }, 0.2, DateTimeOffset.UnixEpoch.AddMilliseconds(16));
 
             // 実行
             effect.BuildRenderData(highFrame, context);
@@ -264,10 +283,10 @@ namespace AudioVisualizer.Wpf.Tests
             var control = new TestableAudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer(), new PolylineRenderer())
             {
                 IsActive = true,
-                Effect = effect,
+                VisualizerEffect = effect,
             };
-            var highFrame = new VisualizerFrame(new[] { 1.0, 1.0, 1.0, 1.0 }, new[] { 0.0 }, 1.0, DateTimeOffset.UtcNow);
-            var lowFrame = new VisualizerFrame(new[] { 0.2, 0.2, 0.2, 0.2 }, new[] { 0.0 }, 0.2, DateTimeOffset.UtcNow.AddMilliseconds(16));
+            var highFrame = new VisualizerFrame(new[] { 1.0, 1.0, 1.0, 1.0 }, new[] { 0.0 }, 1.0, DateTimeOffset.UnixEpoch);
+            var lowFrame = new VisualizerFrame(new[] { 0.2, 0.2, 0.2, 0.2 }, new[] { 0.0 }, 0.2, DateTimeOffset.UnixEpoch.AddMilliseconds(16));
 
             // 実行
             provider.RaiseFrame(highFrame);
@@ -417,7 +436,7 @@ namespace AudioVisualizer.Wpf.Tests
 
             #endregion
 
-            #region 公開メソッド
+            #region イベントハンドラ
 
             /// <summary>
             /// フレーム生成イベントです。
@@ -427,6 +446,10 @@ namespace AudioVisualizer.Wpf.Tests
                 add => m_FrameProduced += value;
                 remove => m_FrameProduced -= value;
             }
+
+            #endregion
+
+            #region 公開メソッド
 
             /// <summary>
             /// 入力開始を模擬します。
@@ -464,7 +487,7 @@ namespace AudioVisualizer.Wpf.Tests
         /// </summary>
         private sealed class TestableAudioVisualizerControl : AudioVisualizerControl
         {
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="TestableAudioVisualizerControl"/> クラスの新しいインスタンスを初期化します。
@@ -537,7 +560,7 @@ namespace AudioVisualizer.Wpf.Tests
 
             #endregion
 
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// 返却する 2 種類のレンダーデータを指定して初期化します。

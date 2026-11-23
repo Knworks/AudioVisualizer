@@ -29,7 +29,7 @@ namespace AudioVisualizer.Core.Effects
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="BandLevelMeterItem"/> クラスの新しいインスタンスを初期化します。
@@ -42,17 +42,17 @@ namespace AudioVisualizer.Core.Effects
         /// <exception cref="ArgumentOutOfRangeException">正規化範囲外の値が指定された場合にスローされます。</exception>
         public BandLevelMeterItem(double x, double width, double level, string label)
         {
-            if (x < 0 || x > 1)
+            if (!double.IsFinite(x) || x < 0 || x > 1)
             {
                 throw new ArgumentOutOfRangeException(nameof(x), "X は 0.0 から 1.0 の範囲で指定してください。");
             }
 
-            if (width < 0 || width > 1)
+            if (!double.IsFinite(width) || width < 0 || width > 1)
             {
                 throw new ArgumentOutOfRangeException(nameof(width), "Width は 0.0 から 1.0 の範囲で指定してください。");
             }
 
-            if (level < 0 || level > 1)
+            if (!double.IsFinite(level) || level < 0 || level > 1)
             {
                 throw new ArgumentOutOfRangeException(nameof(level), "Level は 0.0 から 1.0 の範囲で指定してください。");
             }

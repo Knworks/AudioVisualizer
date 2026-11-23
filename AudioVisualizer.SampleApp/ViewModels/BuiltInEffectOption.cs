@@ -21,13 +21,14 @@ namespace AudioVisualizer.SampleApp.ViewModels
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="BuiltInEffectOption"/> クラスの新しいインスタンスを初期化します。
         /// </summary>
         /// <param name="value">選択肢に対応する組込エフェクト種別です。</param>
         /// <param name="displayName">画面へ表示する選択肢名です。</param>
+        /// <exception cref="ArgumentException"><paramref name="displayName"/> が <see langword="null"/>、空、または空白のみである場合にスローされます。</exception>
         public BuiltInEffectOption(BuiltInVisualizerEffectKind value, string displayName)
         {
             Value = value;

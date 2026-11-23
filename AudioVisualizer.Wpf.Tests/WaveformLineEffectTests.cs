@@ -19,6 +19,138 @@ namespace AudioVisualizer.Wpf.Tests
         #region 公開メソッド
 
         /// <summary>
+        /// 点数が同じでも X 座標が変わった場合は最新値を使用します。
+        /// </summary>
+        [Test]
+        public void Polyline_WhenPointPositionsChange_UsesLatestPoints()
+        {
+            var provider = new FakeAudioInputProvider();
+            var control = new AudioVisualizerControl(provider, new ShiftedPolylineEffect(), new BarSpectrumRenderer())
+            {
+                IsActive = true,
+                Smoothing = 0.5,
+            };
+            var timestamp = DateTimeOffset.UnixEpoch;
+            provider.RaiseFrame(new VisualizerFrame(new[] { 0.25 }, 0, timestamp));
+            provider.RaiseFrame(new VisualizerFrame(new[] { 0.75 }, 1, timestamp.AddMilliseconds(16)));
+
+            var points = ((PolylineRenderData)control.CurrentRenderData!).Points;
+            Assert.That(points[1].X, Is.EqualTo(0.75));
+            Assert.That(points[1].Y, Is.EqualTo(1));
+        }
+
+        #endregion
+
+        #region 内部クラス
+
+        /// <summary>
+        /// フレームが指定する X 座標で折れ線を作るテスト用エフェクトです。
+        /// </summary>
+        private sealed class ShiftedPolylineEffect : IVisualizerEffect
+        {
+            #region プロパティ
+
+            /// <summary>
+            /// 可変位置の折れ線を作るテスト用エフェクトのメタデータを取得します。
+            /// </summary>
+            public EffectMetadata Metadata { get; } =
+                new("shift", "Shift", "1.0.0", null, null, new[] { InputSource.SystemOutput });
+
+            #endregion
+
+            #region 公開メソッド
+
+            /// <summary>
+            /// フレームの値で中央点の位置と各点の高さを決め、折れ線を生成します。
+            /// </summary>
+            /// <param name="frame">中央点の X 座標と各点の Y 座標を決める値を含むフレーム。</param>
+            /// <param name="context">エフェクトの実行時設定。このテスト用エフェクトでは座標計算に使用しません。</param>
+            /// <returns>フレームから生成した 3 点の折れ線描画データ。</returns>
+            public VisualizerRenderData BuildRenderData(VisualizerFrame frame, VisualizerEffectContext context)
+            {
+                var points = new[]
+                {
+                    new NormalizedPoint(0, frame.PeakLevel),
+                    new NormalizedPoint(frame.SpectrumValues[0], frame.PeakLevel),
+                    new NormalizedPoint(1, frame.PeakLevel),
+                };
+                return new PolylineRenderData(Metadata.Id, frame.Timestamp, points);
+            }
+
+            #endregion
+        }
+
+        #endregion
+
+        #region 公開メソッド
+
+        /// <summary>
+        /// 平滑化が前フレームからの実時間に応じて進むことを確認します。
+        /// </summary>
+        /// <param name="milliseconds">先行フレームから次のフレームまでの間隔。単位はミリ秒です。</param>
+        /// <param name="expectedY">平滑化後に期待する最初の点の正規化 Y 座標。</param>
+        [TestCase(16, 0.5)]
+        [TestCase(32, 0.25)]
+        public void Smoothing_WithLongerInterval_KeepsLessOfPreviousFrame(int milliseconds, double expectedY)
+        {
+            var provider = new FakeAudioInputProvider();
+            var control = new AudioVisualizerControl(provider, new WaveformLineEffect(), new BarSpectrumRenderer())
+            {
+                IsActive = true,
+                BarCount = 2,
+                Smoothing = 0.5,
+            };
+            var timestamp = DateTimeOffset.UnixEpoch;
+            provider.RaiseFrame(new VisualizerFrame(Array.Empty<double>(), new[] { -1.0, -1.0 }, 1, timestamp));
+            provider.RaiseFrame(new VisualizerFrame(Array.Empty<double>(), new[] { 1.0, 1.0 }, 1, timestamp.AddMilliseconds(milliseconds)));
+
+            Assert.That(((PolylineRenderData)control.CurrentRenderData!).Points[0].Y, Is.EqualTo(expectedY).Within(1e-9));
+        }
+
+        /// <summary>
+        /// コントロールの感度変更を、符号を保った波形の拡大とクリップに反映します。
+        /// </summary>
+        [Test]
+        public void Control_WhenSensitivityChanges_ScalesAndClipsWaveform()
+        {
+            var provider = new FakeAudioInputProvider();
+            var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer())
+            {
+                IsActive = true,
+                VisualizerEffect = new WaveformLineEffect(),
+                Smoothing = 0,
+            };
+            provider.RaiseFrame(new VisualizerFrame(Array.Empty<double>(), new[] { -0.4, -0.1, 0.1, 0.4 }, 0.4, DateTimeOffset.UtcNow));
+
+            control.Sensitivity = 5.0;
+
+            var data = (PolylineRenderData)control.CurrentRenderData!;
+            Assert.That(data.Points.Select(point => point.Y), Is.EqualTo(new[] { 1.0, 0.75, 0.25, 0.0 }).Within(1e-10));
+        }
+
+        /// <summary>
+        /// 表示点より周期の短い音は、各区間の上下の振幅を含む包絡線として表示されます。
+        /// </summary>
+        [Test]
+        public void Waveform_WhenHighFrequencyIsDownsampled_DrawsAmplitudeEnvelope()
+        {
+            const int sampleRate = 48000;
+            const int pointCount = 32;
+            var samples = Enumerable.Range(0, 576)
+                .Select(index => (float)(0.2 * Math.Sin(2 * Math.PI * 2000 * index / sampleRate)))
+                .ToArray();
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.0, pointCount);
+            var frame = new AudioVisualizer.Core.Analysis.AudioFrameAnalyzer().CreateFrame(
+                new AudioSampleBuffer(samples, sampleRate, 1, DateTimeOffset.UtcNow), settings);
+            var context = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.0, pointCount, SpectrumProfile.Raw);
+            var data = (PolylineRenderData)new WaveformLineEffect().BuildRenderData(frame, context);
+
+            Assert.That(data.Points, Has.Count.EqualTo((pointCount * 2) + 1));
+            Assert.That(data.Points.Take(pointCount).Select(point => point.Y), Is.All.LessThan(0.5));
+            Assert.That(data.Points.Skip(pointCount).Take(pointCount).Select(point => point.Y), Is.All.GreaterThan(0.5));
+        }
+
+        /// <summary>
         /// WaveformLineEffect が波形値を折れ線用の正規化点列へ変換することを確認します。
         /// ■入力
         /// ・1. waveformValues = [-1.0, 0.0, 1.0] を含む VisualizerFrame
@@ -127,7 +259,7 @@ namespace AudioVisualizer.Wpf.Tests
                 new PolylineRenderer())
             {
                 IsActive = true,
-                Effect = new WaveformLineEffect(),
+                VisualizerEffect = new WaveformLineEffect(),
                 Width = 120,
                 Height = 60,
             };
@@ -168,11 +300,11 @@ namespace AudioVisualizer.Wpf.Tests
                 new PolylineRenderer())
             {
                 IsActive = true,
-                Effect = new WaveformLineEffect(),
+                VisualizerEffect = new WaveformLineEffect(),
                 Smoothing = 0.5,
             };
-            var firstFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { -1.0, -1.0 }, 1.0, DateTimeOffset.UtcNow);
-            var secondFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { 1.0, 1.0 }, 1.0, DateTimeOffset.UtcNow.AddMilliseconds(16));
+            var firstFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { -1.0, -1.0 }, 1.0, DateTimeOffset.UnixEpoch);
+            var secondFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { 1.0, 1.0 }, 1.0, DateTimeOffset.UnixEpoch.AddMilliseconds(16));
 
             // 実行
             provider.RaiseFrame(firstFrame);
@@ -208,11 +340,11 @@ namespace AudioVisualizer.Wpf.Tests
                 new PolylineRenderer())
             {
                 IsActive = true,
-                Effect = new WaveformLineEffect(),
+                VisualizerEffect = new WaveformLineEffect(),
                 Smoothing = 0.0,
             };
-            var firstFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { -1.0, -1.0 }, 1.0, DateTimeOffset.UtcNow);
-            var secondFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { 1.0, 1.0 }, 1.0, DateTimeOffset.UtcNow.AddMilliseconds(16));
+            var firstFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { -1.0, -1.0 }, 1.0, DateTimeOffset.UnixEpoch);
+            var secondFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { 1.0, 1.0 }, 1.0, DateTimeOffset.UnixEpoch.AddMilliseconds(16));
 
             // 実行
             provider.RaiseFrame(firstFrame);
@@ -229,16 +361,15 @@ namespace AudioVisualizer.Wpf.Tests
         }
 
         /// <summary>
-        /// AudioVisualizerControl が現在より点数の多い折れ線描画データを平滑化する場合は追加点をそのまま採用することを確認します。
+        /// 点数が異なる折れ線では最新の点列をそのまま採用することを確認します。
         /// ■入力
         /// ・1. Smoothing = 0.5 の AudioVisualizerControl
         /// ・2. 2 点の後に 3 点となる 2 フレーム
         /// ■確認内容
-        /// ・1. 既存点は補間される
-        /// ・2. 追加された末尾点は最新値のまま反映される
+        /// ・1. 全点が最新値のまま反映される
         /// </summary>
         [Test]
-        public void Given_WaveformRenderData_When_PointCountIncreasesDuringSmoothing_Then_NewPointsUseLatestValues()
+        public void Waveform_WhenPointCountChanges_UsesLatestPoints()
         {
             // 準備
             var provider = new FakeAudioInputProvider();
@@ -249,11 +380,11 @@ namespace AudioVisualizer.Wpf.Tests
                 new PolylineRenderer())
             {
                 IsActive = true,
-                Effect = new WaveformLineEffect(),
+                VisualizerEffect = new WaveformLineEffect(),
                 Smoothing = 0.5,
             };
-            var firstFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { -1.0, 1.0 }, 1.0, DateTimeOffset.UtcNow);
-            var secondFrame = new VisualizerFrame(new[] { 0.1, 0.2, 0.3 }, new[] { 1.0, 0.0, -1.0 }, 1.0, DateTimeOffset.UtcNow.AddMilliseconds(16));
+            var firstFrame = new VisualizerFrame(new[] { 0.1, 0.2 }, new[] { -1.0, 1.0 }, 1.0, DateTimeOffset.UnixEpoch);
+            var secondFrame = new VisualizerFrame(new[] { 0.1, 0.2, 0.3 }, new[] { 1.0, 0.0, -1.0 }, 1.0, DateTimeOffset.UnixEpoch.AddMilliseconds(16));
 
             // 実行
             provider.RaiseFrame(firstFrame);
@@ -264,8 +395,8 @@ namespace AudioVisualizer.Wpf.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(renderData.Points, Has.Count.EqualTo(3));
-                Assert.That(renderData.Points[0].Y, Is.EqualTo(0.5).Within(0.0001));
-                Assert.That(renderData.Points[1].Y, Is.EqualTo(0.25).Within(0.0001));
+                Assert.That(renderData.Points[0].Y, Is.EqualTo(0.0).Within(0.0001));
+                Assert.That(renderData.Points[1].Y, Is.EqualTo(0.5).Within(0.0001));
                 Assert.That(renderData.Points[2].Y, Is.EqualTo(1.0).Within(0.0001));
             });
         }
@@ -297,7 +428,7 @@ namespace AudioVisualizer.Wpf.Tests
 
             #endregion
 
-            #region 公開メソッド
+            #region イベントハンドラ
 
             /// <summary>
             /// フレーム生成イベントです。
@@ -307,6 +438,10 @@ namespace AudioVisualizer.Wpf.Tests
                 add => m_FrameProduced += value;
                 remove => m_FrameProduced -= value;
             }
+
+            #endregion
+
+            #region 公開メソッド
 
             /// <summary>
             /// 入力開始を模擬します。
@@ -344,7 +479,7 @@ namespace AudioVisualizer.Wpf.Tests
         /// </summary>
         private sealed class TestableAudioVisualizerControl : AudioVisualizerControl
         {
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="TestableAudioVisualizerControl"/> クラスの新しいインスタンスを初期化します。

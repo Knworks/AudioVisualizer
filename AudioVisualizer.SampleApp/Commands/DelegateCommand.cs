@@ -22,13 +22,14 @@ namespace AudioVisualizer.SampleApp.Commands
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="DelegateCommand"/> クラスの新しいインスタンスを初期化します。
         /// </summary>
         /// <param name="execute">実行時に呼び出す処理です。</param>
         /// <param name="canExecute">実行可否を返す処理です。省略時は常に実行可能です。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="execute"/> が <see langword="null"/> である場合にスローされます。</exception>
         public DelegateCommand(Action execute, Func<bool>? canExecute = null)
         {
             m_Execute = execute ?? throw new ArgumentNullException(nameof(execute));

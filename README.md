@@ -113,13 +113,15 @@ dotnet run --project AudioVisualizer.SampleApp/AudioVisualizer.SampleApp.csproj
         DeviceId="{Binding SelectedDeviceId}"
         UseDefaultDevice="{Binding UseDefaultDevice}"
         IsActive="{Binding IsActive, Mode=TwoWay}"
-        Effect="{Binding SelectedEffect}"
+        VisualizerEffect="{Binding SelectedEffect}"
         BarCount="{Binding BarCount}"
         Sensitivity="{Binding Sensitivity}"
         Smoothing="{Binding Smoothing}"
         SpectrumProfile="{Binding SelectedSpectrumProfile}" />
 </Window>
 ```
+
+既存の XAML や C# で音声エフェクトを `Effect` に指定している場合は、`VisualizerEffect` に変更してください。`Effect` は WPF の画像効果に使用できます。
 
 ## 🧰 技術スタック
 
@@ -128,7 +130,7 @@ dotnet run --project AudioVisualizer.SampleApp/AudioVisualizer.SampleApp.csproj
 | C# / XAML | 実装言語 |  |  |
 | .NET | ランタイム | 10 | `net10.0` / `net10.0-windows` |
 | WPF | UI フレームワーク |  | `CustomControl` ベース |
-| NAudio | 音声入力 | 2.3.0 | WASAPI を利用 |
+| NAudio.Wasapi | 音声入力 | 3.3.0 | WASAPI を利用 |
 | NUnit | テスト | 4.3.2 | 単体テスト |
 | Microsoft.NET.Test.Sdk | テスト実行基盤 | 17.14.0 |  |
 | NUnit3TestAdapter | テストアダプター | 5.0.0 |  |
@@ -184,7 +186,8 @@ AudioVisualizer/
 ├── docs/
 │   ├── 01_requirements.md
 │   ├── 02_architect.md
-│   └── 06_inplementation_plan.md
+│   └── review/
+│       └── code_review.md
 ├── AGENTS.md
 ├── LICENSE
 └── AudioVisualizer.slnx

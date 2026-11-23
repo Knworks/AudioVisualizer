@@ -2,15 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using AudioVisualizer.Core.Models;
 using NAudio.CoreAudioApi;
-using NAudio.CoreAudioApi.Interfaces;
+
 
 namespace AudioVisualizer.Core.Audio
 {
     /// <summary>
     /// NAudio を使用して Windows の音声デバイスを列挙する内部実装です。
     /// </summary>
+    [SupportedOSPlatform("windows")]
     [ExcludeFromCodeCoverage]
     internal sealed class WasapiAudioDeviceEnumerator : IAudioPlatformDeviceEnumerator, IDisposable
     {
@@ -24,7 +26,7 @@ namespace AudioVisualizer.Core.Audio
         /// <summary>
         /// 既定デバイス変更通知を受け取る内部コールバックです。
         /// </summary>
-        private readonly DefaultDeviceNotificationClient m_NotificationClient;
+        private readonly MMDeviceNotificationClient m_NotificationClient;
 
         #endregion
 
@@ -37,29 +39,30 @@ namespace AudioVisualizer.Core.Audio
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="WasapiAudioDeviceEnumerator"/> クラスの新しいインスタンスを初期化します。
         /// </summary>
         public WasapiAudioDeviceEnumerator()
         {
-            m_NotificationClient = new DefaultDeviceNotificationClient(HandleDefaultDeviceChanged);
-            m_DeviceEnumerator.RegisterEndpointNotificationCallback(m_NotificationClient);
+            m_NotificationClient = m_DeviceEnumerator.CreateNotificationClient(useSynchronizationContext: false);
+            m_NotificationClient.DefaultDeviceChanged += HandleDefaultDeviceChanged;
         }
+
+        #endregion
+
+        #region 公開メソッド
 
         /// <summary>
         /// 通知購読と WASAPI 列挙子を解放します。
         /// </summary>
         public void Dispose()
         {
-            m_DeviceEnumerator.UnregisterEndpointNotificationCallback(m_NotificationClient);
+            m_NotificationClient.DefaultDeviceChanged -= HandleDefaultDeviceChanged;
+            m_NotificationClient.Dispose();
             m_DeviceEnumerator.Dispose();
         }
-
-        #endregion
-
-        #region 公開メソッド
 
         /// <summary>
         /// 指定した入力種別に対応する利用可能デバイス一覧を取得します。
@@ -74,7 +77,7 @@ namespace AudioVisualizer.Core.Audio
 
             for (var index = 0; index < devices.Count; index++)
             {
-                var device = devices[index];
+                using var device = devices[index];
                 snapshots.Add(new AudioDeviceSnapshot(device.ID, device.FriendlyName));
             }
 
@@ -91,7 +94,7 @@ namespace AudioVisualizer.Core.Audio
             try
             {
                 var dataFlow = ResolveDataFlow(inputSource);
-                var device = m_DeviceEnumerator.GetDefaultAudioEndpoint(dataFlow, Role.Multimedia);
+                using var device = m_DeviceEnumerator.GetDefaultAudioEndpoint(dataFlow, Role.Multimedia);
                 return new AudioDeviceSnapshot(device.ID, device.FriendlyName);
             }
             catch (COMException)
@@ -107,33 +110,32 @@ namespace AudioVisualizer.Core.Audio
         /// <summary>
         /// WASAPI の既定デバイス変更通知を Core 向けのイベントへ変換します。
         /// </summary>
-        /// <param name="dataFlow">変更対象のデータフローです。</param>
-        /// <param name="role">変更対象のロールです。</param>
-        /// <param name="defaultDeviceId">新しい既定デバイス識別子です。</param>
-        private void HandleDefaultDeviceChanged(DataFlow dataFlow, Role role, string defaultDeviceId)
+        /// <param name="sender">イベント送信元です。</param>
+        /// <param name="e">既定デバイスの変更情報です。</param>
+        private void HandleDefaultDeviceChanged(object? sender, DefaultDeviceChangedEventArgs e)
         {
-            if (role != Role.Multimedia)
+            if (e.Role != Role.Multimedia)
             {
                 return;
             }
 
-            var inputSource = dataFlow switch
+            var inputSource = e.Flow switch
             {
                 DataFlow.Render => InputSource.SystemOutput,
                 DataFlow.Capture => InputSource.Microphone,
                 _ => (InputSource?)null,
             };
-            if (inputSource is null || string.IsNullOrWhiteSpace(defaultDeviceId))
+            if (inputSource is null)
             {
                 return;
             }
 
-            DefaultDeviceChanged?.Invoke(this, new DefaultAudioDeviceChangedEventArgs(inputSource.Value, defaultDeviceId));
+            DefaultDeviceChanged?.Invoke(this, new DefaultAudioDeviceChangedEventArgs(inputSource.Value, string.IsNullOrWhiteSpace(e.DeviceId) ? null : e.DeviceId));
         }
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// 入力種別から NAudio の DataFlow を解決します。
@@ -149,87 +151,6 @@ namespace AudioVisualizer.Core.Audio
                 InputSource.Microphone => DataFlow.Capture,
                 _ => throw new ArgumentOutOfRangeException(nameof(inputSource), inputSource, "未対応の入力種別です。"),
             };
-        }
-
-        #endregion
-
-        #region 内部クラス
-
-        /// <summary>
-        /// WASAPI の既定デバイス変更通知だけを中継する内部コールバックです。
-        /// </summary>
-        private sealed class DefaultDeviceNotificationClient : IMMNotificationClient
-        {
-            #region フィールド
-
-            /// <summary>
-            /// 既定デバイス変更時に呼び出す処理です。
-            /// </summary>
-            private readonly Action<DataFlow, Role, string> m_OnDefaultDeviceChanged;
-
-            #endregion
-
-            #region 構築 / 消滅
-
-            /// <summary>
-            /// <see cref="DefaultDeviceNotificationClient"/> クラスの新しいインスタンスを初期化します。
-            /// </summary>
-            /// <param name="onDefaultDeviceChanged">既定デバイス変更時に呼び出す処理です。</param>
-            public DefaultDeviceNotificationClient(Action<DataFlow, Role, string> onDefaultDeviceChanged)
-            {
-                m_OnDefaultDeviceChanged = onDefaultDeviceChanged ?? throw new ArgumentNullException(nameof(onDefaultDeviceChanged));
-            }
-
-            #endregion
-
-            #region 公開メソッド
-
-            /// <summary>
-            /// 既定デバイス変更通知を呼び出し元へ中継します。
-            /// </summary>
-            /// <param name="flow">変更対象のデータフローです。</param>
-            /// <param name="role">変更対象のロールです。</param>
-            /// <param name="defaultDeviceId">新しい既定デバイス識別子です。</param>
-            public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
-            {
-                m_OnDefaultDeviceChanged(flow, role, defaultDeviceId);
-            }
-
-            /// <summary>
-            /// デバイス追加通知は使用しません。
-            /// </summary>
-            /// <param name="pwstrDeviceId">追加されたデバイス識別子です。</param>
-            public void OnDeviceAdded(string pwstrDeviceId)
-            {
-            }
-
-            /// <summary>
-            /// デバイス削除通知は使用しません。
-            /// </summary>
-            /// <param name="pwstrDeviceId">削除されたデバイス識別子です。</param>
-            public void OnDeviceRemoved(string pwstrDeviceId)
-            {
-            }
-
-            /// <summary>
-            /// デバイス状態変更通知は使用しません。
-            /// </summary>
-            /// <param name="pwstrDeviceId">変更されたデバイス識別子です。</param>
-            /// <param name="dwNewState">新しい状態です。</param>
-            public void OnDeviceStateChanged(string pwstrDeviceId, DeviceState dwNewState)
-            {
-            }
-
-            /// <summary>
-            /// プロパティ変更通知は使用しません。
-            /// </summary>
-            /// <param name="pwstrDeviceId">変更されたデバイス識別子です。</param>
-            /// <param name="key">変更されたプロパティキーです。</param>
-            public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key)
-            {
-            }
-
-            #endregion
         }
 
         #endregion

@@ -25,7 +25,7 @@ namespace AudioVisualizer.Core.Tests
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 公開メソッド
 
         /// <summary>
         /// 各テストで使用する解析サービスと設定を初期化します。
@@ -36,10 +36,6 @@ namespace AudioVisualizer.Core.Tests
             m_Sut = new AudioFrameAnalyzer();
             m_Settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
         }
-
-        #endregion
-
-        #region 公開メソッド
 
         /// <summary>
         /// AudioFrameAnalyzer が可聴サンプルからスペクトラムとピークを生成することを確認します。
@@ -229,6 +225,136 @@ namespace AudioVisualizer.Core.Tests
                 Assert.That(() => m_Sut.CreateFrame(null!, m_Settings), Throws.TypeOf<ArgumentNullException>());
                 Assert.That(() => m_Sut.CreateFrame(sampleBuffer, null!), Throws.TypeOf<ArgumentNullException>());
             });
+        }
+
+        /// <summary>
+        /// バーの代表周波数から外れた正弦波も、該当する線形周波数帯に現れることを確認します。
+        /// </summary>
+        /// <param name="frequency">入力する正弦波の周波数。単位は Hz です。</param>
+        [TestCase(468.75)]
+        [TestCase(796.875)]
+        [TestCase(2500)]
+        [TestCase(5400)]
+        [TestCase(9150)]
+        [TestCase(12300)]
+        [TestCase(17000)]
+        [TestCase(22700)]
+        public void Spectrum_WhenToneFrequencyVaries_ShowsItInTheExpectedBand(double frequency)
+        {
+            const int sampleRate = 48000;
+            const int sampleCount = 1024;
+            const int barCount = 32;
+            var samples = new float[sampleCount];
+            for (var index = 0; index < samples.Length; index++)
+            {
+                samples[index] = (float)(0.2 * Math.Sin(2 * Math.PI * frequency * index / sampleRate));
+            }
+
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, barCount);
+            var frame = new AudioFrameAnalyzer().CreateFrame(
+                new AudioSampleBuffer(samples, sampleRate, 1, DateTimeOffset.UtcNow), settings);
+            var bandIndex = (int)(frequency * barCount / (sampleRate / 2));
+
+            Assert.That(frame.SpectrumValues[bandIndex], Is.GreaterThan(0.30));
+        }
+
+        /// <summary>
+        /// 2 サンプルの窓でも交互に振れる入力を検出できることを確認します。
+        /// </summary>
+        [Test]
+        public void Spectrum_WhenInputHasTwoSamples_DetectsAlternatingSignal()
+        {
+            var frame = new AudioFrameAnalyzer().CreateFrame(
+                new AudioSampleBuffer(new[] { 0.05f, -0.05f }, 48000, 1, DateTimeOffset.UtcNow), m_Settings);
+
+            Assert.That(frame.SpectrumValues.Max(), Is.GreaterThan(0.3));
+        }
+
+        /// <summary>
+        /// 同相、片側だけ、逆相のステレオでも、同じ音の周波数と振幅を保ちます。
+        /// </summary>
+        /// <param name="rightGain">基準波形に対する右チャンネルの倍率。0 は無音、-1 は逆相です。</param>
+        [TestCase(1)]
+        [TestCase(0)]
+        [TestCase(-1)]
+        public void Spectrum_WhenStereoContainsSameTone_MatchesMonoSpectrum(int rightGain)
+        {
+            const int sampleRate = 48000;
+            const int sampleCount = 1024;
+            const double frequency = 3000;
+            var mono = new float[sampleCount];
+            var stereo = new float[sampleCount * 2];
+
+            for (var index = 0; index < sampleCount; index++)
+            {
+                mono[index] = (float)(0.2 * Math.Sin(2 * Math.PI * frequency * index / sampleRate));
+                stereo[index * 2] = mono[index];
+                stereo[(index * 2) + 1] = mono[index] * rightGain;
+            }
+
+            var analyzer = new AudioFrameAnalyzer();
+            var timestamp = DateTimeOffset.UtcNow;
+            var monoFrame = analyzer.CreateFrame(new AudioSampleBuffer(mono, sampleRate, 1, timestamp), m_Settings);
+            var stereoFrame = analyzer.CreateFrame(new AudioSampleBuffer(stereo, sampleRate, 2, timestamp), m_Settings);
+
+            Assert.That(stereoFrame.SpectrumValues, Is.EqualTo(monoFrame.SpectrumValues).Within(1e-7));
+        }
+
+        /// <summary>
+        /// 逆相で打ち消されず、右側だけに音がある場合も正しい時間軸で波形を生成します。
+        /// </summary>
+        /// <param name="leftGain">基準波形に対する左チャンネルの倍率。0 は無音を表します。</param>
+        /// <param name="rightGain">基準波形に対する右チャンネルの倍率。0 は無音、-1 は逆相です。</param>
+        [TestCase(1, -1)]
+        [TestCase(0, 1)]
+        public void Waveform_WhenStereoIsAntiphaseOrSingleChannel_ShowsSelectedChannel(int leftGain, int rightGain)
+        {
+            var mono = new[] { 0.2f, -0.1f, -0.2f, 0.1f };
+            var stereo = mono.SelectMany(sample => new[] { sample * leftGain, sample * rightGain }).ToArray();
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.0, mono.Length);
+            var frame = new AudioFrameAnalyzer().CreateFrame(
+                new AudioSampleBuffer(stereo, 48000, 2, DateTimeOffset.UtcNow), settings);
+
+            Assert.That(frame.WaveformValues, Is.EqualTo(mono.Select(sample => (double)sample)));
+        }
+
+        /// <summary>
+        /// 短い取得ブロックを連結して、固定時間の波形を描画できることを確認します。
+        /// </summary>
+        [Test]
+        public void CaptureWaveform_WhenPacketsAreShort_UsesOneFixedWindow()
+        {
+            var analyzer = new AudioFrameAnalyzer();
+            var history = new WaveformHistory();
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.0, 12);
+            var first = new AudioSampleBuffer(new[] { 0.25f, 0.5f, 0.75f, 1.0f }, 1000, 1, DateTimeOffset.UtcNow);
+            var second = new AudioSampleBuffer(new[] { -0.25f, -0.5f, -0.75f, -1.0f }, 1000, 1, DateTimeOffset.UtcNow);
+
+            analyzer.CreateFrame(first, settings, history);
+            var frame = analyzer.CreateFrame(second, settings, history);
+
+            Assert.That(frame.WaveformValues, Is.EqualTo(new[] { 0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, -0.25, -0.5, -0.75, -1.0 }));
+        }
+
+        /// <summary>
+        /// 長いブロックの前半にある単発音を表示し、その次は最新の時間窓へ戻ります。
+        /// </summary>
+        [Test]
+        public void CaptureWaveform_WhenLongPacketContainsEarlyTransient_ShowsItForOneFrame()
+        {
+            var analyzer = new AudioFrameAnalyzer();
+            var history = new WaveformHistory();
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.0, 12);
+            var samples = new float[48];
+            samples[3] = 0.75f;
+            var packet = new AudioSampleBuffer(samples, 1000, 1, DateTimeOffset.UtcNow);
+            var silence = new AudioSampleBuffer(new float[2], 1000, 1, DateTimeOffset.UtcNow);
+
+            var transient = analyzer.CreateFrame(packet, settings, history);
+            var next = analyzer.CreateFrame(silence, settings, history);
+
+            Assert.That(transient.WaveformValues[3], Is.EqualTo(0.75));
+            Assert.That(next.WaveformValues, Is.All.Zero);
         }
 
         #endregion

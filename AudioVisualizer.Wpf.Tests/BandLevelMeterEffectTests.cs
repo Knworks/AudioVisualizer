@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Windows;
 using System.Windows.Media;
+using AudioVisualizer.Core.Analysis;
 using AudioVisualizer.Core.Audio;
 using AudioVisualizer.Core.Effects;
 using AudioVisualizer.Core.Models;
@@ -19,6 +20,67 @@ namespace AudioVisualizer.Wpf.Tests
     public class BandLevelMeterEffectTests
     {
         #region 公開メソッド
+
+        /// <summary>
+        /// 高DPIと狭い表示領域でラベルを帯域内に収めることを確認します。
+        /// </summary>
+        /// <param name="width">描画領域の幅。単位はデバイスに依存しないピクセルです。</param>
+        /// <param name="height">描画領域の高さ。単位はデバイスに依存しないピクセルです。</param>
+        /// <param name="dpi">描画領域に適用する DPI の倍率。</param>
+        [TestCase(20, 10, 1.75)]
+        [TestCase(80, 40, 2.0)]
+        public void MeterLabels_WhenSpaceIsLimited_StayWithinEachBand(double width, double height, double dpi)
+        {
+            var data = new BandLevelMeterRenderData("bands", DateTimeOffset.UnixEpoch, new[]
+            {
+                new BandLevelMeterItem(0.0, 0.5, 1, "A very long label"),
+                new BandLevelMeterItem(0.5, 0.5, 1, "Another long label"),
+            });
+            var drawing = new DrawingGroup();
+            using (var context = drawing.Open())
+            {
+                new BandLevelMeterRenderer().Render(context, data, new Size(width, height), Brushes.Green, dpi);
+            }
+
+            var labelGroups = drawing.Children.OfType<DrawingGroup>().ToArray();
+            Assert.That(labelGroups, Has.Length.EqualTo(height <= 18 ? 0 : 2));
+            for (var index = 0; index < labelGroups.Length; index++)
+            {
+                var bounds = labelGroups[index].Bounds;
+                Assert.That(bounds.Left, Is.GreaterThanOrEqualTo(index * width / 2));
+                Assert.That(bounds.Right, Is.LessThanOrEqualTo((index + 1) * width / 2));
+                Assert.That(bounds.Bottom, Is.LessThanOrEqualTo(height));
+            }
+        }
+
+        /// <summary>
+        /// サンプルレートが異なっても同じ音が同じ帯域で最大になることを確認します。
+        /// </summary>
+        /// <param name="sampleRate">入力 PCM のサンプルレート。単位は Hz です。</param>
+        /// <param name="frequency">入力する正弦波の周波数。単位は Hz です。</param>
+        /// <param name="expectedBand">最大レベルになる帯域の位置。低域を 0 とする添字です。</param>
+        [TestCase(24_000, 150, 0)]
+        [TestCase(48_000, 150, 0)]
+        [TestCase(24_000, 700, 1)]
+        [TestCase(48_000, 700, 1)]
+        [TestCase(24_000, 2_000, 2)]
+        [TestCase(48_000, 2_000, 2)]
+        [TestCase(24_000, 6_000, 3)]
+        [TestCase(48_000, 6_000, 3)]
+        public void AnalyzedTone_AppearsInTheSameBandAtDifferentSampleRates(int sampleRate, int frequency, int expectedBand)
+        {
+            var samples = Enumerable.Range(0, 1024)
+                .Select(index => (float)(0.25 * Math.Sin(2 * Math.PI * frequency * index / sampleRate)));
+            var buffer = new AudioSampleBuffer(samples, sampleRate, 1, DateTimeOffset.UtcNow);
+            var settings = new VisualizerSettings(InputSource.Microphone, null, true, true, 1, 0, 4);
+            var frame = new AudioFrameAnalyzer().CreateFrame(buffer, settings);
+            var context = new VisualizerEffectContext(InputSource.Microphone, 1, 0, 4, SpectrumProfile.Raw);
+
+            var data = (BandLevelMeterRenderData)new BandLevelMeterEffect().BuildRenderData(frame, context);
+
+            Assert.That(data.Bands[expectedBand].Level, Is.GreaterThan(0.3));
+            Assert.That(data.Bands.Where((_, index) => index != expectedBand).Max(band => band.Level), Is.LessThan(0.1));
+        }
 
         /// <summary>
         /// BandLevelMeterEffect が固定 4 帯域のメーターデータを生成することを確認します。
@@ -317,7 +379,7 @@ namespace AudioVisualizer.Wpf.Tests
                 new BandLevelMeterRenderer())
             {
                 IsActive = true,
-                Effect = new BandLevelMeterEffect(),
+                VisualizerEffect = new BandLevelMeterEffect(),
                 Smoothing = 0.5,
                 Width = 120,
                 Height = 80,
@@ -326,12 +388,12 @@ namespace AudioVisualizer.Wpf.Tests
                 new[] { 1.0, 1.0, 0.2, 0.2, 0.1, 0.1, 0.0, 0.0 },
                 new[] { 0.0 },
                 1.0,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UnixEpoch);
             var secondFrame = new VisualizerFrame(
                 new[] { 0.0, 0.0, 0.8, 0.8, 0.4, 0.4, 0.2, 0.2 },
                 new[] { 0.0 },
                 0.8,
-                DateTimeOffset.UtcNow.AddMilliseconds(16));
+                DateTimeOffset.UnixEpoch.AddMilliseconds(16));
 
             // 実行
             provider.RaiseFrame(firstFrame);
@@ -374,7 +436,7 @@ namespace AudioVisualizer.Wpf.Tests
             var effect = new SequenceBandLevelMeterEffect(
                 new BandLevelMeterRenderData(
                     "band-level-meter",
-                    DateTimeOffset.UtcNow,
+                    DateTimeOffset.UnixEpoch,
                     new[]
                     {
                         new BandLevelMeterItem(0.1, 0.2, 1.0, "Low"),
@@ -382,7 +444,7 @@ namespace AudioVisualizer.Wpf.Tests
                     }),
                 new BandLevelMeterRenderData(
                     "band-level-meter",
-                    DateTimeOffset.UtcNow.AddMilliseconds(16),
+                    DateTimeOffset.UnixEpoch.AddMilliseconds(16),
                     new[]
                     {
                         new BandLevelMeterItem(0.05, 0.15, 0.0, "Low"),
@@ -398,7 +460,7 @@ namespace AudioVisualizer.Wpf.Tests
                 new BandLevelMeterRenderer())
             {
                 IsActive = true,
-                Effect = effect,
+                VisualizerEffect = effect,
                 Smoothing = 0.5,
             };
             var frame = new VisualizerFrame(new[] { 0.0 }, new[] { 0.0 }, 0.0, DateTimeOffset.UtcNow);
@@ -446,7 +508,7 @@ namespace AudioVisualizer.Wpf.Tests
 
             #endregion
 
-            #region 公開メソッド
+            #region イベントハンドラ
 
             /// <summary>
             /// フレーム生成イベントです。
@@ -456,6 +518,10 @@ namespace AudioVisualizer.Wpf.Tests
                 add => m_FrameProduced += value;
                 remove => m_FrameProduced -= value;
             }
+
+            #endregion
+
+            #region 公開メソッド
 
             /// <summary>
             /// キャプチャを開始します。
@@ -493,7 +559,7 @@ namespace AudioVisualizer.Wpf.Tests
         /// </summary>
         private sealed class TestableAudioVisualizerControl : AudioVisualizerControl
         {
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// テスト用の依存を注入して初期化します。
@@ -568,7 +634,7 @@ namespace AudioVisualizer.Wpf.Tests
 
             #endregion
 
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// 返却する 2 種類のレンダーデータを指定して初期化します。

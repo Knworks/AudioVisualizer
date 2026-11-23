@@ -127,6 +127,9 @@ namespace AudioVisualizer.Core.Tests
         /// ■確認内容
         /// ・1. それぞれ ArgumentOutOfRangeException が送出される
         /// </summary>
+        /// <param name="sensitivity">検証または計算に用いる感度係数。</param>
+        /// <param name="smoothing">検証対象の平滑化係数。</param>
+        /// <param name="barCount">検証対象のバー数。</param>
         [Test]
         public void Given_InvalidSettings_When_CreatingVisualizerSettings_Then_ThrowsArgumentOutOfRangeException(
             [Values(0d, -1d)] double sensitivity,
@@ -402,7 +405,7 @@ namespace AudioVisualizer.Core.Tests
 
             #endregion
 
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="FakeVisualizerEffect"/> クラスの新しいインスタンスを初期化します。
@@ -436,7 +439,7 @@ namespace AudioVisualizer.Core.Tests
         /// </summary>
         private sealed class FakeRenderData : VisualizerRenderData
         {
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="FakeRenderData"/> クラスの新しいインスタンスを初期化します。

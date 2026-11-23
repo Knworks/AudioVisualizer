@@ -18,6 +18,23 @@ namespace AudioVisualizer.Wpf.Tests
         #region 公開メソッド
 
         /// <summary>
+        /// 描画後も呼び出し元のブラシを更新できることを確認します。
+        /// </summary>
+        [Test]
+        public void Render_WithMutableBrush_DoesNotFreezeBrush()
+        {
+            var brush = new SolidColorBrush(Colors.Green);
+            var data = new PolylineRenderData("waveform", DateTimeOffset.UtcNow,
+                new[] { new NormalizedPoint(0, 0), new NormalizedPoint(1, 1) });
+            using var context = new DrawingVisual().RenderOpen();
+
+            new PolylineRenderer().Render(context, data, new Size(100, 40), brush);
+
+            Assert.That(brush.IsFrozen, Is.False);
+            Assert.That(() => brush.Color = Colors.Blue, Throws.Nothing);
+        }
+
+        /// <summary>
         /// PolylineRenderer が正規化点列を実座標へ変換できることを確認します。
         /// ■入力
         /// ・1. 3 点の PolylineRenderData
@@ -250,7 +267,7 @@ namespace AudioVisualizer.Wpf.Tests
         /// </summary>
         private sealed class FakeRenderData : VisualizerRenderData
         {
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="FakeRenderData"/> クラスの新しいインスタンスを初期化します。

@@ -31,7 +31,7 @@ namespace AudioVisualizer.Core.Models
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="AudioDeviceInfo"/> クラスの新しいインスタンスを初期化します。
@@ -43,6 +43,7 @@ namespace AudioVisualizer.Core.Models
         /// <exception cref="ArgumentException">
         /// <paramref name="deviceId"/> または <paramref name="displayName"/> が空白の場合にスローされます。
         /// </exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="inputSource"/> がサポートされていない値である場合にスローされます。</exception>
         public AudioDeviceInfo(string deviceId, string displayName, InputSource inputSource, bool isDefault)
         {
             DeviceId = string.IsNullOrWhiteSpace(deviceId)
@@ -51,6 +52,11 @@ namespace AudioVisualizer.Core.Models
             DisplayName = string.IsNullOrWhiteSpace(displayName)
                 ? throw new ArgumentException("Display name must not be blank.", nameof(displayName))
                 : displayName;
+            if (!Enum.IsDefined(inputSource))
+            {
+                throw new ArgumentOutOfRangeException(nameof(inputSource));
+            }
+
             InputSource = inputSource;
             IsDefault = isDefault;
         }

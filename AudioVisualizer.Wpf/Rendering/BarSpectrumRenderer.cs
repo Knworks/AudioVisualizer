@@ -28,6 +28,10 @@ namespace AudioVisualizer.Wpf.Rendering
         /// </summary>
         private IReadOnlyList<Rect>? m_LastRectangles;
 
+        #endregion
+
+        #region 定数
+
         /// <summary>
         /// ピーク保持線の実描画高さです。
         /// </summary>
@@ -44,6 +48,7 @@ namespace AudioVisualizer.Wpf.Rendering
         /// <param name="renderData">描画対象のレンダーデータです。</param>
         /// <param name="renderSize">描画領域サイズです。</param>
         /// <param name="fillBrush">バー描画に使用するブラシです。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="drawingContext"/> または <paramref name="fillBrush"/> が <see langword="null"/> である場合にスローされます。</exception>
         public void Render(DrawingContext drawingContext, VisualizerRenderData? renderData, Size renderSize, Brush fillBrush)
         {
             ArgumentNullException.ThrowIfNull(drawingContext);
@@ -82,7 +87,7 @@ namespace AudioVisualizer.Wpf.Rendering
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// バー型レンダーデータから実描画用矩形一覧を生成します。
@@ -90,6 +95,7 @@ namespace AudioVisualizer.Wpf.Rendering
         /// <param name="renderData">バー型スペクトラムのレンダーデータです。</param>
         /// <param name="renderSize">描画領域サイズです。</param>
         /// <returns>実描画に使用する矩形一覧です。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="renderData"/> が <see langword="null"/> である場合にスローされます。</exception>
         internal IReadOnlyList<Rect> CreateBarRectangles(BarSpectrumRenderData renderData, Size renderSize)
         {
             ArgumentNullException.ThrowIfNull(renderData);
@@ -142,6 +148,7 @@ namespace AudioVisualizer.Wpf.Rendering
         /// <param name="renderData">ピーク保持バー型レンダーデータです。</param>
         /// <param name="renderSize">描画領域サイズです。</param>
         /// <returns>ピーク保持線の矩形一覧です。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="renderData"/> が <see langword="null"/> である場合にスローされます。</exception>
         internal IReadOnlyList<Rect> CreatePeakMarkerRectangles(PeakHoldBarRenderData renderData, Size renderSize)
         {
             ArgumentNullException.ThrowIfNull(renderData);

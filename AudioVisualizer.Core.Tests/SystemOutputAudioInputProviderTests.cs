@@ -23,8 +23,9 @@ namespace AudioVisualizer.Core.Tests
         /// ・2. FrameProduced が 1 回発火する
         /// ・3. Stop 後に IsCapturing が false になる
         /// </summary>
+        /// <returns>取得と通知の検証が完了するまで待機できるタスク。</returns>
         [Test]
-        public void Given_SystemOutputSettings_When_StartAndSamplesArrive_Then_FrameProducedIsRaised()
+        public async Task Given_SystemOutputSettings_When_StartAndSamplesArrive_Then_FrameProducedIsRaised()
         {
             // 準備
             var captureSession = new FakeAudioCaptureSession();
@@ -37,12 +38,13 @@ namespace AudioVisualizer.Core.Tests
             var analyzer = new AudioFrameAnalyzer();
             using var sut = new SystemOutputAudioInputProvider(analyzer, deviceService, captureFactory);
             var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
-            VisualizerFrame? producedFrame = null;
-            sut.FrameProduced += (_, eventArgs) => producedFrame = eventArgs.Frame;
+            var receivedFrame = new TaskCompletionSource<VisualizerFrame>(TaskCreationOptions.RunContinuationsAsynchronously);
+            sut.FrameProduced += (_, eventArgs) => receivedFrame.TrySetResult(eventArgs.Frame);
 
             // 実行
             var startResult = sut.Start(settings);
             captureSession.RaiseSamples(new float[] { 0.1f, -0.4f, 0.7f, -0.2f }, 48000, 2);
+            var producedFrame = await receivedFrame.Task.WaitAsync(TimeSpan.FromSeconds(5));
             sut.Stop();
 
             // 検証
@@ -104,8 +106,9 @@ namespace AudioVisualizer.Core.Tests
         /// ・2. 2 回目は新しい既定デバイス render-2 が使われる
         /// ・3. 既存セッションへ Stop が 1 回呼ばれる
         /// </summary>
+        /// <returns>取得と通知の検証が完了するまで待機できるタスク。</returns>
         [Test]
-        public void Given_DefaultDeviceMode_When_DefaultRenderDeviceChanges_Then_CaptureRestartsWithNewDefaultDevice()
+        public async Task Given_DefaultDeviceMode_When_DefaultRenderDeviceChanges_Then_CaptureRestartsWithNewDefaultDevice()
         {
             // 準備
             var captureSession = new FakeAudioCaptureSession();
@@ -117,13 +120,21 @@ namespace AudioVisualizer.Core.Tests
                 microphoneDevices: Array.Empty<AudioDeviceInfo>(),
                 defaultRenderDevice: renderDevice1,
                 defaultMicrophoneDevice: null);
-            using var sut = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), deviceService, captureFactory);
+            var work = new Queue<Action>();
+            using var sut = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), deviceService, captureFactory, work.Enqueue);
             var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
+            var receivedFrame = new TaskCompletionSource<VisualizerFrameEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+            sut.FrameProduced += (_, args) => receivedFrame.TrySetResult(args);
 
             // 実行
             var startResult = sut.Start(settings);
+            captureSession.RaiseSamples(new[] { 0.1f, 0.2f }, 48000, 1);
+            var oldFrame = await receivedFrame.Task.WaitAsync(TimeSpan.FromSeconds(5));
             deviceService.SetDefaultDevice(InputSource.SystemOutput, renderDevice2);
             deviceService.RaiseDefaultDeviceChanged(InputSource.SystemOutput, "render-2");
+            Assert.That(captureFactory.CreateCallCount, Is.EqualTo(1));
+            work.Dequeue()();
+            Assert.That(oldFrame.IsCurrent, Is.False);
 
             // 検証
             Assert.Multiple(() =>
@@ -557,9 +568,192 @@ namespace AudioVisualizer.Core.Tests
             });
         }
 
+        /// <summary>
+        /// 停止と再開をまたいだ既定デバイス通知は、後から実行されても再接続しません。
+        /// </summary>
+        [Test]
+        public void QueuedDefaultChange_WhenCaptureRequestIsReplaced_IsIgnored()
+        {
+            var first = new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true);
+            var second = new AudioDeviceInfo("render-2", "Headphones", InputSource.SystemOutput, false);
+            var devices = new FakeAudioDeviceService(new[] { first, second }, Array.Empty<AudioDeviceInfo>(), first, null);
+            var captures = new FakeAudioCaptureFactory(new FakeAudioCaptureSession());
+            var work = new Queue<Action>();
+            using var provider = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), devices, captures, work.Enqueue);
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
+
+            Assert.That(provider.Start(settings).Succeeded, Is.True);
+            devices.SetDefaultDevice(InputSource.SystemOutput, second);
+            devices.RaiseDefaultDeviceChanged(InputSource.SystemOutput, second.DeviceId);
+            provider.Stop();
+            Assert.That(provider.Start(settings).Succeeded, Is.True);
+            devices.SetDefaultDevice(InputSource.SystemOutput, first);
+
+            work.Dequeue()();
+
+            Assert.That(captures.CreateCallCount, Is.EqualTo(2));
+            Assert.That(captures.LastDeviceId, Is.EqualTo(second.DeviceId));
+        }
+
+        /// <summary>
+        /// 既定デバイス消失後に再接続が失敗しても、次の変更時に取得が復旧します。
+        /// </summary>
+        [Test]
+        public void DefaultCapture_WhenDeviceDisappearsAndReconnectFails_RecoversOnNextChange()
+        {
+            var first = new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true);
+            var second = new AudioDeviceInfo("render-2", "Headphones", InputSource.SystemOutput, false);
+            var devices = new FakeAudioDeviceService(new[] { first, second }, Array.Empty<AudioDeviceInfo>(), first, null);
+            var captures = new FakeAudioCaptureFactory(new FakeAudioCaptureSession());
+            var work = new Queue<Action>();
+            using var provider = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), devices, captures, work.Enqueue);
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
+
+            Assert.That(provider.Start(settings).Succeeded, Is.True);
+            devices.SetDefaultDevice(InputSource.SystemOutput, null);
+            devices.RaiseDefaultDeviceChanged(InputSource.SystemOutput, null);
+            work.Dequeue()();
+            Assert.That(provider.IsCapturing, Is.False);
+            Assert.That(provider.CaptureError, Is.Not.Null);
+
+            captures.SetNextException(new InvalidOperationException());
+            devices.SetDefaultDevice(InputSource.SystemOutput, second);
+            devices.RaiseDefaultDeviceChanged(InputSource.SystemOutput, second.DeviceId);
+            work.Dequeue()();
+            Assert.That(provider.IsCapturing, Is.False);
+            Assert.That(provider.CaptureError, Is.Not.Null);
+
+            devices.SetDefaultDevice(InputSource.SystemOutput, first);
+            devices.RaiseDefaultDeviceChanged(InputSource.SystemOutput, first.DeviceId);
+            work.Dequeue()();
+            Assert.That(provider.IsCapturing, Is.True);
+            Assert.That(provider.CaptureError, Is.Null);
+        }
+
+        /// <summary>
+        /// 無効な設定が新規取得と既定変更による再開を防ぐことを確認します。
+        /// </summary>
+        [Test]
+        public void Start_WhenSettingsAreInactive_DoesNotOpenOrRestartCapture()
+        {
+            var device = new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true);
+            var devices = new FakeAudioDeviceService(new[] { device }, Array.Empty<AudioDeviceInfo>(), device, null);
+            var session = new FakeAudioCaptureSession();
+            var factory = new FakeAudioCaptureFactory(session);
+            using var provider = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), devices, factory);
+            var inactive = new VisualizerSettings(InputSource.SystemOutput, null, true, false, 1, 0.5, 8);
+            var active = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1, 0.5, 8);
+
+            Assert.That(provider.Start(inactive).Succeeded, Is.True);
+            Assert.That(factory.CreateCallCount, Is.Zero);
+            Assert.That(provider.Start(active).Succeeded, Is.True);
+
+            Assert.That(provider.Start(inactive).Succeeded, Is.True);
+            Assert.That(provider.IsCapturing, Is.False);
+            Assert.That(session.DisposeCallCount, Is.EqualTo(1));
+            devices.RaiseDefaultDeviceChanged(InputSource.SystemOutput, device.DeviceId);
+            Assert.That(factory.CreateCallCount, Is.EqualTo(1));
+        }
+
+        /// <summary>
+        /// 開始処理で例外が発生したセッションから通知購読を外し、セッションを破棄します。
+        /// </summary>
+        [Test]
+        public void Start_WhenSessionStartThrows_DetachesAndDisposesSession()
+        {
+            var device = new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true);
+            var devices = new FakeAudioDeviceService(new[] { device }, Array.Empty<AudioDeviceInfo>(), device, null);
+            var session = new FakeAudioCaptureSession { StartException = new InvalidOperationException() };
+            using var provider = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), devices, new FakeAudioCaptureFactory(session));
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
+
+            var result = provider.Start(settings);
+
+            Assert.That(result.Succeeded, Is.False);
+            Assert.That(provider.IsCapturing, Is.False);
+            Assert.That(session.HasSubscribers, Is.False);
+            Assert.That(session.DisposeCallCount, Is.EqualTo(1));
+        }
+
+        /// <summary>
+        /// 取得側の予期しない終了が、状態とエラーとして利用側に伝わります。
+        /// </summary>
+        [Test]
+        public void RecordingStopped_WhenCaptureIsActive_UpdatesPublicStatus()
+        {
+            var device = new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true);
+            var devices = new FakeAudioDeviceService(new[] { device }, Array.Empty<AudioDeviceInfo>(), device, null);
+            var session = new FakeAudioCaptureSession();
+            var work = new Queue<Action>();
+            using var provider = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), devices, new FakeAudioCaptureFactory(session), work.Enqueue);
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
+            Assert.That(provider.Start(settings).Succeeded, Is.True);
+            var reportedStates = new List<(bool IsCapturing, string? Error)>();
+            provider.CaptureStatusChanged += (_, _) => reportedStates.Add((provider.IsCapturing, provider.CaptureError));
+
+            session.RaiseRecordingStopped();
+            work.Dequeue()();
+
+            Assert.That(reportedStates, Has.Count.EqualTo(1));
+            Assert.That(reportedStates[0].IsCapturing, Is.False);
+            Assert.That(reportedStates[0].Error, Is.Not.Null);
+        }
+
+        /// <summary>
+        /// フレーム通知中に停止や破棄を行っても、サンプル通知元の終了を待てます。
+        /// </summary>
+        /// <param name="dispose">破棄による終了を検証する場合は true、停止による終了を検証する場合は false。</param>
+        /// <returns>取得と通知の検証が完了するまで待機できるタスク。</returns>
+        [TestCase(false)]
+        [TestCase(true)]
+        public async Task FrameHandler_WhenStoppingOrDisposing_AllowsCaptureThreadToExit(bool dispose)
+        {
+            var device = new AudioDeviceInfo("render-1", "Speakers", InputSource.SystemOutput, true);
+            var devices = new FakeAudioDeviceService(new[] { device }, Array.Empty<AudioDeviceInfo>(), device, null);
+            var producerExited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var stopped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var session = new FakeAudioCaptureSession
+            {
+                OnDispose = () => producerExited.Task.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult(),
+            };
+            using var provider = new SystemOutputAudioInputProvider(new AudioFrameAnalyzer(), devices, new FakeAudioCaptureFactory(session));
+            provider.FrameProduced += (_, _) =>
+            {
+                try
+                {
+                    if (dispose)
+                    {
+                        provider.Dispose();
+                    }
+                    else
+                    {
+                        provider.Stop();
+                    }
+
+                    stopped.SetResult();
+                }
+                catch (Exception exception)
+                {
+                    stopped.SetException(exception);
+                }
+            };
+
+            var settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
+            Assert.That(provider.Start(settings).Succeeded, Is.True);
+            await Task.Run(() =>
+            {
+                session.RaiseSamples(new[] { 0.1f, 0.2f }, 48000, 1);
+                producerExited.SetResult();
+            });
+
+            await stopped.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.That(provider.IsCapturing, Is.False);
+            Assert.That(session.DisposeCallCount, Is.EqualTo(1));
+        }
+
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// 非公開のサンプル受信ハンドラをテストから呼び出します。
@@ -614,7 +808,7 @@ namespace AudioVisualizer.Core.Tests
 
             #endregion
 
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="FakeAudioCaptureFactory"/> クラスの新しいインスタンスを初期化します。
@@ -663,6 +857,7 @@ namespace AudioVisualizer.Core.Tests
             /// 次回の CreateCapture 呼び出しで送出する例外を設定します。
             /// </summary>
             /// <param name="exception">送出する例外です。</param>
+            /// <exception cref="ArgumentNullException"><paramref name="exception"/> が <see langword="null"/> である場合にスローされます。</exception>
             public void SetNextException(Exception exception)
             {
                 m_Exception = exception ?? throw new ArgumentNullException(nameof(exception));
@@ -700,7 +895,7 @@ namespace AudioVisualizer.Core.Tests
 
             #endregion
 
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="FakeAudioDeviceService"/> クラスの新しいインスタンスを初期化します。
@@ -730,6 +925,7 @@ namespace AudioVisualizer.Core.Tests
             /// </summary>
             /// <param name="inputSource">取得対象の入力種別です。</param>
             /// <returns>対応するデバイス一覧です。</returns>
+            /// <exception cref="ArgumentOutOfRangeException"><paramref name="inputSource"/> がサポートされていない値である場合にスローされます。</exception>
             public IReadOnlyList<AudioDeviceInfo> GetDevices(InputSource inputSource)
             {
                 return inputSource switch
@@ -745,6 +941,7 @@ namespace AudioVisualizer.Core.Tests
             /// </summary>
             /// <param name="inputSource">取得対象の入力種別です。</param>
             /// <returns>既定デバイス。存在しない場合は <see langword="null"/>。</returns>
+            /// <exception cref="ArgumentOutOfRangeException"><paramref name="inputSource"/> がサポートされていない値である場合にスローされます。</exception>
             public AudioDeviceInfo? GetDefaultDevice(InputSource inputSource)
             {
                 return inputSource switch
@@ -773,6 +970,7 @@ namespace AudioVisualizer.Core.Tests
             /// </summary>
             /// <param name="inputSource">更新対象の入力種別です。</param>
             /// <param name="deviceInfo">新しい既定デバイスです。</param>
+            /// <exception cref="ArgumentOutOfRangeException"><paramref name="inputSource"/> がサポートされていない値である場合にスローされます。</exception>
             public void SetDefaultDevice(InputSource inputSource, AudioDeviceInfo? deviceInfo)
             {
                 switch (inputSource)
@@ -793,7 +991,7 @@ namespace AudioVisualizer.Core.Tests
             /// </summary>
             /// <param name="inputSource">通知対象の入力種別です。</param>
             /// <param name="deviceId">新しい既定デバイス識別子です。</param>
-            public void RaiseDefaultDeviceChanged(InputSource inputSource, string deviceId)
+            public void RaiseDefaultDeviceChanged(InputSource inputSource, string? deviceId)
             {
                 DefaultDeviceChanged?.Invoke(this, new DefaultAudioDeviceChangedEventArgs(inputSource, deviceId));
             }
@@ -813,6 +1011,26 @@ namespace AudioVisualizer.Core.Tests
             /// </summary>
             public int StopCallCount { get; private set; }
 
+            /// <summary>
+            /// 開始時に送出する例外を指定します。
+            /// </summary>
+            public Exception? StartException { get; init; }
+
+            /// <summary>
+            /// 通知の購読が残っているかを取得します。
+            /// </summary>
+            public bool HasSubscribers => SamplesCaptured is not null || RecordingStopped is not null;
+
+            /// <summary>
+            /// 解放要求を受けた回数を取得します。
+            /// </summary>
+            public int DisposeCallCount { get; private set; }
+
+            /// <summary>
+            /// 解放時に実行する処理を指定します。
+            /// </summary>
+            public Action? OnDispose { get; init; }
+
             #endregion
 
             #region 公開メソッド
@@ -822,6 +1040,10 @@ namespace AudioVisualizer.Core.Tests
             /// </summary>
             public void Start()
             {
+                if (StartException is not null)
+                {
+                    throw StartException;
+                }
             }
 
             /// <summary>
@@ -833,10 +1055,12 @@ namespace AudioVisualizer.Core.Tests
             }
 
             /// <summary>
-            /// 解放処理のダミー実装です。
+            /// 解放要求の回数を記録します。
             /// </summary>
             public void Dispose()
             {
+                DisposeCallCount++;
+                OnDispose?.Invoke();
             }
 
             /// <summary>
@@ -858,6 +1082,23 @@ namespace AudioVisualizer.Core.Tests
             /// PCM サンプル通知イベントです。
             /// </summary>
             public event EventHandler<AudioSamplesCapturedEventArgs>? SamplesCaptured;
+
+            /// <summary>
+            /// 取得終了を通知します。
+            /// </summary>
+            public event EventHandler? RecordingStopped;
+
+            #endregion
+
+            #region 公開メソッド
+
+            /// <summary>
+            /// 取得側からの終了イベントを発行します。
+            /// </summary>
+            public void RaiseRecordingStopped()
+            {
+                RecordingStopped?.Invoke(this, EventArgs.Empty);
+            }
 
             #endregion
         }

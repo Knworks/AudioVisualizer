@@ -112,7 +112,7 @@ namespace AudioVisualizer.Wpf.Effects
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// 任意本数の描画用にスペクトラム値を再サンプリングします。
@@ -167,9 +167,22 @@ namespace AudioVisualizer.Wpf.Effects
         /// <returns>線形補間したスペクトラム値です。</returns>
         private static double SampleLinearSpectrumValue(IReadOnlyList<double> spectrumValues, int targetIndex, int targetCount)
         {
-            if (targetCount <= 1 || spectrumValues.Count == 1)
+            if (spectrumValues.Count == 1)
             {
                 return spectrumValues[0];
+            }
+
+            if (targetCount < spectrumValues.Count)
+            {
+                var first = (int)((long)spectrumValues.Count * targetIndex / targetCount);
+                var end = (int)((long)spectrumValues.Count * (targetIndex + 1) / targetCount);
+                var peak = 0.0;
+                for (var index = first; index < end; index++)
+                {
+                    peak = Math.Max(peak, spectrumValues[index]);
+                }
+
+                return peak;
             }
 
             var position = targetIndex * (spectrumValues.Count - 1.0) / (targetCount - 1.0);

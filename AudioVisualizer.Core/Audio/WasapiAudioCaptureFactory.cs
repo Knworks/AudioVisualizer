@@ -1,8 +1,9 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.Versioning;
 using AudioVisualizer.Core.Models;
 using NAudio.CoreAudioApi;
-using NAudio.Wasapi;
+
 using NAudio.Wave;
 
 namespace AudioVisualizer.Core.Audio
@@ -21,17 +22,49 @@ namespace AudioVisualizer.Core.Audio
         /// <param name="inputSource">入力種別です。</param>
         /// <param name="deviceId">対象デバイスの識別子です。</param>
         /// <returns>指定入力向けのキャプチャ実体です。</returns>
+        /// <exception cref="PlatformNotSupportedException">実行環境が Windows でない場合にスローされます。</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="inputSource"/> がサポートされていない値である場合にスローされます。</exception>
         public IAudioCaptureSession CreateCapture(InputSource inputSource, string deviceId)
         {
+            if (!OperatingSystem.IsWindows())
+            {
+                throw new PlatformNotSupportedException();
+            }
+
             using var deviceEnumerator = new MMDeviceEnumerator();
             var device = deviceEnumerator.GetDevice(deviceId);
-
-            return inputSource switch
+            try
             {
-                InputSource.SystemOutput => new WasapiCaptureSession(new WasapiLoopbackCapture(device)),
-                InputSource.Microphone => new WasapiCaptureSession(new WasapiCapture(device)),
-                _ => throw new ArgumentOutOfRangeException(nameof(inputSource), inputSource, "未対応の入力種別です。"),
-            };
+                var builder = new WasapiRecorderBuilder().WithDevice(device).WithPollingSync();
+                switch (inputSource)
+                {
+                    case InputSource.SystemOutput:
+                        builder.WithLoopbackCapture();
+                        break;
+                    case InputSource.Microphone:
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException(nameof(inputSource), inputSource, "未対応の入力種別です。");
+                }
+
+                var recorder = builder.Build();
+                try
+                {
+                    var format = recorder.WaveFormat.AsStandardWaveFormat();
+                    PcmSampleConverter.ValidateFormat(format);
+                    return new WasapiCaptureSession(recorder, device, format);
+                }
+                catch
+                {
+                    recorder.Dispose();
+                    throw;
+                }
+            }
+            catch
+            {
+                device.Dispose();
+                throw;
+            }
         }
 
         #endregion
@@ -41,6 +74,7 @@ namespace AudioVisualizer.Core.Audio
         /// <summary>
         /// NAudio の WASAPI キャプチャを内部契約へ適合させるラッパーです。
         /// </summary>
+        [SupportedOSPlatform("windows")]
         private sealed class WasapiCaptureSession : IAudioCaptureSession
         {
             #region フィールド
@@ -48,7 +82,12 @@ namespace AudioVisualizer.Core.Audio
             /// <summary>
             /// 実際の WASAPI キャプチャです。
             /// </summary>
-            private readonly IWaveIn m_Capture;
+            private readonly WasapiRecorder m_Capture;
+
+            /// <summary>
+            /// 録音機が使用する音声デバイスです。
+            /// </summary>
+            private readonly MMDevice m_Device;
 
             /// <summary>
             /// PCM 変換に使用する音声フォーマットです。
@@ -57,17 +96,21 @@ namespace AudioVisualizer.Core.Audio
 
             #endregion
 
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="WasapiCaptureSession"/> クラスの新しいインスタンスを初期化します。
             /// </summary>
             /// <param name="capture">ラップ対象の WASAPI キャプチャです。</param>
-            public WasapiCaptureSession(IWaveIn capture)
+            /// <param name="device">録音機が使用する音声デバイスです。</param>
+            /// <param name="format">検証済みの取得フォーマットです。</param>
+            public WasapiCaptureSession(WasapiRecorder capture, MMDevice device, WaveFormat format)
             {
-                m_Capture = capture ?? throw new ArgumentNullException(nameof(capture));
-                m_WaveFormat = capture.WaveFormat;
+                m_Capture = capture;
+                m_Device = device;
+                m_WaveFormat = format;
                 m_Capture.DataAvailable += OnDataAvailable;
+                m_Capture.RecordingStopped += OnRecordingStopped;
             }
 
             #endregion
@@ -80,7 +123,15 @@ namespace AudioVisualizer.Core.Audio
             public void Dispose()
             {
                 m_Capture.DataAvailable -= OnDataAvailable;
-                m_Capture.Dispose();
+                m_Capture.RecordingStopped -= OnRecordingStopped;
+                try
+                {
+                    m_Capture.Dispose();
+                }
+                finally
+                {
+                    m_Device.Dispose();
+                }
             }
 
             /// <summary>
@@ -109,13 +160,35 @@ namespace AudioVisualizer.Core.Audio
             public event EventHandler<AudioSamplesCapturedEventArgs>? SamplesCaptured;
 
             /// <summary>
+            /// 音声録音処理が終了したときに発生します。
+            /// </summary>
+            public event EventHandler? RecordingStopped;
+
+            /// <summary>
+            /// NAudio からの録音終了を取得管理側へ伝えます。
+            /// </summary>
+            /// <param name="sender">停止した NAudio の録音機です。</param>
+            /// <param name="e">録音が停止した理由です。</param>
+            private void OnRecordingStopped(object? sender, StoppedEventArgs e)
+            {
+                if (e.Exception is not null)
+                {
+                    System.Diagnostics.Trace.TraceError("{0}", e.Exception);
+                }
+
+                RecordingStopped?.Invoke(this, EventArgs.Empty);
+            }
+
+            /// <summary>
             /// NAudio から届いた PCM バッファを内部イベントへ変換します。
             /// </summary>
-            /// <param name="sender">イベント送信元です。</param>
-            /// <param name="e">取得済み PCM バッファです。</param>
-            private void OnDataAvailable(object? sender, WaveInEventArgs e)
+            /// <param name="buffer">取得済み PCM バッファです。</param>
+            /// <param name="flags">取得したパケットのフラグです。</param>
+            /// <param name="devicePosition">デバイスでのサンプル位置です。</param>
+            /// <param name="qpcPosition">パケットの計測時刻です。</param>
+            private void OnDataAvailable(ReadOnlySpan<byte> buffer, AudioClientBufferFlags flags, long devicePosition, long qpcPosition)
             {
-                var samples = ConvertToSamples(e.Buffer, e.BytesRecorded, m_WaveFormat);
+                var samples = PcmSampleConverter.Convert(buffer, m_WaveFormat);
                 SamplesCaptured?.Invoke(
                     this,
                     new AudioSamplesCapturedEventArgs(
@@ -123,42 +196,6 @@ namespace AudioVisualizer.Core.Audio
                         m_WaveFormat.SampleRate,
                         m_WaveFormat.Channels,
                         DateTimeOffset.UtcNow));
-            }
-
-            #endregion
-
-            #region 内部処理
-
-            /// <summary>
-            /// 受信した PCM バッファを単精度サンプル配列へ変換します。
-            /// </summary>
-            /// <param name="buffer">変換対象の PCM バッファです。</param>
-            /// <param name="bytesRecorded">有効なバイト数です。</param>
-            /// <param name="waveFormat">変換に使用する音声フォーマットです。</param>
-            /// <returns>単精度サンプル配列です。</returns>
-            private static float[] ConvertToSamples(byte[] buffer, int bytesRecorded, WaveFormat waveFormat)
-            {
-                if (waveFormat.Encoding == WaveFormatEncoding.IeeeFloat && waveFormat.BitsPerSample == 32)
-                {
-                    var result = new float[bytesRecorded / sizeof(float)];
-                    Buffer.BlockCopy(buffer, 0, result, 0, bytesRecorded);
-                    return result;
-                }
-
-                if (waveFormat.BitsPerSample == 16)
-                {
-                    var sampleCount = bytesRecorded / sizeof(short);
-                    var result = new float[sampleCount];
-                    for (var index = 0; index < sampleCount; index++)
-                    {
-                        var value = BitConverter.ToInt16(buffer, index * sizeof(short));
-                        result[index] = value / (float)short.MaxValue;
-                    }
-
-                    return result;
-                }
-
-                throw new NotSupportedException("サポートしていない音声フォーマットです。");
             }
 
             #endregion

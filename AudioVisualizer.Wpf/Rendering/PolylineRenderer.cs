@@ -51,6 +51,7 @@ namespace AudioVisualizer.Wpf.Rendering
         /// <param name="renderData">描画対象のレンダーデータです。</param>
         /// <param name="renderSize">描画領域サイズです。</param>
         /// <param name="strokeBrush">線描画に使用するブラシです。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="drawingContext"/> または <paramref name="strokeBrush"/> が <see langword="null"/> である場合にスローされます。</exception>
         public void Render(DrawingContext drawingContext, VisualizerRenderData? renderData, Size renderSize, Brush strokeBrush)
         {
             ArgumentNullException.ThrowIfNull(drawingContext);
@@ -85,17 +86,12 @@ namespace AudioVisualizer.Wpf.Rendering
                 EndLineCap = PenLineCap.Round,
                 LineJoin = PenLineJoin.Round,
             };
-            if (pen.CanFreeze)
-            {
-                pen.Freeze();
-            }
-
             drawingContext.DrawGeometry(null, pen, geometry);
         }
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// 折れ線レンダーデータを実描画用の点列へ変換します。
@@ -103,6 +99,7 @@ namespace AudioVisualizer.Wpf.Rendering
         /// <param name="renderData">折れ線レンダーデータです。</param>
         /// <param name="renderSize">描画領域サイズです。</param>
         /// <returns>実描画に使用する点列です。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="renderData"/> が <see langword="null"/> である場合にスローされます。</exception>
         internal IReadOnlyList<Point> CreateRenderPoints(PolylineRenderData renderData, Size renderSize)
         {
             ArgumentNullException.ThrowIfNull(renderData);

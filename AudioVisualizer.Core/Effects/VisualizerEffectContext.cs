@@ -45,7 +45,7 @@ namespace AudioVisualizer.Core.Effects
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="VisualizerEffectContext"/> クラスの新しいインスタンスを初期化します。
@@ -65,24 +65,29 @@ namespace AudioVisualizer.Core.Effects
             int barCount,
             SpectrumProfile spectrumProfile)
         {
-            if (sensitivity <= 0)
+            if (!double.IsFinite(sensitivity) || sensitivity <= 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(sensitivity), "Sensitivity must be greater than zero.");
             }
 
-            if (smoothing < 0 || smoothing > 1)
+            if (!double.IsFinite(smoothing) || smoothing < 0 || smoothing > 1)
             {
                 throw new ArgumentOutOfRangeException(nameof(smoothing), "Smoothing must be between 0.0 and 1.0.");
             }
 
-            if (barCount < 1)
+            if (barCount < 1 || barCount > VisualizerSettings.MaximumBarCount)
             {
-                throw new ArgumentOutOfRangeException(nameof(barCount), "Bar count must be greater than zero.");
+                throw new ArgumentOutOfRangeException(nameof(barCount), "Bar count must be between 1 and 512.");
             }
 
             if (!Enum.IsDefined(spectrumProfile))
             {
                 throw new ArgumentOutOfRangeException(nameof(spectrumProfile), "Spectrum profile is not supported.");
+            }
+
+            if (!Enum.IsDefined(inputSource))
+            {
+                throw new ArgumentOutOfRangeException(nameof(inputSource));
             }
 
             InputSource = inputSource;

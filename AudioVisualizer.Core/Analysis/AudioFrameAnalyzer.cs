@@ -1,5 +1,8 @@
 using System;
+using System.Numerics;
 using AudioVisualizer.Core.Models;
+using NAudio.Dsp;
+using Complex = NAudio.Dsp.Complex;
 
 namespace AudioVisualizer.Core.Analysis
 {
@@ -11,7 +14,7 @@ namespace AudioVisualizer.Core.Analysis
         #region 定数
 
         /// <summary>
-        /// FFT 近似計算に使用する最大サンプル数です。
+        /// FFTに使用する最大サンプル数です。
         /// </summary>
         private const int MaxAnalysisWindowSize = 1024;
 
@@ -33,20 +36,34 @@ namespace AudioVisualizer.Core.Analysis
         /// <exception cref="ArgumentNullException"><paramref name="sampleBuffer"/> または <paramref name="settings"/> が <see langword="null"/> の場合にスローされます。</exception>
         public VisualizerFrame CreateFrame(AudioSampleBuffer sampleBuffer, VisualizerSettings settings)
         {
+            return CreateFrame(sampleBuffer, settings, null);
+        }
+
+        #endregion
+
+        #region 内部メソッド
+
+        /// <summary>
+        /// 連続取得中の波形履歴を利用して解析済みフレームを生成します。
+        /// </summary>
+        /// <param name="sampleBuffer">最新の入力ブロックです。</param>
+        /// <param name="settings">解析設定です。</param>
+        /// <param name="waveformHistory">現在の取得セッションの波形履歴です。</param>
+        /// <returns>解析済みフレームです。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="sampleBuffer"/> または <paramref name="settings"/> が <see langword="null"/> である場合にスローされます。</exception>
+        internal VisualizerFrame CreateFrame(AudioSampleBuffer sampleBuffer, VisualizerSettings settings, WaveformHistory? waveformHistory)
+        {
             ArgumentNullException.ThrowIfNull(sampleBuffer);
             ArgumentNullException.ThrowIfNull(settings);
 
             var normalizedSamples = ToNormalizedSamples(sampleBuffer);
             var peakLevel = CalculatePeakLevel(normalizedSamples);
-            var waveformValues = BuildWaveformValues(normalizedSamples, settings.BarCount, settings.Sensitivity);
-            var spectrumValues = BuildSpectrumValues(normalizedSamples, settings.BarCount, settings.Sensitivity);
+            var waveformSamples = waveformHistory?.Append(normalizedSamples, sampleBuffer.SampleRate, sampleBuffer.Channels) ?? normalizedSamples;
+            var (waveformValues, waveformRanges) = BuildWaveformValues(SelectWaveformChannel(waveformSamples, sampleBuffer.Channels), settings.BarCount, settings.Sensitivity);
+            var (spectrumValues, bandLevels) = BuildSpectrumValues(normalizedSamples, sampleBuffer.Channels, sampleBuffer.SampleRate, settings.BarCount, settings.Sensitivity);
 
-            return new VisualizerFrame(spectrumValues, waveformValues, peakLevel, sampleBuffer.Timestamp);
+            return new VisualizerFrame(spectrumValues, waveformValues, peakLevel, sampleBuffer.Timestamp, waveformRanges, bandLevels);
         }
-
-        #endregion
-
-        #region 内部処理
 
         /// <summary>
         /// PCM サンプル列を -1.0..1.0 範囲の倍精度サンプル列へ正規化します。
@@ -85,34 +102,88 @@ namespace AudioVisualizer.Core.Analysis
         }
 
         /// <summary>
+        /// 波形表示には窓内のエネルギーが最大のチャンネルを使用します。
+        /// </summary>
+        /// <param name="samples">チャンネルが交互に並ぶ PCM サンプルです。</param>
+        /// <param name="channels">入力のチャンネル数です。</param>
+        /// <returns>選択されたチャンネルのサンプルです。</returns>
+        private static double[] SelectWaveformChannel(double[] samples, int channels)
+        {
+            if (channels == 1 || samples.Length == 0)
+            {
+                return samples;
+            }
+
+            var frameCount = samples.Length / channels;
+            var result = new double[frameCount];
+            if (frameCount == 0)
+            {
+                return result;
+            }
+
+            var selectedChannel = 0;
+            var maximumEnergy = -1.0;
+            for (var channel = 0; channel < channels; channel++)
+            {
+                var energy = 0.0;
+                for (var index = 0; index < frameCount; index++)
+                {
+                    var sample = samples[(index * channels) + channel];
+                    energy += sample * sample;
+                }
+
+                if (energy > maximumEnergy)
+                {
+                    selectedChannel = channel;
+                    maximumEnergy = energy;
+                }
+            }
+
+            for (var index = 0; index < frameCount; index++)
+            {
+                result[index] = samples[(index * channels) + selectedChannel];
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// サンプル列から表示用の波形配列を生成します。
         /// </summary>
         /// <param name="samples">解析対象のサンプル列です。</param>
         /// <param name="outputLength">出力する波形要素数です。</param>
         /// <param name="sensitivity">感度係数です。</param>
-        /// <returns>表示用に整形した波形配列です。</returns>
-        private static double[] BuildWaveformValues(double[] samples, int outputLength, double sensitivity)
+        /// <returns>波形の代表値と、間引き時の最小値・最大値です。</returns>
+        private static (double[] Values, (double Minimum, double Maximum)[] Ranges) BuildWaveformValues(
+            double[] samples, int outputLength, double sensitivity)
         {
             var result = new double[outputLength];
-            if (samples.Length == 0 || outputLength <= 0)
+            var ranges = samples.Length > outputLength ? new (double, double)[outputLength] : Array.Empty<(double, double)>();
+            if (samples.Length == 0)
             {
-                return result;
+                return (result, ranges);
             }
-
-            var bucketSize = Math.Max(1, samples.Length / outputLength);
             for (var bucketIndex = 0; bucketIndex < outputLength; bucketIndex++)
             {
-                var startIndex = bucketIndex * bucketSize;
+                var startIndex = samples.Length > outputLength
+                    ? (int)((long)bucketIndex * samples.Length / outputLength)
+                    : bucketIndex;
                 if (startIndex >= samples.Length)
                 {
                     break;
                 }
 
-                var endIndex = Math.Min(samples.Length, startIndex + bucketSize);
+                var endIndex = samples.Length > outputLength
+                    ? (int)((long)(bucketIndex + 1) * samples.Length / outputLength)
+                    : startIndex + 1;
+                var minimum = double.PositiveInfinity;
+                var maximum = double.NegativeInfinity;
                 var representativeValue = 0.0;
                 for (var sampleIndex = startIndex; sampleIndex < endIndex; sampleIndex++)
                 {
                     var currentSample = samples[sampleIndex];
+                    minimum = Math.Min(minimum, currentSample);
+                    maximum = Math.Max(maximum, currentSample);
                     if (Math.Abs(currentSample) > Math.Abs(representativeValue))
                     {
                         representativeValue = currentSample;
@@ -120,83 +191,123 @@ namespace AudioVisualizer.Core.Analysis
                 }
 
                 result[bucketIndex] = Math.Clamp(representativeValue * sensitivity, -1.0, 1.0);
+                if (ranges.Length > 0)
+                {
+                    ranges[bucketIndex] = (Math.Clamp(minimum * sensitivity, -1.0, 1.0), Math.Clamp(maximum * sensitivity, -1.0, 1.0));
+                }
             }
 
-            return result;
+            return (result, ranges);
         }
 
         /// <summary>
-        /// サンプル列から表示用のスペクトラム配列を生成します。
+        /// チャンネルごとにスペクトラムを求め、各周波数帯域の最大振幅を採用します。
         /// </summary>
-        /// <param name="samples">解析対象のサンプル列です。</param>
+        /// <param name="samples">チャンネルが交互に並ぶ解析対象のサンプル列です。</param>
+        /// <param name="channels">入力のチャンネル数です。</param>
+        /// <param name="sampleRate">入力のサンプルレートです。</param>
         /// <param name="outputLength">出力するスペクトラム要素数です。</param>
         /// <param name="sensitivity">感度係数です。</param>
-        /// <returns>表示用に整形したスペクトラム配列です。</returns>
-        private static double[] BuildSpectrumValues(double[] samples, int outputLength, double sensitivity)
+        /// <returns>スペクトラム配列と固定周波数帯域のレベルです。</returns>
+        private static (double[] Spectrum, (double Low, double LowMid, double HighMid, double High) Bands) BuildSpectrumValues(
+            double[] samples, int channels, int sampleRate, int outputLength, double sensitivity)
         {
             var result = new double[outputLength];
-            if (samples.Length == 0)
+            var windowSize = Math.Min(samples.Length / channels, MaxAnalysisWindowSize);
+            if (windowSize == 0)
             {
-                return result;
+                return (result, default);
             }
 
-            var windowSize = Math.Min(samples.Length, MaxAnalysisWindowSize);
-            if (windowSize < 2)
+            if (windowSize == 1)
             {
-                result[0] = Math.Clamp(Math.Abs(samples[0]) * sensitivity, 0.0, 1.0);
-                return result;
+                var peak = 0.0;
+                for (var channel = 0; channel < channels; channel++)
+                {
+                    peak = Math.Max(peak, Math.Abs(samples[channel]));
+                }
+
+                result[0] = Math.Clamp(peak * sensitivity, 0.0, 1.0);
+                return (result, default);
             }
 
-            var windowedSamples = ApplyHannWindow(samples, windowSize);
-            var maxFrequencyBin = Math.Max(1, windowSize / 2);
-            var denominator = Math.Max(1, outputLength - 1);
+            var fftSize = (int)BitOperations.RoundUpToPowerOf2((uint)windowSize);
+            var bins = new Complex[fftSize];
+            var positiveBinCount = fftSize / 2;
+            var maximumPowerByBin = new double[positiveBinCount + 1];
+            for (var channel = 0; channel < channels; channel++)
+            {
+                Array.Clear(bins);
+                for (var index = 0; index < windowSize; index++)
+                {
+                    var window = windowSize == 2 ? 1.0 : FastFourierTransform.HannWindow(index, windowSize);
+                    bins[index].X = (float)(samples[(index * channels) + channel] * window);
+                }
 
+                FastFourierTransform.FFT(true, BitOperations.Log2((uint)fftSize), bins);
+                for (var bin = 1; bin <= positiveBinCount; bin++)
+                {
+                    var real = (double)bins[bin].X;
+                    var imaginary = (double)bins[bin].Y;
+                    maximumPowerByBin[bin] = Math.Max(maximumPowerByBin[bin], (real * real) + (imaginary * imaginary));
+                }
+            }
+
+            var scale = (double)fftSize / windowSize * SpectrumScale;
             for (var barIndex = 0; barIndex < outputLength; barIndex++)
             {
-                var frequencyBin = 1 + ((maxFrequencyBin - 1) * barIndex / denominator);
-                var magnitude = CalculateMagnitude(windowedSamples, frequencyBin);
-                result[barIndex] = Math.Clamp(magnitude * sensitivity * SpectrumScale, 0.0, 1.0);
+                var startBin = 1 + (int)((long)positiveBinCount * barIndex / outputLength);
+                var endBin = 1 + (int)((long)positiveBinCount * (barIndex + 1) / outputLength);
+                var maximumPower = 0.0;
+                for (var bin = startBin; bin < Math.Max(startBin + 1, endBin); bin++)
+                {
+                    maximumPower = Math.Max(maximumPower, maximumPowerByBin[bin]);
+                }
+
+                result[barIndex] = Math.Clamp(Math.Sqrt(maximumPower) * scale * sensitivity, 0.0, 1.0);
             }
 
-            return result;
+            var bandLevels = CalculateBandLevels(maximumPowerByBin, (double)sampleRate / fftSize, scale, sensitivity);
+            return (result, bandLevels);
         }
 
         /// <summary>
-        /// サンプル列へハン窓を適用します。
+        /// FFTの正周波数をHzで区分し、各帯域の最大レベルを求めます。
         /// </summary>
-        /// <param name="samples">窓関数適用前のサンプル列です。</param>
-        /// <param name="windowSize">適用対象のサンプル数です。</param>
-        /// <returns>ハン窓適用後のサンプル列です。</returns>
-        private static double[] ApplyHannWindow(double[] samples, int windowSize)
+        /// <param name="maximumPowerByBin">FFT の周波数点を添字とし、各チャンネルで最大のパワーを格納した配列。</param>
+        /// <param name="binWidthHz">FFT の周波数点の間隔。単位は Hz です。</param>
+        /// <param name="scale">FFT の出力を表示レベルに換算する係数。</param>
+        /// <param name="sensitivity">各帯域のレベルに適用する感度係数。</param>
+        /// <returns>低域から高域までの各周波数帯域の最大レベル。</returns>
+        private static (double Low, double LowMid, double HighMid, double High) CalculateBandLevels(
+            double[] maximumPowerByBin, double binWidthHz, double scale, double sensitivity)
         {
-            var result = new double[windowSize];
-            for (var index = 0; index < windowSize; index++)
+            Span<double> maximumPowerByBand = stackalloc double[4];
+            maximumPowerByBand.Clear();
+            for (var bin = 1; bin < maximumPowerByBin.Length; bin++)
             {
-                var window = 0.5 - (0.5 * Math.Cos((2.0 * Math.PI * index) / (windowSize - 1)));
-                result[index] = samples[index] * window;
+                var frequency = bin * binWidthHz;
+                if (frequency < 20 || frequency > 20_000)
+                {
+                    continue;
+                }
+
+                var band = frequency switch
+                {
+                    < 250 => 0,
+                    < 1_000 => 1,
+                    < 4_000 => 2,
+                    _ => 3,
+                };
+                maximumPowerByBand[band] = Math.Max(maximumPowerByBand[band], maximumPowerByBin[bin]);
             }
 
-            return result;
-        }
-
-        /// <summary>
-        /// 指定周波数ビンの振幅を近似計算します。
-        /// </summary>
-        /// <param name="samples">窓関数適用済みサンプル列です。</param>
-        /// <param name="frequencyBin">算出対象の周波数ビンです。</param>
-        /// <returns>周波数ビンに対応する振幅です。</returns>
-        private static double CalculateMagnitude(double[] samples, int frequencyBin)
-        {
-            var real = 0.0;
-            var imaginary = 0.0;
-            for (var sampleIndex = 0; sampleIndex < samples.Length; sampleIndex++)
+            for (var band = 0; band < maximumPowerByBand.Length; band++)
             {
-                var angle = (2.0 * Math.PI * frequencyBin * sampleIndex) / samples.Length;
-                real += samples[sampleIndex] * Math.Cos(angle);
-                imaginary -= samples[sampleIndex] * Math.Sin(angle);
+                maximumPowerByBand[band] = Math.Clamp(Math.Sqrt(maximumPowerByBand[band]) * scale * sensitivity, 0.0, 1.0);
             }
 
-            return Math.Sqrt((real * real) + (imaginary * imaginary)) / samples.Length;
+            return (maximumPowerByBand[0], maximumPowerByBand[1], maximumPowerByBand[2], maximumPowerByBand[3]);
         }
 
         #endregion

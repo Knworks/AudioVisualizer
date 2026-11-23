@@ -15,6 +15,7 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         /// <param name="effectKind">生成対象の組込エフェクト種別です。</param>
         /// <returns>組込エフェクトの新しいインスタンスです。</returns>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="effectKind"/> がサポートされていない値である場合にスローされます。</exception>
         public static IVisualizerEffect Create(BuiltInVisualizerEffectKind effectKind)
         {
             return effectKind switch

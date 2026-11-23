@@ -38,7 +38,9 @@ namespace AudioVisualizer.Wpf.Rendering
         /// <param name="renderData">描画対象のレンダーデータです。</param>
         /// <param name="renderSize">描画領域サイズです。</param>
         /// <param name="fillBrush">メーター描画に使用するブラシです。</param>
-        public void Render(DrawingContext drawingContext, VisualizerRenderData? renderData, Size renderSize, Brush fillBrush)
+        /// <param name="pixelsPerDip">描画先のDPI倍率です。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="drawingContext"/> または <paramref name="fillBrush"/> が <see langword="null"/> である場合にスローされます。</exception>
+        public void Render(DrawingContext drawingContext, VisualizerRenderData? renderData, Size renderSize, Brush fillBrush, double pixelsPerDip = 1)
         {
             ArgumentNullException.ThrowIfNull(drawingContext);
             ArgumentNullException.ThrowIfNull(fillBrush);
@@ -58,7 +60,7 @@ namespace AudioVisualizer.Wpf.Rendering
                 }
             }
 
-            if (renderSize.Width <= 0 || renderSize.Height <= 0)
+            if (renderSize.Width <= 0 || renderSize.Height <= LabelAreaHeight)
             {
                 return;
             }
@@ -67,21 +69,38 @@ namespace AudioVisualizer.Wpf.Rendering
             for (var index = 0; index < bandLevelMeterRenderData.Bands.Count; index++)
             {
                 var band = bandLevelMeterRenderData.Bands[index];
-                var formattedText = CreateFormattedText(band.Label, fillBrush);
-                var bandWidth = band.Width * renderSize.Width;
                 var bandX = band.X * renderSize.Width;
-                var textX = Math.Clamp(
-                    bandX + ((bandWidth - formattedText.Width) / 2.0),
-                    0.0,
-                    Math.Max(0.0, renderSize.Width - formattedText.Width));
-                var textY = Math.Min(renderSize.Height - formattedText.Height, meterAreaHeight + LabelTopMargin);
+                var bandWidth = Math.Min(band.Width * renderSize.Width, renderSize.Width - bandX);
+                var textY = meterAreaHeight + LabelTopMargin;
+                var labelHeight = renderSize.Height - textY;
+                var formattedText = CreateFormattedText(band.Label, fillBrush, pixelsPerDip);
+                if (bandWidth <= 0 || formattedText.Height > labelHeight)
+                {
+                    continue;
+                }
+
+                if (formattedText.Width > bandWidth)
+                {
+                    if (CreateFormattedText("…", fillBrush, pixelsPerDip).Width > bandWidth)
+                    {
+                        continue;
+                    }
+
+                    formattedText.MaxTextWidth = bandWidth;
+                    formattedText.MaxLineCount = 1;
+                    formattedText.Trimming = TextTrimming.CharacterEllipsis;
+                }
+
+                var textX = bandX + Math.Max(0, (bandWidth - formattedText.Width) / 2.0);
+                drawingContext.PushClip(new RectangleGeometry(new Rect(bandX, textY, bandWidth, labelHeight)));
                 drawingContext.DrawText(formattedText, new Point(textX, textY));
+                drawingContext.Pop();
             }
         }
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// 固定帯域メーターレンダーデータからメーター矩形一覧を生成します。
@@ -89,6 +108,7 @@ namespace AudioVisualizer.Wpf.Rendering
         /// <param name="renderData">固定帯域メーターレンダーデータです。</param>
         /// <param name="renderSize">描画領域サイズです。</param>
         /// <returns>メーター描画に使用する矩形一覧です。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="renderData"/> が <see langword="null"/> である場合にスローされます。</exception>
         internal IReadOnlyList<Rect> CreateMeterRectangles(BandLevelMeterRenderData renderData, Size renderSize)
         {
             ArgumentNullException.ThrowIfNull(renderData);
@@ -98,7 +118,9 @@ namespace AudioVisualizer.Wpf.Rendering
                 return Array.Empty<Rect>();
             }
 
-            var meterAreaHeight = Math.Max(0.0, renderSize.Height - LabelAreaHeight);
+            var meterAreaHeight = renderSize.Height > LabelAreaHeight
+                ? renderSize.Height - LabelAreaHeight
+                : renderSize.Height;
             var rectangles = new Rect[renderData.Bands.Count];
             for (var index = 0; index < renderData.Bands.Count; index++)
             {
@@ -129,7 +151,8 @@ namespace AudioVisualizer.Wpf.Rendering
         /// <param name="label">表示ラベルです。</param>
         /// <param name="brush">文字色に使用するブラシです。</param>
         /// <returns>描画用の整形済みテキストです。</returns>
-        private static FormattedText CreateFormattedText(string label, Brush brush)
+        /// <param name="pixelsPerDip">描画先のDPI倍率です。</param>
+        private static FormattedText CreateFormattedText(string label, Brush brush, double pixelsPerDip)
         {
             return new FormattedText(
                 label,
@@ -138,7 +161,7 @@ namespace AudioVisualizer.Wpf.Rendering
                 new Typeface("Segoe UI"),
                 LabelFontSize,
                 brush,
-                1.0);
+                pixelsPerDip);
         }
 
         #endregion

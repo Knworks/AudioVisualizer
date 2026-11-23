@@ -50,7 +50,7 @@
 ## 4. 🎭ユースケース / ユーザーストーリー
 
 * 開発者として、WPF アプリケーションの XAML にコンポーネントを配置して、少ない設定で音声可視化を利用したい。
-* 開発者として、ViewModel から `InputSource`、`Effect`、`IsActive` などをバインドし、画面状態に応じて可視化を制御したい。
+* 開発者として、ViewModel から `InputSource`、`VisualizerEffect`、`IsActive` などをバインドし、画面状態に応じて可視化を制御したい。
 * 開発者として、同じコンポーネントでシステム再生音とマイク入力の両方を扱いたい。
 * 開発者として、用途に応じて可視化エフェクトを簡単に切り替えたい。
 * 開発者として、波形、対称バー、ピーク保持、帯域メーターを用途に応じて選択したい。
@@ -121,6 +121,7 @@
   * `AudioVisualizer.SampleApp`
   * `AudioVisualizer.Core.Tests`
   * `AudioVisualizer.Wpf.Tests`
+  * `AudioVisualizer.SampleApp.Tests`
 
 ## 6. 🛡️非機能要件
 
@@ -149,6 +150,7 @@
   * `AudioVisualizer.SampleApp`
   * `AudioVisualizer.Core.Tests`
   * `AudioVisualizer.Wpf.Tests`
+  * `AudioVisualizer.SampleApp.Tests`
 
 ### ⚡パフォーマンス最適化
 
@@ -174,6 +176,7 @@
 * TDD を前提に、テストしやすい責務分離を行うこと。
 * `AudioVisualizer.Core.Tests` で Core の仕様を検証できること。
 * `AudioVisualizer.Wpf.Tests` で WPF 固有の振る舞いを検証できること。
+* `AudioVisualizer.SampleApp.Tests` で入力選択、取得操作、画面の状態表示を検証できること。
 * エフェクト追加や将来の外部エフェクトパッケージ拡張に対応しやすい構造であること。
 * エフェクトの契約、メタデータ、描画責務を分離し、拡張時の変更範囲を局所化できること。
 * 組込エフェクトと外部エフェクトを同一の拡張モデルで扱えること。

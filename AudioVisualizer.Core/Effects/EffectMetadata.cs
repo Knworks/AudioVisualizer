@@ -44,7 +44,7 @@ namespace AudioVisualizer.Core.Effects
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="EffectMetadata"/> クラスの新しいインスタンスを初期化します。
@@ -83,14 +83,14 @@ namespace AudioVisualizer.Core.Effects
             }
 
             var inputSources = supportedInputSources.Distinct().ToArray();
-            if (inputSources.Length == 0)
+            if (inputSources.Length == 0 || inputSources.Any(source => !Enum.IsDefined(source)))
             {
-                throw new ArgumentException("At least one supported input source is required.", nameof(supportedInputSources));
+                throw new ArgumentException("At least one input source is required and each source must be defined.", nameof(supportedInputSources));
             }
 
             Author = string.IsNullOrWhiteSpace(author) ? null : author;
             Description = string.IsNullOrWhiteSpace(description) ? null : description;
-            SupportedInputSources = inputSources;
+            SupportedInputSources = Array.AsReadOnly(inputSources);
         }
 
         #endregion

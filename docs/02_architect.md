@@ -51,7 +51,8 @@ AudioVisualizer/
 │   ├── Views/
 │   └── ViewModels/
 ├── AudioVisualizer.Core.Tests/     # Core の単体テスト
-└── AudioVisualizer.Wpf.Tests/      # WPF 固有動作のテスト
+├── AudioVisualizer.Wpf.Tests/      # WPF 固有動作のテスト
+└── AudioVisualizer.SampleApp.Tests/ # サンプルの画面と状態管理のテスト
 ```
 
 ## 4. 🧩機能設計
@@ -64,7 +65,7 @@ AudioVisualizer/
   * `DeviceId`
   * `UseDefaultDevice`
   * `IsActive`
-  * `Effect`
+  * `VisualizerEffect`
   * `Sensitivity`
   * `Smoothing`
   * `BarCount`
@@ -76,19 +77,19 @@ AudioVisualizer/
   * `DependencyProperty` の変更を監視する。
   * `InputSource`、`DeviceId`、`UseDefaultDevice` の変更時は、`IsActive = true` の場合のみ音声取得サービスへ再接続を指示する。
   * `IsActive = false` の場合は再接続せず、設定値のみ保持する。
-  * `Effect` は `null` を許容する。
-  * `Effect = null` の場合、コントロールは MVP 組込エフェクトである `SpectrumBarEffect` を実効エフェクトとして使用する。
+  * `VisualizerEffect` は `null` を許容する。
+  * `VisualizerEffect = null` の場合、コントロールは MVP 組込エフェクトである `SpectrumBarEffect` を実効エフェクトとして使用する。
   * `Sensitivity`、`Smoothing`、`BarCount`、`SpectrumProfile` の変更時は、次回フレーム生成または次回描画から反映する。
   * `PrimaryBrush`、`SecondaryBrush` の変更時は再接続せず、再描画のみ行う。
   * 音声取得サービスから受け取った `VisualizerFrame` を現在の実効エフェクトへ渡し、`VisualizerRenderData` を生成する。
   * `VisualizerRenderData` を WPF Renderer が `DrawingContext` に変換して描画する。
-  * SampleApp では、組込エフェクトの選択 UI から `Effect` を差し替えて見え方を切り替える。
+  * SampleApp では、組込エフェクトの選択 UI から `VisualizerEffect` を差し替えて見え方を切り替える。
 * **出力**：
 
   * 配置領域に追従する可視化表示
 * **バリデーション**：
 
-  * `Effect` は `null` を許容する。
+  * `VisualizerEffect` は `null` を許容する。
   * `UseDefaultDevice = false` の場合、`DeviceId` が未指定なら開始しない。
   * 未対応の `InputSource` は拒否する。
   * `Sensitivity` は 0 より大きい値のみ受け付ける。
@@ -166,7 +167,7 @@ AudioVisualizer/
     * `PeakHoldBarEffect`
       通常バーに加えてピーク保持線を表示するエフェクト。
     * `BandLevelMeterEffect`
-      低域から高域までの固定帯域レベルをメーター表示するエフェクト。
+      FFTの周波数点から帯域ごとの最大レベルを求め、Low（20–250 Hz）、LowMid（250–1,000 Hz）、HighMid（1,000–4,000 Hz）、High（4,000–20,000 Hz）の4帯域を表示する。周波数情報のない手動生成フレームでは従来どおりスペクトラムを4等分した平均値を使う。
   * エフェクトは `Metadata.SupportedInputSources` により対応 `InputSource` を宣言する。
   * 現在の入力種別に非対応のエフェクトは適用しない。
 * **出力**：
@@ -225,7 +226,7 @@ AudioVisualizer/
 | `BandLevelMeterRenderData` | Core | 帯域メーター描画用レンダーデータ   | `Bands`                                                                                                                              |
 | `BandLevelMeterItem`      | Core | 1 帯域分のメーター描画情報      | `X`、`Width`、`Level`、`Label`                                                                                                        |
 | `IVisualizerEffect`       | Core | エフェクト契約             | `Metadata`、`BuildRenderData(VisualizerFrame, VisualizerEffectContext)`                                                               |
-| `AudioVisualizerControl`  | Wpf  | 公開 UI コンポーネント       | `InputSource`、`DeviceId`、`UseDefaultDevice`、`IsActive`、`Effect`、`Sensitivity`、`Smoothing`、`BarCount`、`SpectrumProfile`、`PrimaryBrush`、`SecondaryBrush` |
+| `AudioVisualizerControl`  | Wpf  | 公開 UI コンポーネント       | `InputSource`、`DeviceId`、`UseDefaultDevice`、`IsActive`、`VisualizerEffect`、`Sensitivity`、`Smoothing`、`BarCount`、`SpectrumProfile`、`PrimaryBrush`、`SecondaryBrush` |
 
 ## 6. 🗺️システム構成図
 
@@ -286,7 +287,7 @@ flowchart LR
 | `DeviceId`         | `string?`            | `null`         | 条件付き | 明示デバイス指定   | `IsActive = true` かつ `UseDefaultDevice = false` のとき再接続 |
 | `UseDefaultDevice` | `bool`               | `true`         | 任意   | 既定デバイス利用可否 | `IsActive = true` のとき再接続                               |
 | `IsActive`         | `bool`               | `false`        | 任意   | 開始/停止      | `true` で開始、`false` で停止                                 |
-| `Effect`           | `IVisualizerEffect?` | `null`         | 任意   | エフェクト差し替え  | `null` の場合は `SpectrumBarEffect` を実効利用                  |
+| `VisualizerEffect`           | `IVisualizerEffect?` | `null`         | 任意   | エフェクト差し替え  | `null` の場合は `SpectrumBarEffect` を実効利用                  |
 | `Sensitivity`      | `double`             | `1.0`          | 任意   | 感度補正       | 次回分析または次回描画から反映                                        |
 | `Smoothing`        | `double`             | `0.82`         | 任意   | 平滑化係数      | 次回分析から反映                                               |
 | `BarCount`         | `int`                | `32`           | 任意   | バー本数       | 次回分析または次回描画から反映                                        |
@@ -345,7 +346,7 @@ flowchart LR
 * `IsActive = true` への遷移時
 
   * 実効デバイスを解決して開始する。
-  * `Effect = null` の場合は `SpectrumBarEffect` を採用する。
+  * `VisualizerEffect = null` の場合は `SpectrumBarEffect` を採用する。
 * `IsActive = false` への遷移時
 
   * 音声取得を停止する。
@@ -360,7 +361,7 @@ flowchart LR
 ### 🧠8.1 `AudioVisualizer.Core.Tests`
 
 * `InputSource` 切替、`DeviceId` 指定、`UseDefaultDevice` 切替時の設定反映を検証する。
-* `Effect = null` 時に実効エフェクトが `SpectrumBarEffect` へフォールバックする前提を検証する。
+* `VisualizerEffect = null` 時に実効エフェクトが `SpectrumBarEffect` へフォールバックする前提を検証する。
 * WASAPI 依存箇所は抽象化し、分析処理と設定遷移を単体テストする。
 * `VisualizerFrame` 生成結果について、スペクトラム値、波形値、ピーク値の妥当性を確認する。
 * `BuildRenderData` が期待する `RenderData` を返すことを検証する。
@@ -370,19 +371,34 @@ flowchart LR
 
 * `AudioVisualizerControl` の `DependencyProperty` 変更時に再接続条件が正しく評価されることを検証する。
 * `IsActive = false` 時に再接続や音声取得を行わないことを検証する。
-* `Effect = null` 時に既定エフェクトで描画可能であることを検証する。
+* `VisualizerEffect = null` 時に既定エフェクトで描画可能であることを検証する。
 * 組込エフェクトごとに期待する `VisualizerRenderData` が生成されることを検証する。
 * 波形、対称バー、ピーク保持、帯域メーターの各レンダラーが例外なく描画できることを検証する。
 * `PrimaryBrush`、`SecondaryBrush` 変更時に再描画のみ行うことを検証する。
 * サイズ変更時に描画が破綻しないことを検証する。
 * `VisualizerRenderData` から `DrawingContext` への変換が例外なく行われることを検証する。
 
-### 🧪8.3 `AudioVisualizer.SampleApp`
+### 🧪8.3 `AudioVisualizer.SampleApp.Tests`
+
+* 入力種別切替、明示デバイス選択、デバイス一覧更新時の状態を検証する。
+* 開始・停止コマンドやエラー表示を検証する。
+
+### 🎛️8.4 `AudioVisualizer.SampleApp` の手動確認
 
 * システム再生音 / マイク入力の切替確認
 * 既定デバイス使用と明示デバイス指定の切替確認
 * 開始 / 停止、画面リサイズ時の手動確認
 * 組込エフェクト選択と切替時の見え方確認
+
+Windows CIでは.NET 10で整形検査、Releaseビルド、NUnitテストを実行する。PCM変換は取得デバイスの代わりにバイト列を使って検証する。
+
+実機では SampleApp を開き、次の手順をシステム再生音とマイク入力のそれぞれで確認する。
+
+1. 既定デバイスで開始し、音が入力されると描画が更新され、停止すると描画が消えることを確認する。
+2. 取得中にWindowsの既定デバイスを切り替え、新しいデバイスの音へ切り替わることを確認する。切替直後に停止した場合は、停止状態が維持されることを確認する。
+3. 既定デバイスを抜き差しし、別の既定先があれば切り替わり、使用可能な入力がなければエラーが表示されることを確認する。利用可能な既定デバイスが戻ったら、開始状態のまま復旧することを確認する。
+4. 明示指定したデバイスを抜いて一覧を更新する。選択を求めるメッセージが表示され、別のデバイスへ自動で移らないことを確認する。
+5. 終了または画面からコントロールを外した後、音声取得が残らないことを確認する。
 
 ## 9. 🛡️非機能要件
 
@@ -400,7 +416,7 @@ flowchart LR
 ### 🏷️ブランド要件
 
 * GitHub で公開しやすい名称、構成、サンプルを維持する。
-* ソリューション名は `AudioVisualizer` とし、プロジェクトは `AudioVisualizer.Core`、`AudioVisualizer.Wpf`、`AudioVisualizer.SampleApp`、`AudioVisualizer.Core.Tests`、`AudioVisualizer.Wpf.Tests` で構成する。
+* ソリューション名は `AudioVisualizer` とし、プロジェクトは `AudioVisualizer.Core`、`AudioVisualizer.Wpf`、`AudioVisualizer.SampleApp`、`AudioVisualizer.Core.Tests`、`AudioVisualizer.Wpf.Tests`、`AudioVisualizer.SampleApp.Tests` で構成する。
 
 ### ⚡パフォーマンス最適化
 

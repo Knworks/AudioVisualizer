@@ -113,13 +113,15 @@ dotnet run --project AudioVisualizer.SampleApp/AudioVisualizer.SampleApp.csproj
         DeviceId="{Binding SelectedDeviceId}"
         UseDefaultDevice="{Binding UseDefaultDevice}"
         IsActive="{Binding IsActive, Mode=TwoWay}"
-        Effect="{Binding SelectedEffect}"
+        VisualizerEffect="{Binding SelectedEffect}"
         BarCount="{Binding BarCount}"
         Sensitivity="{Binding Sensitivity}"
         Smoothing="{Binding Smoothing}"
         SpectrumProfile="{Binding SelectedSpectrumProfile}" />
 </Window>
 ```
+
+If existing XAML or C# assigns an audio effect to `Effect`, update the assignment to `VisualizerEffect`. Use `Effect` for WPF visual effects.
 
 ## 🧰 Technology Stack
 
@@ -128,7 +130,7 @@ dotnet run --project AudioVisualizer.SampleApp/AudioVisualizer.SampleApp.csproj
 | C# / XAML | Implementation language |  |  |
 | .NET | Runtime | 10 | `net10.0` / `net10.0-windows` |
 | WPF | UI framework |  | `CustomControl` based |
-| NAudio | Audio input | 2.3.0 | Uses WASAPI |
+| NAudio.Wasapi | Audio input | 3.3.0 | Uses WASAPI |
 | NUnit | Testing | 4.3.2 | Unit tests |
 | Microsoft.NET.Test.Sdk | Test host | 17.14.0 |  |
 | NUnit3TestAdapter | Test adapter | 5.0.0 |  |
@@ -184,7 +186,8 @@ AudioVisualizer/
 ├── docs/
 │   ├── 01_requirements.md
 │   ├── 02_architect.md
-│   └── 06_inplementation_plan.md
+│   └── review/
+│       └── code_review.md
 ├── AGENTS.md
 ├── LICENSE
 └── AudioVisualizer.slnx

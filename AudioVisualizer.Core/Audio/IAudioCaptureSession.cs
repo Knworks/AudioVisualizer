@@ -28,6 +28,11 @@ namespace AudioVisualizer.Core.Audio
         /// </summary>
         event EventHandler<AudioSamplesCapturedEventArgs>? SamplesCaptured;
 
+        /// <summary>
+        /// 音声録音処理が終了したときに発生します。
+        /// </summary>
+        event EventHandler? RecordingStopped;
+
         #endregion
     }
 }

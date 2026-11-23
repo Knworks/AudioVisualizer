@@ -183,7 +183,7 @@ namespace AudioVisualizer.Wpf.Tests
         /// AudioVisualizerControl がフレーム未保持時のエフェクト変更で空レンダーデータのまま維持することを確認します。
         /// ■入力
         /// ・1. フレーム未受信の AudioVisualizerControl
-        /// ・2. Effect の変更
+        /// ・2. VisualizerEffect の変更
         /// ■確認内容
         /// ・1. CurrentRenderData が null のままである
         /// </summary>
@@ -195,16 +195,16 @@ namespace AudioVisualizer.Wpf.Tests
             var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer());
 
             // 実行
-            control.Effect = new SpectrumBarEffect();
+            control.VisualizerEffect = new SpectrumBarEffect();
 
             // 検証
             Assert.That(control.CurrentRenderData, Is.Null);
         }
 
         /// <summary>
-        /// AudioVisualizerControl が Effect 未指定時に既定バーエフェクトでレンダーデータを生成することを確認します。
+        /// AudioVisualizerControl が VisualizerEffect 未指定時に既定バーエフェクトでレンダーデータを生成することを確認します。
         /// ■入力
-        /// ・1. Effect = null の AudioVisualizerControl
+        /// ・1. VisualizerEffect = null の AudioVisualizerControl
         /// ・2. SpectrumValues を含む VisualizerFrame
         /// ■確認内容
         /// ・1. 現在レンダーデータが BarSpectrumRenderData になる
@@ -218,7 +218,7 @@ namespace AudioVisualizer.Wpf.Tests
             var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer())
             {
                 IsActive = true,
-                Effect = null,
+                VisualizerEffect = null,
             };
             var frame = new VisualizerFrame(new[] { 0.2, 0.5, 0.8 }, new[] { 0.1, 0.2, 0.3 }, 0.8, DateTimeOffset.UtcNow);
 
@@ -454,8 +454,8 @@ namespace AudioVisualizer.Wpf.Tests
             {
                 IsActive = true,
             };
-            var firstFrame = new VisualizerFrame(new[] { 0.1 }, new[] { 0.0 }, 0.1, DateTimeOffset.UtcNow);
-            var secondFrame = new VisualizerFrame(new[] { 0.9 }, new[] { 0.0 }, 0.9, DateTimeOffset.UtcNow.AddMilliseconds(16));
+            var firstFrame = new VisualizerFrame(new[] { 0.1 }, new[] { 0.0 }, 0.1, DateTimeOffset.UnixEpoch);
+            var secondFrame = new VisualizerFrame(new[] { 0.9 }, new[] { 0.0 }, 0.9, DateTimeOffset.UnixEpoch.AddMilliseconds(16));
 
             // 実行
             Task.Run(() =>
@@ -988,7 +988,7 @@ namespace AudioVisualizer.Wpf.Tests
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// Dispatcher キューに積まれた非同期処理を消化します。
@@ -1010,12 +1010,307 @@ namespace AudioVisualizer.Wpf.Tests
 
         #endregion
 
+        #region 公開メソッド
+
+        /// <summary>
+        /// 所有する入力が画面への配置中だけ稼働することを確認します。
+        /// </summary>
+        [Test]
+        public void OwnedInput_WhenUnloadedAndReloaded_DisposesAndRestarts()
+        {
+            var first = new FakeAudioInputProvider();
+            var second = new FakeAudioInputProvider();
+            var providers = new Queue<FakeAudioInputProvider>(new[] { first, second });
+            var control = new AudioVisualizerControl(() => providers.Dequeue()) { IsActive = true };
+
+            Assert.That(first.StartCallCount, Is.Zero);
+
+            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+            Assert.That(first.IsCapturing, Is.True);
+
+            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+            Assert.That(first.IsDisposed, Is.True);
+            Assert.That(first.IsCapturing, Is.False);
+            Assert.That(control.IsActive, Is.True);
+
+            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+            Assert.That(second.IsCapturing, Is.True);
+            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+            Assert.That(second.IsDisposed, Is.True);
+        }
+
+        /// <summary>
+        /// WPF の画像効果と音声エフェクトを同じコントロールで設定できることを確認します。
+        /// </summary>
+        [Test]
+        public void WpfEffect_FromXaml_CoexistsWithVisualizerEffect()
+        {
+            var control = (AudioVisualizerControl)System.Windows.Markup.XamlReader.Parse(
+                """
+                <local:AudioVisualizerControl
+                    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:local="clr-namespace:AudioVisualizer.Wpf;assembly=AudioVisualizer.Wpf">
+                    <local:AudioVisualizerControl.Effect>
+                        <BlurEffect Radius="3" />
+                    </local:AudioVisualizerControl.Effect>
+                </local:AudioVisualizerControl>
+                """);
+            var audioEffect = new SpectrumBarEffect();
+
+            control.VisualizerEffect = audioEffect;
+
+            Assert.That(control.Effect, Is.TypeOf<System.Windows.Media.Effects.BlurEffect>());
+            Assert.That(control.VisualizerEffect, Is.SameAs(audioEffect));
+        }
+
+        /// <summary>
+        /// 親から継承した Foreground が変わると描画ブラシも変わることを確認します。
+        /// </summary>
+        [Test]
+        public void InheritedForeground_WhenParentChanges_RefreshesRenderBrush()
+        {
+            var control = new AudioVisualizerControl();
+            var parent = new System.Windows.Controls.ContentControl { Content = control, Foreground = Brushes.SeaGreen };
+
+            Assert.That(control.CurrentRenderBrush, Is.SameAs(Brushes.SeaGreen));
+            parent.Foreground = Brushes.DarkOrange;
+            Assert.That(control.CurrentRenderBrush, Is.SameAs(Brushes.DarkOrange));
+        }
+
+        /// <summary>
+        /// 同じUI操作の入力設定をまとめ、最終設定で一度だけ再接続することを確認します。
+        /// </summary>
+        [Test]
+        public void OwnedInput_WhenConnectionSettingsChangeTogether_ReconnectsOnce()
+        {
+            var provider = new FakeAudioInputProvider();
+            var control = new AudioVisualizerControl(() => provider)
+            {
+                UseDefaultDevice = false,
+                DeviceId = "output",
+                IsActive = true,
+            };
+            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+
+            control.InputSource = InputSource.Microphone;
+            control.DeviceId = null;
+            control.DeviceId = "microphone";
+            PumpDispatcher();
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+
+            Assert.That(provider.StartCallCount, Is.EqualTo(2));
+            Assert.That(provider.StopCallCount, Is.EqualTo(1));
+            Assert.That(provider.LastSettings!.InputSource, Is.EqualTo(InputSource.Microphone));
+            Assert.That(provider.LastSettings.DeviceId, Is.EqualTo("microphone"));
+            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// 開始失敗が取得要求とは独立したエラーとして画面に伝わることを確認します。
+        /// </summary>
+        [Test]
+        public void CaptureStatus_WhenStartFails_ReportsErrorAndClearsOnRetry()
+        {
+            var provider = new FakeAudioInputProvider { StartError = "Start failed." };
+            var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer());
+
+            control.IsActive = true;
+
+            Assert.That(control.IsActive, Is.True);
+            Assert.That(control.IsCapturing, Is.False);
+            Assert.That(control.CaptureError, Is.EqualTo("Start failed."));
+
+            provider.StartError = null;
+            control.IsActive = false;
+            control.IsActive = true;
+
+            Assert.That(control.IsCapturing, Is.True);
+            Assert.That(control.CaptureError, Is.Null);
+        }
+
+        /// <summary>
+        /// 独自エフェクトの例外時は描画を消去し、次のフレームを処理できることを確認します。
+        /// </summary>
+        [Test]
+        public void Effect_WhenRenderingThrows_ClearsDrawingAndAcceptsNextFrame()
+        {
+            var provider = new FakeAudioInputProvider();
+            var effect = new CountingVisualizerEffect();
+            var control = new AudioVisualizerControl(provider, effect, new BarSpectrumRenderer()) { IsActive = true };
+            var frame = new VisualizerFrame(new[] { 0.1 }, new[] { 0.1 }, 0.1, DateTimeOffset.UtcNow);
+            provider.RaiseFrame(frame);
+            Assert.That(control.CurrentRenderData, Is.Not.Null);
+
+            effect.ThrowOnBuild = true;
+            Assert.That(() => control.Sensitivity = 2.0, Throws.Nothing);
+            Assert.That(control.CurrentRenderData, Is.Null);
+            Task.Run(() => provider.RaiseFrame(frame)).GetAwaiter().GetResult();
+            PumpDispatcher();
+            Assert.That(control.CurrentRenderData, Is.Null);
+
+            effect.ThrowOnBuild = false;
+            Task.Run(() => provider.RaiseFrame(frame)).GetAwaiter().GetResult();
+            PumpDispatcher();
+
+            Assert.That(control.CurrentRenderData, Is.Not.Null);
+            Assert.That(effect.BuildCallCount, Is.EqualTo(4));
+        }
+
+        /// <summary>
+        /// 描画バー数を変更しても取得設定が固定され、狭い周波数成分も表示されることを確認します。
+        /// </summary>
+        [Test]
+        public void BarCount_WhenChangedWhileActive_UsesFixedResolutionWithoutDroppingTone()
+        {
+            var provider = new FakeAudioInputProvider();
+            var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer())
+            {
+                BarCount = 52,
+                SpectrumProfile = SpectrumProfile.Raw,
+                Smoothing = 0,
+                IsActive = true,
+            };
+
+            var values = new double[provider.LastSettings!.BarCount];
+            values[7] = 0.8;
+            provider.RaiseFrame(new VisualizerFrame(values, Array.Empty<double>(), 0.8, DateTimeOffset.UtcNow));
+            control.BarCount = 64;
+
+            var data = (BarSpectrumRenderData)control.CurrentRenderData!;
+            Assert.That(provider.StartCallCount, Is.EqualTo(1));
+            Assert.That(provider.LastSettings.BarCount, Is.EqualTo(512));
+            Assert.That(data.Bars, Has.Count.EqualTo(64));
+            Assert.That(data.Bars[0].Height, Is.EqualTo(0.8));
+        }
+
+        /// <summary>
+        /// 対応外の入力では既定のスペクトラムを使用し、戻したときは選択したエフェクトを使用します。
+        /// </summary>
+        [Test]
+        public void Effect_WhenInputIsUnsupported_UsesDefaultUntilSupportedAgain()
+        {
+            var provider = new FakeAudioInputProvider();
+            var effect = new CountingVisualizerEffect
+            {
+                Metadata = new EffectMetadata("system-only", "System only", "1.0.0", null, null, new[] { InputSource.SystemOutput }),
+            };
+            var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer())
+            {
+                VisualizerEffect = effect,
+                IsActive = true,
+            };
+            var frame = new VisualizerFrame(new[] { 0.6 }, new[] { 0.6 }, 0.6, DateTimeOffset.UtcNow);
+            provider.RaiseFrame(frame);
+            Assert.That(control.CurrentRenderData!.EffectId, Is.EqualTo("system-only"));
+
+            control.InputSource = InputSource.Microphone;
+            provider.RaiseFrame(frame);
+            Assert.That(control.CurrentRenderData!.EffectId, Is.EqualTo("spectrum-bars"));
+            Assert.That(effect.BuildCallCount, Is.EqualTo(1));
+
+            control.InputSource = InputSource.SystemOutput;
+            provider.RaiseFrame(frame);
+            Assert.That(control.CurrentRenderData!.EffectId, Is.EqualTo("system-only"));
+            Assert.That(effect.BuildCallCount, Is.EqualTo(2));
+        }
+
+        /// <summary>
+        /// 同じ型の描画データを返すエフェクトへの切り替えでも旧描画値が混ざりません。
+        /// </summary>
+        [Test]
+        public void Effect_WhenSwitchingBetweenBarEffects_DiscardsSmoothingHistory()
+        {
+            var provider = new FakeAudioInputProvider();
+            var control = new AudioVisualizerControl(provider, new SpectrumBarEffect(), new BarSpectrumRenderer())
+            {
+                BarCount = 4,
+                Smoothing = 0.8,
+                IsActive = true,
+                SpectrumProfile = SpectrumProfile.Raw,
+            };
+            var frame = new VisualizerFrame(new[] { 0.1, 0.2, 0.3, 0.4 }, 0.4, DateTimeOffset.UtcNow);
+            provider.RaiseFrame(frame);
+            var previous = (BarSpectrumRenderData)control.CurrentRenderData!;
+            var effect = new MirrorBarEffect();
+
+            control.VisualizerEffect = effect;
+
+            var current = (BarSpectrumRenderData)control.CurrentRenderData!;
+            var context = new VisualizerEffectContext(InputSource.SystemOutput, 1.0, 0.8, 4, SpectrumProfile.Raw);
+            var expected = (BarSpectrumRenderData)effect.BuildRenderData(frame, context);
+            Assert.That(current.Bars.Select(bar => bar.Height), Is.EqualTo(expected.Bars.Select(bar => bar.Height)));
+            Assert.That(current.Bars.Select(bar => bar.Height), Is.Not.EqualTo(previous.Bars.Select(bar => bar.Height)));
+        }
+
+        /// <summary>
+        /// 描画中に次のフレームが届いても、入力処理が先に実行されます。
+        /// </summary>
+        [Test]
+        public void PendingFrames_WhenAnotherArrivesDuringRender_YieldToInput()
+        {
+            var provider = new FakeAudioInputProvider();
+            var effect = new CountingVisualizerEffect();
+            var control = new AudioVisualizerControl(provider, effect, new BarSpectrumRenderer()) { IsActive = true };
+            var frame = new VisualizerFrame(new[] { 0.6 }, 0.6, DateTimeOffset.UtcNow);
+            var buildCountAtInput = -1;
+            effect.OnBuild = () =>
+            {
+                if (effect.BuildCallCount == 1)
+                {
+                    Task.Run(() => provider.RaiseFrame(frame)).GetAwaiter().GetResult();
+                    _ = control.Dispatcher.InvokeAsync(() => buildCountAtInput = effect.BuildCallCount, DispatcherPriority.Input);
+                }
+            };
+
+            Task.Run(() => provider.RaiseFrame(frame)).GetAwaiter().GetResult();
+            PumpDispatcher();
+            Assert.That(buildCountAtInput, Is.EqualTo(1));
+
+            PumpDispatcher();
+            Assert.That(effect.BuildCallCount, Is.EqualTo(2));
+        }
+
+        /// <summary>
+        /// 所有するプロバイダーを開始・停止する処理が UI スレッドの外で行われます。
+        /// </summary>
+        [Test]
+        public void OwnedInput_WhenStartedAndStopped_RunsOperationsOutsideDispatcher()
+        {
+            var startThread = 0;
+            var stopThread = 0;
+            var provider = new FakeAudioInputProvider
+            {
+                OnStart = () => startThread = Environment.CurrentManagedThreadId,
+                OnStop = () => stopThread = Environment.CurrentManagedThreadId,
+            };
+            var control = new AudioVisualizerControl(() => provider) { IsActive = true };
+            var uiThread = Environment.CurrentManagedThreadId;
+
+            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+            control.IsActive = false;
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+
+            Assert.That(startThread, Is.Positive.And.Not.EqualTo(uiThread));
+            Assert.That(stopThread, Is.Positive.And.Not.EqualTo(uiThread));
+            control.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+            control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
+        }
+
+        #endregion
+
         #region 内部クラス
 
         /// <summary>
         /// 入力開始回数とフレーム通知を制御できる偽の音声入力プロバイダーです。
         /// </summary>
-        private sealed class FakeAudioInputProvider : IAudioInputProvider
+        private sealed class FakeAudioInputProvider : IAudioInputProvider, IDisposable
         {
             #region プロパティ
 
@@ -1023,6 +1318,21 @@ namespace AudioVisualizer.Wpf.Tests
             /// 入力開始が呼ばれた回数を取得します。
             /// </summary>
             public int StartCallCount { get; private set; }
+
+            /// <summary>
+            /// 開始時に返すエラーを指定します。
+            /// </summary>
+            public string? StartError { get; set; }
+
+            /// <summary>
+            /// 開始時に呼び出すテスト処理です。
+            /// </summary>
+            public Action? OnStart { get; init; }
+
+            /// <summary>
+            /// 停止時に呼び出すテスト処理です。
+            /// </summary>
+            public Action? OnStop { get; init; }
 
             /// <summary>
             /// 入力停止が呼ばれた回数を取得します。
@@ -1033,6 +1343,28 @@ namespace AudioVisualizer.Wpf.Tests
             /// 現在音声入力が有効かどうかを示す値を取得します。
             /// </summary>
             public bool IsCapturing { get; private set; }
+
+            /// <summary>
+            /// プロバイダーが破棄されたかどうかを取得します。
+            /// </summary>
+            public bool IsDisposed { get; private set; }
+
+            #endregion
+
+            #region 公開メソッド
+
+            /// <summary>
+            /// 取得を停止し、破棄されたことを記録します。
+            /// </summary>
+            public void Dispose()
+            {
+                Stop();
+                IsDisposed = true;
+            }
+
+            #endregion
+
+            #region プロパティ
 
             /// <summary>
             /// 直近の開始設定を取得します。
@@ -1051,8 +1383,14 @@ namespace AudioVisualizer.Wpf.Tests
             public AudioInputStartResult Start(VisualizerSettings settings)
             {
                 StartCallCount++;
-                IsCapturing = true;
+                OnStart?.Invoke();
                 LastSettings = settings;
+                if (StartError is not null)
+                {
+                    return AudioInputStartResult.Failed(StartError);
+                }
+
+                IsCapturing = true;
                 return AudioInputStartResult.Success();
             }
 
@@ -1062,6 +1400,7 @@ namespace AudioVisualizer.Wpf.Tests
             public void Stop()
             {
                 StopCallCount++;
+                OnStop?.Invoke();
                 IsCapturing = false;
             }
 
@@ -1163,7 +1502,7 @@ namespace AudioVisualizer.Wpf.Tests
             /// <summary>
             /// エフェクトのメタデータを取得します。
             /// </summary>
-            public EffectMetadata Metadata { get; } = new(
+            public EffectMetadata Metadata { get; init; } = new(
                 "counting",
                 "Counting",
                 "1.0.0",
@@ -1175,6 +1514,16 @@ namespace AudioVisualizer.Wpf.Tests
             /// BuildRenderData の呼び出し回数を取得します。
             /// </summary>
             public int BuildCallCount { get; private set; }
+
+            /// <summary>
+            /// 描画データを生成する際に例外を送出するかを指定します。
+            /// </summary>
+            public bool ThrowOnBuild { get; set; }
+
+            /// <summary>
+            /// 描画生成時に呼び出すテスト処理です。
+            /// </summary>
+            public Action? OnBuild { get; set; }
 
             /// <summary>
             /// 直近に受け取ったピークレベルを取得します。
@@ -1193,9 +1542,16 @@ namespace AudioVisualizer.Wpf.Tests
             /// <param name="frame">解析済みフレームです。</param>
             /// <param name="context">実行コンテキストです。</param>
             /// <returns>ピークレベルを反映した簡易バー描画データです。</returns>
+            /// <exception cref="InvalidOperationException">テスト用にレンダーデータの生成に失敗するよう設定している場合にスローされます。</exception>
             public VisualizerRenderData BuildRenderData(VisualizerFrame frame, VisualizerEffectContext context)
             {
                 BuildCallCount++;
+                OnBuild?.Invoke();
+                if (ThrowOnBuild)
+                {
+                    throw new InvalidOperationException();
+                }
+
                 LastPeakLevel = frame.PeakLevel;
                 return new BarSpectrumRenderData(
                     Metadata.Id,
@@ -1214,7 +1570,7 @@ namespace AudioVisualizer.Wpf.Tests
         /// </summary>
         private sealed class FakeRenderData : VisualizerRenderData
         {
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="FakeRenderData"/> クラスの新しいインスタンスを初期化します。
@@ -1234,7 +1590,7 @@ namespace AudioVisualizer.Wpf.Tests
         /// </summary>
         private sealed class TestableAudioVisualizerControl : AudioVisualizerControl
         {
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="TestableAudioVisualizerControl"/> クラスの新しいインスタンスを初期化します。

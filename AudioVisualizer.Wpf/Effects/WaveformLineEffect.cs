@@ -37,6 +37,11 @@ namespace AudioVisualizer.Wpf.Effects
             ArgumentNullException.ThrowIfNull(frame);
             ArgumentNullException.ThrowIfNull(context);
 
+            if (frame.WaveformRanges.Count > 1)
+            {
+                return BuildEnvelope(frame, context.Sensitivity);
+            }
+
             if (frame.WaveformValues.Count == 0)
             {
                 return new PolylineRenderData(Metadata.Id, frame.Timestamp, Array.Empty<NormalizedPoint>());
@@ -44,7 +49,7 @@ namespace AudioVisualizer.Wpf.Effects
 
             if (frame.WaveformValues.Count == 1)
             {
-                var y = ConvertToNormalizedY(frame.WaveformValues[0]);
+                var y = ConvertToNormalizedY(frame.WaveformValues[0] * context.Sensitivity);
                 return new PolylineRenderData(
                     Metadata.Id,
                     frame.Timestamp,
@@ -59,7 +64,7 @@ namespace AudioVisualizer.Wpf.Effects
             for (var index = 0; index < frame.WaveformValues.Count; index++)
             {
                 var x = index / (double)(frame.WaveformValues.Count - 1);
-                var y = ConvertToNormalizedY(frame.WaveformValues[index]);
+                var y = ConvertToNormalizedY(frame.WaveformValues[index] * context.Sensitivity);
                 points[index] = new NormalizedPoint(x, y);
             }
 
@@ -68,7 +73,29 @@ namespace AudioVisualizer.Wpf.Effects
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
+
+        /// <summary>
+        /// 間引き前の最大値と最小値を、時間順に上下の輪郭として描画します。
+        /// </summary>
+        /// <param name="frame">波形範囲を格納したフレームです。</param>
+        /// <param name="sensitivity">描画時の感度です。</param>
+        /// <returns>振幅の上下の輪郭を結んだ折れ線です。</returns>
+        private PolylineRenderData BuildEnvelope(VisualizerFrame frame, double sensitivity)
+        {
+            var count = frame.WaveformRanges.Count;
+            var points = new NormalizedPoint[(count * 2) + 1];
+            for (var index = 0; index < count; index++)
+            {
+                var range = frame.WaveformRanges[index];
+                var x = index / (double)(count - 1);
+                points[index] = new NormalizedPoint(x, ConvertToNormalizedY(range.Maximum * sensitivity));
+                points[(2 * count) - 1 - index] = new NormalizedPoint(x, ConvertToNormalizedY(range.Minimum * sensitivity));
+            }
+
+            points[^1] = points[0];
+            return new PolylineRenderData(Metadata.Id, frame.Timestamp, points);
+        }
 
         /// <summary>
         /// 波形値を描画用の正規化 Y 座標へ変換します。

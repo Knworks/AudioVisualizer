@@ -18,7 +18,7 @@ namespace AudioVisualizer.Core.Effects
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="BarSpectrumRenderData"/> クラスの新しいインスタンスを初期化します。
@@ -27,6 +27,7 @@ namespace AudioVisualizer.Core.Effects
         /// <param name="timestamp">レンダーデータの生成時刻です。</param>
         /// <param name="bars">描画対象のバー一覧です。</param>
         /// <exception cref="ArgumentNullException"><paramref name="bars"/> が <see langword="null"/> の場合にスローされます。</exception>
+        /// <exception cref="ArgumentException"><paramref name="bars"/> に <see langword="null"/> の要素が含まれる場合にスローされます。</exception>
         public BarSpectrumRenderData(string effectId, DateTimeOffset timestamp, IEnumerable<BarRenderItem> bars)
             : base(effectId, timestamp)
         {
@@ -35,7 +36,13 @@ namespace AudioVisualizer.Core.Effects
                 throw new ArgumentNullException(nameof(bars));
             }
 
-            Bars = bars.ToArray();
+            var barsCopy = bars.ToArray();
+            if (Array.Exists(barsCopy, item => item is null))
+            {
+                throw new ArgumentException("Render data must not contain null elements.", nameof(bars));
+            }
+
+            Bars = Array.AsReadOnly(barsCopy);
         }
 
         #endregion

@@ -189,13 +189,6 @@
             </Grid>
         </Border>
 
-        <TextBlock
-            Grid.Row="1"
-            Margin="4,12,4,0"
-            Foreground="#FFB45309"
-            Text="{Binding StatusMessage}"
-            TextWrapping="Wrap" />
-
         <Border
             Grid.Row="1"
             Margin="0,12,0,0"
@@ -203,9 +196,11 @@
             Background="#FF0F172A"
             CornerRadius="16">
             <visualizer:AudioVisualizerControl
+                x:Name="AudioVisualizer"
                 BarCount="{Binding BarCount}"
+                CaptureErrorChanged="OnCaptureErrorChanged"
                 DeviceId="{Binding SelectedDeviceId}"
-                Effect="{Binding SelectedEffect}"
+                VisualizerEffect="{Binding SelectedEffect}"
                 InputSource="{Binding SelectedInputSource}"
                 IsActive="{Binding IsActive, Mode=TwoWay}"
                 PrimaryBrush="#FF22C55E"
@@ -216,11 +211,40 @@
                 UseDefaultDevice="{Binding UseDefaultDevice}" />
         </Border>
 
-        <TextBlock
-            Grid.Row="2"
-            Margin="4,12,4,0"
-            Foreground="#FF475569"
-            Text="{x:Static properties:Strings.FooterDescription}"
-            TextWrapping="Wrap" />
+        <StackPanel Grid.Row="2" Margin="4,12,4,0">
+            <TextBlock
+                x:Name="DeviceStatus"
+                Foreground="#FFB45309"
+                Text="{Binding StatusMessage}"
+                TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding StatusMessage}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+            <TextBlock
+                Foreground="#FFB45309"
+                Text="{Binding CaptureError, ElementName=AudioVisualizer}"
+                TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding CaptureError, ElementName=AudioVisualizer}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+            <TextBlock
+                Foreground="#FF475569"
+                Text="{x:Static properties:Strings.FooterDescription}"
+                TextWrapping="Wrap" />
+        </StackPanel>
     </Grid>
 </Window>

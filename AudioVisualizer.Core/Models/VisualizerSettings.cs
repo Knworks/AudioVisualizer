@@ -7,6 +7,15 @@ namespace AudioVisualizer.Core.Models
     /// </summary>
     public sealed class VisualizerSettings
     {
+        #region 定数
+
+        /// <summary>
+        /// 解析と描画で指定できるバー数の上限。
+        /// </summary>
+        public const int MaximumBarCount = 512;
+
+        #endregion
+
         #region プロパティ
 
         /// <summary>
@@ -56,7 +65,7 @@ namespace AudioVisualizer.Core.Models
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="VisualizerSettings"/> クラスの新しいインスタンスを初期化します。
@@ -83,24 +92,29 @@ namespace AudioVisualizer.Core.Models
             double smoothing,
             int barCount)
         {
-            if (sensitivity <= 0)
+            if (!double.IsFinite(sensitivity) || sensitivity <= 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(sensitivity), "Sensitivity must be greater than zero.");
             }
 
-            if (smoothing < 0 || smoothing > 1)
+            if (!double.IsFinite(smoothing) || smoothing < 0 || smoothing > 1)
             {
                 throw new ArgumentOutOfRangeException(nameof(smoothing), "Smoothing must be between 0.0 and 1.0.");
             }
 
-            if (barCount < 1)
+            if (barCount < 1 || barCount > MaximumBarCount)
             {
-                throw new ArgumentOutOfRangeException(nameof(barCount), "Bar count must be greater than zero.");
+                throw new ArgumentOutOfRangeException(nameof(barCount), "Bar count must be between 1 and 512.");
             }
 
             if (!useDefaultDevice && string.IsNullOrWhiteSpace(deviceId))
             {
                 throw new ArgumentException("A device ID is required when the default device is not used.", nameof(deviceId));
+            }
+
+            if (!Enum.IsDefined(inputSource))
+            {
+                throw new ArgumentOutOfRangeException(nameof(inputSource));
             }
 
             InputSource = inputSource;

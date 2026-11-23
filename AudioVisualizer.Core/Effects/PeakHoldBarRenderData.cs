@@ -19,7 +19,7 @@ namespace AudioVisualizer.Core.Effects
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="PeakHoldBarRenderData"/> クラスの新しいインスタンスを初期化します。
@@ -29,6 +29,7 @@ namespace AudioVisualizer.Core.Effects
         /// <param name="bars">描画対象のバー一覧です。</param>
         /// <param name="peakMarkers">描画対象のピーク保持マーカー一覧です。</param>
         /// <exception cref="ArgumentNullException"><paramref name="bars"/> または <paramref name="peakMarkers"/> が <see langword="null"/> の場合にスローされます。</exception>
+        /// <exception cref="ArgumentException"><paramref name="bars"/> または <paramref name="peakMarkers"/> に <see langword="null"/> の要素が含まれる場合にスローされます。</exception>
         public PeakHoldBarRenderData(
             string effectId,
             DateTimeOffset timestamp,

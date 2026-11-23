@@ -63,11 +63,18 @@ namespace AudioVisualizer.Wpf
         private bool m_IsCaptureHostLoaded;
 
         /// <summary>
-        /// 所有する入力プロバイダーへの操作を順番に実行します。
+        /// 接続条件の変更をまとめて適用するために予約した Dispatcher 操作。
         /// </summary>
         private DispatcherOperation? m_PendingConnectionChange;
+
+        /// <summary>
+        /// 最後に取得開始を指示したときの入力種別、既定デバイスの使用有無、明示指定したデバイスの ID。
+        /// </summary>
         private (InputSource Source, bool UseDefault, string? DeviceId)? m_CaptureConnection;
 
+        /// <summary>
+        /// 入力プロバイダーの操作を直列化するために保持する、最後に予約した操作のタスク。
+        /// </summary>
         private Task m_CaptureOperations = Task.CompletedTask;
 
         /// <summary>
@@ -330,6 +337,9 @@ namespace AudioVisualizer.Wpf
                 typeof(AudioVisualizerControl),
                 new FrameworkPropertyMetadata(false, OnIsActiveChanged));
 
+        /// <summary>
+        /// 取得状態をコントロール内部から更新するための依存関係プロパティキー。
+        /// </summary>
         private static readonly DependencyPropertyKey IsCapturingPropertyKey =
             DependencyProperty.RegisterReadOnly(nameof(IsCapturing), typeof(bool), typeof(AudioVisualizerControl), new FrameworkPropertyMetadata(false));
 
@@ -338,6 +348,9 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         public static readonly DependencyProperty IsCapturingProperty = IsCapturingPropertyKey.DependencyProperty;
 
+        /// <summary>
+        /// 取得エラーをコントロール内部から更新するための依存関係プロパティキー。
+        /// </summary>
         private static readonly DependencyPropertyKey CaptureErrorPropertyKey =
             DependencyProperty.RegisterReadOnly(nameof(CaptureError), typeof(string), typeof(AudioVisualizerControl), new FrameworkPropertyMetadata(null));
 
@@ -346,10 +359,18 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         public static readonly DependencyProperty CaptureErrorProperty = CaptureErrorPropertyKey.DependencyProperty;
 
+        #endregion
+
+        #region イベントハンドラ
+
         /// <summary>
         /// 音声取得エラーの内容が変化したときに発生します。
         /// </summary>
         public event EventHandler? CaptureErrorChanged;
+
+        #endregion
+
+        #region 依存関係プロパティ
 
         /// <summary>
         /// エフェクト指定の依存関係プロパティです。
@@ -427,7 +448,7 @@ namespace AudioVisualizer.Wpf
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="AudioVisualizerControl"/> クラスの静的メンバーを初期化します。
@@ -511,6 +532,7 @@ namespace AudioVisualizer.Wpf
         /// <param name="polylineRenderer">折れ線描画レンダラーです。</param>
         /// <param name="bandLevelMeterRenderer">固定帯域メーター描画レンダラーです。</param>
         /// <param name="createAudioInputProvider">コントロールが所有する入力プロバイダーの生成処理です。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="defaultEffect"/> または <paramref name="renderer"/> または <paramref name="polylineRenderer"/> または <paramref name="bandLevelMeterRenderer"/> が <see langword="null"/> である場合にスローされます。</exception>
         private AudioVisualizerControl(
             IAudioInputProvider? audioInputProvider,
             IVisualizerEffect defaultEffect,
@@ -539,7 +561,9 @@ namespace AudioVisualizer.Wpf
 
         #region オーバーライド
 
-        /// <summary>継承やテーマによる Foreground の変更を描画ブラシへ反映します。</summary>
+        /// <summary>
+        /// 継承やテーマによる Foreground の変更を描画ブラシへ反映します。
+        /// </summary>
         /// <param name="e">依存関係プロパティの変更内容です。</param>
         protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
         {
@@ -662,10 +686,6 @@ namespace AudioVisualizer.Wpf
             StopCapture();
         }
 
-        #endregion
-
-        #region 内部処理
-
         /// <summary>
         /// 接続条件に関わる依存関係プロパティ変更を処理します。
         /// </summary>
@@ -756,6 +776,10 @@ namespace AudioVisualizer.Wpf
             control.RefreshRenderBrush();
             control.InvalidateVisual();
         }
+
+        #endregion
+
+        #region 内部メソッド
 
         /// <summary>
         /// Sensitivity の入力値妥当性を検証します。
@@ -958,6 +982,10 @@ namespace AudioVisualizer.Wpf
                 Interlocked.Read(ref m_CaptureRequestVersion) == Interlocked.Read(ref m_StartedCaptureVersion);
         }
 
+        #endregion
+
+        #region イベントハンドラ
+
         /// <summary>
         /// 取得状態の変更を、現在の入力プロバイダーから UI へ反映します。
         /// </summary>
@@ -978,6 +1006,10 @@ namespace AudioVisualizer.Wpf
                 }
             });
         }
+
+        #endregion
+
+        #region 内部メソッド
 
         /// <summary>
         /// 実際の取得状態と取得エラーを依存関係プロパティへ反映します。
@@ -1024,6 +1056,10 @@ namespace AudioVisualizer.Wpf
             StartCapture();
         }
 
+        /// <summary>
+        /// 再接続の要否を判定するため、現在の入力接続条件を取得します。
+        /// </summary>
+        /// <returns>入力種別、既定デバイスの使用有無、明示指定したデバイスの ID。既定デバイスを使用する場合、ID は null です。</returns>
         private (InputSource Source, bool UseDefault, string? DeviceId) GetConnection()
         {
             return (InputSource, UseDefaultDevice, UseDefaultDevice ? null : DeviceId);
@@ -1054,6 +1090,7 @@ namespace AudioVisualizer.Wpf
         /// 受信したフレームを保持し、レンダーデータへ変換します。
         /// </summary>
         /// <param name="frame">受信した解析済みフレームです。</param>
+        /// <exception cref="ArgumentNullException">表示が有効で、<paramref name="frame"/> が <see langword="null"/> である場合にスローされます。</exception>
         private void ApplyFrame(VisualizerFrame frame)
         {
             if (!IsActive)
@@ -1097,6 +1134,7 @@ namespace AudioVisualizer.Wpf
         /// </summary>
         /// <param name="sender">フレームを生成した音声入力プロバイダーです。</param>
         /// <param name="frame">反映対象の最新フレームです。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="frame"/> が <see langword="null"/> である場合にスローされます。</exception>
         private void QueuePendingFrame(object? sender, VisualizerFrameEventArgs frame)
         {
             ArgumentNullException.ThrowIfNull(frame);

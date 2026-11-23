@@ -19,6 +19,9 @@ namespace AudioVisualizer.Wpf.Tests
         /// ・2. 生成結果の実装型が期待どおりである
         /// ・3. 生成結果の Metadata.Id が期待どおりである
         /// </summary>
+        /// <param name="effectKind">生成対象の組込エフェクト種別。</param>
+        /// <param name="expectedType">生成結果に期待するエフェクトの型。</param>
+        /// <param name="expectedEffectId">生成結果のメタデータに期待するエフェクト ID。</param>
         [Test]
         [TestCase(BuiltInVisualizerEffectKind.SpectrumBar, typeof(SpectrumBarEffect), "spectrum-bars")]
         [TestCase(BuiltInVisualizerEffectKind.WaveformLine, typeof(WaveformLineEffect), "waveform-line")]

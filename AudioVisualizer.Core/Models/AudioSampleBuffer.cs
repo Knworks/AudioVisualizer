@@ -33,7 +33,7 @@ namespace AudioVisualizer.Core.Models
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="AudioSampleBuffer"/> クラスの新しいインスタンスを初期化します。
@@ -44,6 +44,7 @@ namespace AudioVisualizer.Core.Models
         /// <param name="timestamp">バッファが取得された時刻です。</param>
         /// <exception cref="ArgumentNullException"><paramref name="samples"/> が <see langword="null"/> の場合にスローされます。</exception>
         /// <exception cref="ArgumentOutOfRangeException"><paramref name="sampleRate"/> または <paramref name="channels"/> が 1 未満の場合にスローされます。</exception>
+        /// <exception cref="ArgumentException"><paramref name="samples"/> に有限値でない要素が含まれる場合にスローされます。</exception>
         public AudioSampleBuffer(IEnumerable<float> samples, int sampleRate, int channels, DateTimeOffset timestamp)
         {
             if (samples is null)

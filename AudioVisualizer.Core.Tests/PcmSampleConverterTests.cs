@@ -9,9 +9,13 @@ namespace AudioVisualizer.Core.Tests
     [TestFixture]
     public class PcmSampleConverterTests
     {
+        #region 公開メソッド
+
         /// <summary>
         /// 対応する整数 PCM で符号とスケールを確認します。
         /// </summary>
+        /// <param name="bits">整数 PCM のサンプルあたりのビット数。</param>
+        /// <param name="buffer">比較対象の振幅を格納したリトルエンディアンの PCM データ。</param>
         [TestCase(8, new byte[] { 0, 128, 192 })]
         [TestCase(16, new byte[] { 0, 128, 0, 0, 0, 64 })]
         [TestCase(24, new byte[] { 0, 0, 128, 0, 0, 0, 0, 0, 64 })]
@@ -31,7 +35,9 @@ namespace AudioVisualizer.Core.Tests
             Assert.That(PcmSampleConverter.Convert(new byte[] { 0, 0, 128, 190 }, format), Is.EqualTo(new[] { -0.25f }));
         }
 
-        /// <summary>IEEE Floatの非有限値が無音に置き換わることを確認します。</summary>
+        /// <summary>
+        /// IEEE Floatの非有限値が無音に置き換わることを確認します。
+        /// </summary>
         [Test]
         public void Convert_WhenFloatDataContainsNonFiniteSamples_ProducesSilence()
         {
@@ -50,5 +56,7 @@ namespace AudioVisualizer.Core.Tests
             var format = WaveFormat.CreateCustomFormat(WaveFormatEncoding.ALaw, 48000, 1, 96000, 2, 16);
             Assert.That(() => PcmSampleConverter.ValidateFormat(format), Throws.TypeOf<NotSupportedException>());
         }
+
+        #endregion
     }
 }

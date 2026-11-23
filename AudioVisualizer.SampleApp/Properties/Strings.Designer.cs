@@ -182,7 +182,9 @@ namespace AudioVisualizer.SampleApp.Properties
         /// </summary>
         public static string RevertedToDefaultDeviceMessage => GetString(nameof(RevertedToDefaultDeviceMessage));
 
-        /// <summary>明示的な入力デバイス選択を促すメッセージを取得します。</summary>
+        /// <summary>
+        /// 明示的な入力デバイス選択を促すメッセージを取得します。
+        /// </summary>
         public static string SelectExplicitDeviceMessage => GetString(nameof(SelectExplicitDeviceMessage));
 
         #endregion
@@ -194,6 +196,7 @@ namespace AudioVisualizer.SampleApp.Properties
         /// </summary>
         /// <param name="valueText">現在値として表示する文字列です。</param>
         /// <returns>現在値表示用のローカライズ済み文字列です。</returns>
+        /// <exception cref="ArgumentException"><paramref name="valueText"/> が <see langword="null"/>、空、または空白のみである場合にスローされます。</exception>
         public static string FormatCurrentValue(string valueText)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(valueText);
@@ -202,13 +205,14 @@ namespace AudioVisualizer.SampleApp.Properties
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// 指定キーに対応する文字列リソースを取得します。
         /// </summary>
         /// <param name="name">取得対象のリソースキーです。</param>
         /// <returns>ローカライズ済み文字列です。</returns>
+        /// <exception cref="MissingManifestResourceException">指定した名前の文字列リソースを取得できない場合にスローされます。</exception>
         private static string GetString(string name)
         {
             return ResourceManager.GetString(name, Culture) ?? throw new MissingManifestResourceException(

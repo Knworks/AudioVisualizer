@@ -39,7 +39,7 @@ namespace AudioVisualizer.Core.Audio
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="WasapiAudioDeviceEnumerator"/> クラスの新しいインスタンスを初期化します。
@@ -50,6 +50,10 @@ namespace AudioVisualizer.Core.Audio
             m_NotificationClient.DefaultDeviceChanged += HandleDefaultDeviceChanged;
         }
 
+        #endregion
+
+        #region 公開メソッド
+
         /// <summary>
         /// 通知購読と WASAPI 列挙子を解放します。
         /// </summary>
@@ -59,10 +63,6 @@ namespace AudioVisualizer.Core.Audio
             m_NotificationClient.Dispose();
             m_DeviceEnumerator.Dispose();
         }
-
-        #endregion
-
-        #region 公開メソッド
 
         /// <summary>
         /// 指定した入力種別に対応する利用可能デバイス一覧を取得します。
@@ -135,7 +135,7 @@ namespace AudioVisualizer.Core.Audio
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// 入力種別から NAudio の DataFlow を解決します。

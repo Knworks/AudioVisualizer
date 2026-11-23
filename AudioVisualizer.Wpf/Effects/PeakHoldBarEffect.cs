@@ -33,6 +33,10 @@ namespace AudioVisualizer.Wpf.Effects
         /// 直近フレームのピーク保持高さです。
         /// </summary>
         private double[] m_PeakHeights = Array.Empty<double>();
+
+        /// <summary>
+        /// ピークの減衰量を求める基準となる、最後に処理したフレームの時刻。
+        /// </summary>
         private DateTimeOffset? m_LastFrameTimestamp;
 
         #endregion
@@ -104,7 +108,7 @@ namespace AudioVisualizer.Wpf.Effects
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// ピーク保持バッファのサイズを現在のバー本数に合わせます。

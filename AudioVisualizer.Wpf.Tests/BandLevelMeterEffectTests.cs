@@ -19,7 +19,14 @@ namespace AudioVisualizer.Wpf.Tests
     [Apartment(ApartmentState.STA)]
     public class BandLevelMeterEffectTests
     {
-        /// <summary>高DPIと狭い表示領域でラベルを帯域内に収めることを確認します。</summary>
+        #region 公開メソッド
+
+        /// <summary>
+        /// 高DPIと狭い表示領域でラベルを帯域内に収めることを確認します。
+        /// </summary>
+        /// <param name="width">描画領域の幅。単位はデバイスに依存しないピクセルです。</param>
+        /// <param name="height">描画領域の高さ。単位はデバイスに依存しないピクセルです。</param>
+        /// <param name="dpi">描画領域に適用する DPI の倍率。</param>
         [TestCase(20, 10, 1.75)]
         [TestCase(80, 40, 2.0)]
         public void MeterLabels_WhenSpaceIsLimited_StayWithinEachBand(double width, double height, double dpi)
@@ -46,9 +53,12 @@ namespace AudioVisualizer.Wpf.Tests
             }
         }
 
-        #region 公開メソッド
-
-        /// <summary>サンプルレートが異なっても同じ音が同じ帯域で最大になることを確認します。</summary>
+        /// <summary>
+        /// サンプルレートが異なっても同じ音が同じ帯域で最大になることを確認します。
+        /// </summary>
+        /// <param name="sampleRate">入力 PCM のサンプルレート。単位は Hz です。</param>
+        /// <param name="frequency">入力する正弦波の周波数。単位は Hz です。</param>
+        /// <param name="expectedBand">最大レベルになる帯域の位置。低域を 0 とする添字です。</param>
         [TestCase(24_000, 150, 0)]
         [TestCase(48_000, 150, 0)]
         [TestCase(24_000, 700, 1)]
@@ -498,9 +508,7 @@ namespace AudioVisualizer.Wpf.Tests
 
             #endregion
 
-            #region 公開メソッド
-
-
+            #region イベントハンドラ
 
             /// <summary>
             /// フレーム生成イベントです。
@@ -510,6 +518,10 @@ namespace AudioVisualizer.Wpf.Tests
                 add => m_FrameProduced += value;
                 remove => m_FrameProduced -= value;
             }
+
+            #endregion
+
+            #region 公開メソッド
 
             /// <summary>
             /// キャプチャを開始します。
@@ -547,7 +559,7 @@ namespace AudioVisualizer.Wpf.Tests
         /// </summary>
         private sealed class TestableAudioVisualizerControl : AudioVisualizerControl
         {
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// テスト用の依存を注入して初期化します。
@@ -570,8 +582,6 @@ namespace AudioVisualizer.Wpf.Tests
             #endregion
 
             #region 公開メソッド
-
-
 
             /// <summary>
             /// 描画処理をテストから実行します。
@@ -624,7 +634,7 @@ namespace AudioVisualizer.Wpf.Tests
 
             #endregion
 
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// 返却する 2 種類のレンダーデータを指定して初期化します。
@@ -640,8 +650,6 @@ namespace AudioVisualizer.Wpf.Tests
             #endregion
 
             #region 公開メソッド
-
-
 
             /// <summary>
             /// 呼び出し回数に応じたレンダーデータを返します。

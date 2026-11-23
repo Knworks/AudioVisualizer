@@ -7,8 +7,14 @@ namespace AudioVisualizer.Core.Models
     /// </summary>
     public sealed class VisualizerSettings
     {
-        /// <summary>解析と描画で指定できるバー数の上限です。</summary>
+        #region 定数
+
+        /// <summary>
+        /// 解析と描画で指定できるバー数の上限。
+        /// </summary>
         public const int MaximumBarCount = 512;
+
+        #endregion
 
         #region プロパティ
 
@@ -59,7 +65,7 @@ namespace AudioVisualizer.Core.Models
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="VisualizerSettings"/> クラスの新しいインスタンスを初期化します。

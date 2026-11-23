@@ -15,6 +15,10 @@ namespace AudioVisualizer.Wpf.Effects
         /// </summary>
         private const double MeterWidthRatio = 0.72;
 
+        #endregion
+
+        #region フィールド
+
         /// <summary>
         /// 固定表示する帯域ラベルです。
         /// </summary>
@@ -82,7 +86,7 @@ namespace AudioVisualizer.Wpf.Effects
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// スペクトラム値から対象帯域の平均レベルを抽出します。

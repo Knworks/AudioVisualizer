@@ -31,7 +31,7 @@ namespace AudioVisualizer.Core.Audio
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="AudioSamplesCapturedEventArgs"/> クラスの新しいインスタンスを初期化します。

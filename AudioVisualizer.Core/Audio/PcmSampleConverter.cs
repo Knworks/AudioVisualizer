@@ -8,10 +8,13 @@ namespace AudioVisualizer.Core.Audio
     /// </summary>
     internal static class PcmSampleConverter
     {
+        #region 公開メソッド
+
         /// <summary>
         /// 取得開始前に変換可能なフォーマットであることを確認します。
         /// </summary>
         /// <param name="format">変換対象のフォーマットです。</param>
+        /// <exception cref="NotSupportedException">音声形式がサポートされていない場合にスローされます。</exception>
         public static void ValidateFormat(WaveFormat format)
         {
             if (format.Encoding == WaveFormatEncoding.Pcm && format.BitsPerSample is 8 or 16 or 24 or 32 ||
@@ -50,5 +53,7 @@ namespace AudioVisualizer.Core.Audio
 
             return result;
         }
+
+        #endregion
     }
 }

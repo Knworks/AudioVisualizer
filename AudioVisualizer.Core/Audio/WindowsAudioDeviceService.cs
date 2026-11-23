@@ -18,11 +18,12 @@ namespace AudioVisualizer.Core.Audio
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="WindowsAudioDeviceService"/> クラスの新しいインスタンスを初期化します。
         /// </summary>
+        /// <exception cref="PlatformNotSupportedException">実行環境が Windows でない場合にスローされます。</exception>
         public WindowsAudioDeviceService()
             : this(CreateDeviceEnumerator())
         {
@@ -32,6 +33,7 @@ namespace AudioVisualizer.Core.Audio
         /// <see cref="WindowsAudioDeviceService"/> クラスの新しいインスタンスを初期化します。
         /// </summary>
         /// <param name="deviceEnumerator">OS 依存の音声デバイス列挙を担当する内部列挙子です。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="deviceEnumerator"/> が <see langword="null"/> である場合にスローされます。</exception>
         internal WindowsAudioDeviceService(IAudioPlatformDeviceEnumerator deviceEnumerator)
         {
             m_DeviceEnumerator = deviceEnumerator ?? throw new ArgumentNullException(nameof(deviceEnumerator));
@@ -115,12 +117,13 @@ namespace AudioVisualizer.Core.Audio
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// Windows 専用のデバイス列挙子を生成します。
         /// </summary>
         /// <returns>Windows の音声デバイス列挙子です。</returns>
+        /// <exception cref="PlatformNotSupportedException">実行環境が Windows でない場合にスローされます。</exception>
         private static IAudioPlatformDeviceEnumerator CreateDeviceEnumerator()
         {
             if (!OperatingSystem.IsWindows())
@@ -138,6 +141,7 @@ namespace AudioVisualizer.Core.Audio
         /// <param name="inputSource">対応する入力種別です。</param>
         /// <param name="defaultDevice">既定デバイスのスナップショットです。</param>
         /// <returns>公開向けのデバイス情報です。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="deviceSnapshot"/> が <see langword="null"/> である場合にスローされます。</exception>
         private static AudioDeviceInfo CreateDeviceInfo(AudioDeviceSnapshot deviceSnapshot, InputSource inputSource, AudioDeviceSnapshot? defaultDevice)
         {
             ArgumentNullException.ThrowIfNull(deviceSnapshot);

@@ -108,7 +108,7 @@ namespace AudioVisualizer.Core.Audio
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="SystemOutputAudioInputProvider"/> クラスの新しいインスタンスを初期化します。
@@ -151,6 +151,7 @@ namespace AudioVisualizer.Core.Audio
         /// <param name="captureFactory">音声入力キャプチャを生成するファクトリです。</param>
         /// <param name="ownsAudioDeviceService">デバイスサービスの破棄責務をこのインスタンスが持つかどうかを示します。</param>
         /// <param name="queueReconnect">再接続処理を予約する仕組みです。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="frameAnalyzer"/> または <paramref name="audioDeviceService"/> または <paramref name="captureFactory"/> が <see langword="null"/> である場合にスローされます。</exception>
         private SystemOutputAudioInputProvider(
             IAudioFrameAnalyzer frameAnalyzer,
             IAudioDeviceService audioDeviceService,
@@ -203,6 +204,8 @@ namespace AudioVisualizer.Core.Audio
         /// </summary>
         /// <param name="settings">開始に使用する設定です。</param>
         /// <returns>開始処理の結果です。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="settings"/> が <see langword="null"/> である場合にスローされます。</exception>
+        /// <exception cref="ObjectDisposedException">このインスタンスが破棄済みである場合にスローされます。</exception>
         public AudioInputStartResult Start(VisualizerSettings settings)
         {
             ArgumentNullException.ThrowIfNull(settings);
@@ -217,6 +220,10 @@ namespace AudioVisualizer.Core.Audio
                 return result;
             }
         }
+
+        #endregion
+
+        #region 内部メソッド
 
         /// <summary>
         /// ロックを保持した状態で取得セッションを切り替えます。
@@ -272,6 +279,10 @@ namespace AudioVisualizer.Core.Audio
             }
         }
 
+        #endregion
+
+        #region 公開メソッド
+
         /// <summary>
         /// 音声入力を停止します。
         /// </summary>
@@ -291,6 +302,10 @@ namespace AudioVisualizer.Core.Audio
                 }
             }
         }
+
+        #endregion
+
+        #region 内部メソッド
 
         /// <summary>
         /// ロックを保持した状態で取得を停止し、処理中のフレームを無効にします。
@@ -339,6 +354,10 @@ namespace AudioVisualizer.Core.Audio
             m_QueueReconnect(() => Reconnect(requestVersion, e.InputSource));
         }
 
+        #endregion
+
+        #region 内部メソッド
+
         /// <summary>
         /// 通知後も同じ取得要求が有効な場合に、現在の既定デバイスを再確認します。
         /// </summary>
@@ -358,6 +377,10 @@ namespace AudioVisualizer.Core.Audio
                 PublishCaptureStatus(result.ErrorMessage);
             }
         }
+
+        #endregion
+
+        #region イベントハンドラ
 
         /// <summary>
         /// 取得側からの停止通知を受け取り、同じセッションがまだ有効なら終了を反映します。
@@ -389,6 +412,10 @@ namespace AudioVisualizer.Core.Audio
             });
         }
 
+        #endregion
+
+        #region 内部メソッド
+
         /// <summary>
         /// 最新のキャプチャ状態を購読者へ通知します。
         /// </summary>
@@ -398,6 +425,10 @@ namespace AudioVisualizer.Core.Audio
             m_CaptureError = error;
             CaptureStatusChanged?.Invoke(this, EventArgs.Empty);
         }
+
+        #endregion
+
+        #region イベントハンドラ
 
         /// <summary>
         /// キャプチャ済み PCM サンプルを受け取り、解析済みフレーム通知へ変換します。
@@ -435,6 +466,10 @@ namespace AudioVisualizer.Core.Audio
 
             QueueFrameDispatch();
         }
+
+        #endregion
+
+        #region 内部メソッド
 
         /// <summary>
         /// 取得スレッドから独立した作業として、保留フレームの通知を予約します。
@@ -485,6 +520,8 @@ namespace AudioVisualizer.Core.Audio
 
         #endregion
 
+        #region 内部クラス
+
         /// <summary>
         /// 稼働中のセッションと、そのセッションに対応する解析設定です。
         /// </summary>
@@ -492,13 +529,19 @@ namespace AudioVisualizer.Core.Audio
         /// <param name="Settings">フレームの解析設定です。</param>
         private sealed record CaptureState(IAudioCaptureSession Session, VisualizerSettings Settings)
         {
+            #region プロパティ
+
             /// <summary>
             /// 同じ取得セッションの PCM を保持する波形履歴です。
             /// </summary>
             public WaveformHistory WaveformHistory { get; } = new();
+
+            #endregion
         }
 
-        #region 内部処理
+        #endregion
+
+        #region 内部メソッド
 
         /// <summary>
         /// 現在利用中のキャプチャ実体を解放します。
@@ -522,6 +565,7 @@ namespace AudioVisualizer.Core.Audio
         /// </summary>
         /// <param name="settings">開始に使用する設定です。</param>
         /// <returns>解決できた音声デバイス。見つからない場合は <see langword="null"/>。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="settings"/> が <see langword="null"/> である場合にスローされます。</exception>
         private AudioDeviceInfo? ResolveTargetDevice(VisualizerSettings settings)
         {
             ArgumentNullException.ThrowIfNull(settings);

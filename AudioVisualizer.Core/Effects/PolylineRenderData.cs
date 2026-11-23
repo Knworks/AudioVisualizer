@@ -14,7 +14,7 @@ namespace AudioVisualizer.Core.Effects
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="PolylineRenderData"/> クラスの新しいインスタンスを初期化します。
@@ -23,6 +23,7 @@ namespace AudioVisualizer.Core.Effects
         /// <param name="timestamp">レンダーデータの生成時刻です。</param>
         /// <param name="points">描画対象の点列です。</param>
         /// <exception cref="ArgumentNullException"><paramref name="points"/> が <see langword="null"/> の場合にスローされます。</exception>
+        /// <exception cref="ArgumentException"><paramref name="points"/> に <see langword="null"/> の要素が含まれる場合にスローされます。</exception>
         public PolylineRenderData(string effectId, DateTimeOffset timestamp, IEnumerable<NormalizedPoint> points)
             : base(effectId, timestamp)
         {

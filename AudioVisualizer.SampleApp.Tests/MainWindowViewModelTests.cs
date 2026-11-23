@@ -16,7 +16,9 @@ namespace AudioVisualizer.SampleApp.Tests
     {
         #region 公開メソッド
 
-        /// <summary>デバイス一覧のエラーが可視化領域の下に表示されることを確認します。</summary>
+        /// <summary>
+        /// デバイス一覧のエラーが可視化領域の下に表示されることを確認します。
+        /// </summary>
         [Test]
         [Apartment(System.Threading.ApartmentState.STA)]
         public void DeviceError_WhenWindowIsLaidOut_IsBelowVisualizer()
@@ -574,7 +576,9 @@ namespace AudioVisualizer.SampleApp.Tests
             });
         }
 
-        /// <summary>一覧更新で消えたデバイスの代わりに別の入力を選ばないことを確認します。</summary>
+        /// <summary>
+        /// 一覧更新で消えたデバイスの代わりに別の入力を選ばないことを確認します。
+        /// </summary>
         [Test]
         public void ExplicitSelection_WhenDeviceDisappears_RequiresUserSelection()
         {
@@ -628,7 +632,7 @@ namespace AudioVisualizer.SampleApp.Tests
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// 複数入力種別のデバイス一覧を返す偽サービスを生成します。
@@ -654,6 +658,7 @@ namespace AudioVisualizer.SampleApp.Tests
         /// </summary>
         /// <param name="culture">テスト実行中に適用するカルチャです。</param>
         /// <param name="action">指定カルチャで実行する処理です。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="culture"/> または <paramref name="action"/> が <see langword="null"/> である場合にスローされます。</exception>
         private static void RunWithCulture(CultureInfo culture, Action action)
         {
             ArgumentNullException.ThrowIfNull(culture);
@@ -712,7 +717,7 @@ namespace AudioVisualizer.SampleApp.Tests
 
             #endregion
 
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="FakeAudioDeviceService"/> クラスの新しいインスタンスを初期化します。
@@ -734,13 +739,12 @@ namespace AudioVisualizer.SampleApp.Tests
 
             #region 公開メソッド
 
-
-
             /// <summary>
             /// 指定入力種別のデバイス一覧を返します。
             /// </summary>
             /// <param name="inputSource">取得対象の入力種別です。</param>
             /// <returns>入力種別に対応するデバイス一覧です。</returns>
+            /// <exception cref="InvalidOperationException">テスト用にデバイスの取得に失敗するよう設定している場合にスローされます。</exception>
             public IReadOnlyList<AudioDeviceInfo> GetDevices(InputSource inputSource)
             {
                 GetDevicesCallCount++;

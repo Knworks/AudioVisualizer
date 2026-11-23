@@ -112,7 +112,7 @@ namespace AudioVisualizer.Wpf.Effects
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// 任意本数の描画用にスペクトラム値を再サンプリングします。

@@ -39,6 +39,10 @@ namespace AudioVisualizer.Core.Analysis
             return CreateFrame(sampleBuffer, settings, null);
         }
 
+        #endregion
+
+        #region 内部メソッド
+
         /// <summary>
         /// 連続取得中の波形履歴を利用して解析済みフレームを生成します。
         /// </summary>
@@ -46,6 +50,7 @@ namespace AudioVisualizer.Core.Analysis
         /// <param name="settings">解析設定です。</param>
         /// <param name="waveformHistory">現在の取得セッションの波形履歴です。</param>
         /// <returns>解析済みフレームです。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="sampleBuffer"/> または <paramref name="settings"/> が <see langword="null"/> である場合にスローされます。</exception>
         internal VisualizerFrame CreateFrame(AudioSampleBuffer sampleBuffer, VisualizerSettings settings, WaveformHistory? waveformHistory)
         {
             ArgumentNullException.ThrowIfNull(sampleBuffer);
@@ -59,10 +64,6 @@ namespace AudioVisualizer.Core.Analysis
 
             return new VisualizerFrame(spectrumValues, waveformValues, peakLevel, sampleBuffer.Timestamp, waveformRanges, bandLevels);
         }
-
-        #endregion
-
-        #region 内部処理
 
         /// <summary>
         /// PCM サンプル列を -1.0..1.0 範囲の倍精度サンプル列へ正規化します。
@@ -270,7 +271,14 @@ namespace AudioVisualizer.Core.Analysis
             return (result, bandLevels);
         }
 
-        /// <summary>FFTの正周波数をHzで区分し、各帯域の最大レベルを求めます。</summary>
+        /// <summary>
+        /// FFTの正周波数をHzで区分し、各帯域の最大レベルを求めます。
+        /// </summary>
+        /// <param name="maximumPowerByBin">FFT の周波数点を添字とし、各チャンネルで最大のパワーを格納した配列。</param>
+        /// <param name="binWidthHz">FFT の周波数点の間隔。単位は Hz です。</param>
+        /// <param name="scale">FFT の出力を表示レベルに換算する係数。</param>
+        /// <param name="sensitivity">各帯域のレベルに適用する感度係数。</param>
+        /// <returns>低域から高域までの各周波数帯域の最大レベル。</returns>
         private static (double Low, double LowMid, double HighMid, double High) CalculateBandLevels(
             double[] maximumPowerByBin, double binWidthHz, double scale, double sensitivity)
         {

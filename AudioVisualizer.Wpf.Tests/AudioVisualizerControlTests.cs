@@ -988,7 +988,7 @@ namespace AudioVisualizer.Wpf.Tests
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// Dispatcher キューに積まれた非同期処理を消化します。
@@ -1010,7 +1010,7 @@ namespace AudioVisualizer.Wpf.Tests
 
         #endregion
 
-        #region 内部クラス
+        #region 公開メソッド
 
         /// <summary>
         /// 所有する入力が画面への配置中だけ稼働することを確認します。
@@ -1043,7 +1043,9 @@ namespace AudioVisualizer.Wpf.Tests
             Assert.That(second.IsDisposed, Is.True);
         }
 
-        /// <summary>WPF の画像効果と音声エフェクトを同じコントロールで設定できることを確認します。</summary>
+        /// <summary>
+        /// WPF の画像効果と音声エフェクトを同じコントロールで設定できることを確認します。
+        /// </summary>
         [Test]
         public void WpfEffect_FromXaml_CoexistsWithVisualizerEffect()
         {
@@ -1065,7 +1067,9 @@ namespace AudioVisualizer.Wpf.Tests
             Assert.That(control.VisualizerEffect, Is.SameAs(audioEffect));
         }
 
-        /// <summary>親から継承した Foreground が変わると描画ブラシも変わることを確認します。</summary>
+        /// <summary>
+        /// 親から継承した Foreground が変わると描画ブラシも変わることを確認します。
+        /// </summary>
         [Test]
         public void InheritedForeground_WhenParentChanges_RefreshesRenderBrush()
         {
@@ -1077,7 +1081,9 @@ namespace AudioVisualizer.Wpf.Tests
             Assert.That(control.CurrentRenderBrush, Is.SameAs(Brushes.DarkOrange));
         }
 
-        /// <summary>同じUI操作の入力設定をまとめ、最終設定で一度だけ再接続することを確認します。</summary>
+        /// <summary>
+        /// 同じUI操作の入力設定をまとめ、最終設定で一度だけ再接続することを確認します。
+        /// </summary>
         [Test]
         public void OwnedInput_WhenConnectionSettingsChangeTogether_ReconnectsOnce()
         {
@@ -1297,6 +1303,10 @@ namespace AudioVisualizer.Wpf.Tests
             control.CaptureOperations.WaitAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
         }
 
+        #endregion
+
+        #region 内部クラス
+
         /// <summary>
         /// 入力開始回数とフレーム通知を制御できる偽の音声入力プロバイダーです。
         /// </summary>
@@ -1339,6 +1349,10 @@ namespace AudioVisualizer.Wpf.Tests
             /// </summary>
             public bool IsDisposed { get; private set; }
 
+            #endregion
+
+            #region 公開メソッド
+
             /// <summary>
             /// 取得を停止し、破棄されたことを記録します。
             /// </summary>
@@ -1347,6 +1361,10 @@ namespace AudioVisualizer.Wpf.Tests
                 Stop();
                 IsDisposed = true;
             }
+
+            #endregion
+
+            #region プロパティ
 
             /// <summary>
             /// 直近の開始設定を取得します。
@@ -1524,6 +1542,7 @@ namespace AudioVisualizer.Wpf.Tests
             /// <param name="frame">解析済みフレームです。</param>
             /// <param name="context">実行コンテキストです。</param>
             /// <returns>ピークレベルを反映した簡易バー描画データです。</returns>
+            /// <exception cref="InvalidOperationException">テスト用にレンダーデータの生成に失敗するよう設定している場合にスローされます。</exception>
             public VisualizerRenderData BuildRenderData(VisualizerFrame frame, VisualizerEffectContext context)
             {
                 BuildCallCount++;
@@ -1551,7 +1570,7 @@ namespace AudioVisualizer.Wpf.Tests
         /// </summary>
         private sealed class FakeRenderData : VisualizerRenderData
         {
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="FakeRenderData"/> クラスの新しいインスタンスを初期化します。
@@ -1571,7 +1590,7 @@ namespace AudioVisualizer.Wpf.Tests
         /// </summary>
         private sealed class TestableAudioVisualizerControl : AudioVisualizerControl
         {
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="TestableAudioVisualizerControl"/> クラスの新しいインスタンスを初期化します。

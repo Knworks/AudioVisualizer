@@ -16,7 +16,11 @@ namespace AudioVisualizer.Wpf.Tests
     [Apartment(ApartmentState.STA)]
     public class WaveformLineEffectTests
     {
-        /// <summary>点数が同じでも X 座標が変わった場合は最新値を使用します。</summary>
+        #region 公開メソッド
+
+        /// <summary>
+        /// 点数が同じでも X 座標が変わった場合は最新値を使用します。
+        /// </summary>
         [Test]
         public void Polyline_WhenPointPositionsChange_UsesLatestPoints()
         {
@@ -35,12 +39,33 @@ namespace AudioVisualizer.Wpf.Tests
             Assert.That(points[1].Y, Is.EqualTo(1));
         }
 
-        /// <summary>フレームが指定する X 座標で折れ線を作るテスト用エフェクトです。</summary>
+        #endregion
+
+        #region 内部クラス
+
+        /// <summary>
+        /// フレームが指定する X 座標で折れ線を作るテスト用エフェクトです。
+        /// </summary>
         private sealed class ShiftedPolylineEffect : IVisualizerEffect
         {
+            #region プロパティ
+
+            /// <summary>
+            /// 可変位置の折れ線を作るテスト用エフェクトのメタデータを取得します。
+            /// </summary>
             public EffectMetadata Metadata { get; } =
                 new("shift", "Shift", "1.0.0", null, null, new[] { InputSource.SystemOutput });
 
+            #endregion
+
+            #region 公開メソッド
+
+            /// <summary>
+            /// フレームの値で中央点の位置と各点の高さを決め、折れ線を生成します。
+            /// </summary>
+            /// <param name="frame">中央点の X 座標と各点の Y 座標を決める値を含むフレーム。</param>
+            /// <param name="context">エフェクトの実行時設定。このテスト用エフェクトでは座標計算に使用しません。</param>
+            /// <returns>フレームから生成した 3 点の折れ線描画データ。</returns>
             public VisualizerRenderData BuildRenderData(VisualizerFrame frame, VisualizerEffectContext context)
             {
                 var points = new[]
@@ -51,9 +76,19 @@ namespace AudioVisualizer.Wpf.Tests
                 };
                 return new PolylineRenderData(Metadata.Id, frame.Timestamp, points);
             }
+
+            #endregion
         }
 
-        /// <summary>平滑化が前フレームからの実時間に応じて進むことを確認します。</summary>
+        #endregion
+
+        #region 公開メソッド
+
+        /// <summary>
+        /// 平滑化が前フレームからの実時間に応じて進むことを確認します。
+        /// </summary>
+        /// <param name="milliseconds">先行フレームから次のフレームまでの間隔。単位はミリ秒です。</param>
+        /// <param name="expectedY">平滑化後に期待する最初の点の正規化 Y 座標。</param>
         [TestCase(16, 0.5)]
         [TestCase(32, 0.25)]
         public void Smoothing_WithLongerInterval_KeepsLessOfPreviousFrame(int milliseconds, double expectedY)
@@ -71,8 +106,6 @@ namespace AudioVisualizer.Wpf.Tests
 
             Assert.That(((PolylineRenderData)control.CurrentRenderData!).Points[0].Y, Is.EqualTo(expectedY).Within(1e-9));
         }
-
-        #region 公開メソッド
 
         /// <summary>
         /// コントロールの感度変更を、符号を保った波形の拡大とクリップに反映します。
@@ -395,7 +428,7 @@ namespace AudioVisualizer.Wpf.Tests
 
             #endregion
 
-            #region 公開メソッド
+            #region イベントハンドラ
 
             /// <summary>
             /// フレーム生成イベントです。
@@ -405,6 +438,10 @@ namespace AudioVisualizer.Wpf.Tests
                 add => m_FrameProduced += value;
                 remove => m_FrameProduced -= value;
             }
+
+            #endregion
+
+            #region 公開メソッド
 
             /// <summary>
             /// 入力開始を模擬します。
@@ -442,7 +479,7 @@ namespace AudioVisualizer.Wpf.Tests
         /// </summary>
         private sealed class TestableAudioVisualizerControl : AudioVisualizerControl
         {
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="TestableAudioVisualizerControl"/> クラスの新しいインスタンスを初期化します。

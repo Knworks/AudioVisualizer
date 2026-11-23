@@ -22,6 +22,8 @@ namespace AudioVisualizer.Core.Audio
         /// <param name="inputSource">入力種別です。</param>
         /// <param name="deviceId">対象デバイスの識別子です。</param>
         /// <returns>指定入力向けのキャプチャ実体です。</returns>
+        /// <exception cref="PlatformNotSupportedException">実行環境が Windows でない場合にスローされます。</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="inputSource"/> がサポートされていない値である場合にスローされます。</exception>
         public IAudioCaptureSession CreateCapture(InputSource inputSource, string deviceId)
         {
             if (!OperatingSystem.IsWindows())
@@ -94,7 +96,7 @@ namespace AudioVisualizer.Core.Audio
 
             #endregion
 
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="WasapiCaptureSession"/> クラスの新しいインスタンスを初期化します。

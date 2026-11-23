@@ -11,12 +11,16 @@ namespace AudioVisualizer.SampleApp
     /// </summary>
     public partial class MainWindow : Window
     {
+        #region フィールド
+
         /// <summary>
         /// ウィンドウが生成したデバイスサービスです。
         /// </summary>
         private readonly WindowsAudioDeviceService? m_OwnedAudioDeviceService;
 
-        #region 構築 / 消滅
+        #endregion
+
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="MainWindow"/> クラスの新しいインスタンスを初期化します。
@@ -40,6 +44,7 @@ namespace AudioVisualizer.SampleApp
         /// <see cref="MainWindow"/> クラスの新しいインスタンスを初期化します。
         /// </summary>
         /// <param name="viewModel">画面状態を管理する ViewModel です。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="viewModel"/> が <see langword="null"/> である場合にスローされます。</exception>
         internal MainWindow(MainWindowViewModel viewModel)
         {
             DataContext = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
@@ -47,6 +52,8 @@ namespace AudioVisualizer.SampleApp
         }
 
         #endregion
+
+        #region オーバーライド
 
         /// <summary>
         /// ウィンドウが閉じたときに所有するデバイスサービスを解放します。
@@ -64,6 +71,10 @@ namespace AudioVisualizer.SampleApp
             }
         }
 
+        #endregion
+
+        #region イベントハンドラ
+
         /// <summary>
         /// 音声取得エラーが変わったときに開始操作の状態を更新します。
         /// </summary>
@@ -76,5 +87,7 @@ namespace AudioVisualizer.SampleApp
                 viewModel.SetCaptureError(control.CaptureError is not null);
             }
         }
+
+        #endregion
     }
 }

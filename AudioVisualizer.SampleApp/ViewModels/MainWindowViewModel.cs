@@ -70,6 +70,10 @@ namespace AudioVisualizer.SampleApp.ViewModels
         /// 現在選択中の明示デバイス識別子です。
         /// </summary>
         private string? m_SelectedDeviceId;
+
+        /// <summary>
+        /// デバイス一覧の再構築中に選択通知を無視するためのフラグ。
+        /// </summary>
         private bool m_IsUpdatingDevices;
 
         /// <summary>
@@ -401,12 +405,13 @@ namespace AudioVisualizer.SampleApp.ViewModels
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="MainWindowViewModel"/> クラスの新しいインスタンスを初期化します。
         /// </summary>
         /// <param name="audioDeviceService">デバイス一覧取得を担当するサービスです。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="audioDeviceService"/> が <see langword="null"/> である場合にスローされます。</exception>
         public MainWindowViewModel(IAudioDeviceService audioDeviceService)
         {
             m_AudioDeviceService = audioDeviceService ?? throw new ArgumentNullException(nameof(audioDeviceService));
@@ -466,6 +471,10 @@ namespace AudioVisualizer.SampleApp.ViewModels
             IsActive = true;
         }
 
+        #endregion
+
+        #region 内部メソッド
+
         /// <summary>
         /// 音声取得の失敗を受け、開始コマンドの可否を更新します。
         /// </summary>
@@ -478,6 +487,10 @@ namespace AudioVisualizer.SampleApp.ViewModels
                 ((DelegateCommand)StartCommand).RaiseCanExecuteChanged();
             }
         }
+
+        #endregion
+
+        #region 公開メソッド
 
         /// <summary>
         /// 可視化の停止状態へ切り替えます。
@@ -506,7 +519,7 @@ namespace AudioVisualizer.SampleApp.ViewModels
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// 現在の入力種別に対応するデバイス一覧を取得して画面状態へ反映します。

@@ -25,7 +25,7 @@ namespace AudioVisualizer.Core.Tests
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 公開メソッド
 
         /// <summary>
         /// 各テストで使用する解析サービスと設定を初期化します。
@@ -36,10 +36,6 @@ namespace AudioVisualizer.Core.Tests
             m_Sut = new AudioFrameAnalyzer();
             m_Settings = new VisualizerSettings(InputSource.SystemOutput, null, true, true, 1.0, 0.5, 8);
         }
-
-        #endregion
-
-        #region 公開メソッド
 
         /// <summary>
         /// AudioFrameAnalyzer が可聴サンプルからスペクトラムとピークを生成することを確認します。
@@ -234,6 +230,7 @@ namespace AudioVisualizer.Core.Tests
         /// <summary>
         /// バーの代表周波数から外れた正弦波も、該当する線形周波数帯に現れることを確認します。
         /// </summary>
+        /// <param name="frequency">入力する正弦波の周波数。単位は Hz です。</param>
         [TestCase(468.75)]
         [TestCase(796.875)]
         [TestCase(2500)]
@@ -276,6 +273,7 @@ namespace AudioVisualizer.Core.Tests
         /// <summary>
         /// 同相、片側だけ、逆相のステレオでも、同じ音の周波数と振幅を保ちます。
         /// </summary>
+        /// <param name="rightGain">基準波形に対する右チャンネルの倍率。0 は無音、-1 は逆相です。</param>
         [TestCase(1)]
         [TestCase(0)]
         [TestCase(-1)]
@@ -305,6 +303,8 @@ namespace AudioVisualizer.Core.Tests
         /// <summary>
         /// 逆相で打ち消されず、右側だけに音がある場合も正しい時間軸で波形を生成します。
         /// </summary>
+        /// <param name="leftGain">基準波形に対する左チャンネルの倍率。0 は無音を表します。</param>
+        /// <param name="rightGain">基準波形に対する右チャンネルの倍率。0 は無音、-1 は逆相です。</param>
         [TestCase(1, -1)]
         [TestCase(0, 1)]
         public void Waveform_WhenStereoIsAntiphaseOrSingleChannel_ShowsSelectedChannel(int leftGain, int rightGain)

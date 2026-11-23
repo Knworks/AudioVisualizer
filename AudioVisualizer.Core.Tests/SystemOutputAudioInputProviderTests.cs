@@ -23,6 +23,7 @@ namespace AudioVisualizer.Core.Tests
         /// ・2. FrameProduced が 1 回発火する
         /// ・3. Stop 後に IsCapturing が false になる
         /// </summary>
+        /// <returns>取得と通知の検証が完了するまで待機できるタスク。</returns>
         [Test]
         public async Task Given_SystemOutputSettings_When_StartAndSamplesArrive_Then_FrameProducedIsRaised()
         {
@@ -105,6 +106,7 @@ namespace AudioVisualizer.Core.Tests
         /// ・2. 2 回目は新しい既定デバイス render-2 が使われる
         /// ・3. 既存セッションへ Stop が 1 回呼ばれる
         /// </summary>
+        /// <returns>取得と通知の検証が完了するまで待機できるタスク。</returns>
         [Test]
         public async Task Given_DefaultDeviceMode_When_DefaultRenderDeviceChanges_Then_CaptureRestartsWithNewDefaultDevice()
         {
@@ -628,7 +630,9 @@ namespace AudioVisualizer.Core.Tests
             Assert.That(provider.CaptureError, Is.Null);
         }
 
-        /// <summary>無効な設定が新規取得と既定変更による再開を防ぐことを確認します。</summary>
+        /// <summary>
+        /// 無効な設定が新規取得と既定変更による再開を防ぐことを確認します。
+        /// </summary>
         [Test]
         public void Start_WhenSettingsAreInactive_DoesNotOpenOrRestartCapture()
         {
@@ -698,6 +702,8 @@ namespace AudioVisualizer.Core.Tests
         /// <summary>
         /// フレーム通知中に停止や破棄を行っても、サンプル通知元の終了を待てます。
         /// </summary>
+        /// <param name="dispose">破棄による終了を検証する場合は true、停止による終了を検証する場合は false。</param>
+        /// <returns>取得と通知の検証が完了するまで待機できるタスク。</returns>
         [TestCase(false)]
         [TestCase(true)]
         public async Task FrameHandler_WhenStoppingOrDisposing_AllowsCaptureThreadToExit(bool dispose)
@@ -747,7 +753,7 @@ namespace AudioVisualizer.Core.Tests
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// 非公開のサンプル受信ハンドラをテストから呼び出します。
@@ -802,7 +808,7 @@ namespace AudioVisualizer.Core.Tests
 
             #endregion
 
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="FakeAudioCaptureFactory"/> クラスの新しいインスタンスを初期化します。
@@ -851,6 +857,7 @@ namespace AudioVisualizer.Core.Tests
             /// 次回の CreateCapture 呼び出しで送出する例外を設定します。
             /// </summary>
             /// <param name="exception">送出する例外です。</param>
+            /// <exception cref="ArgumentNullException"><paramref name="exception"/> が <see langword="null"/> である場合にスローされます。</exception>
             public void SetNextException(Exception exception)
             {
                 m_Exception = exception ?? throw new ArgumentNullException(nameof(exception));
@@ -888,7 +895,7 @@ namespace AudioVisualizer.Core.Tests
 
             #endregion
 
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="FakeAudioDeviceService"/> クラスの新しいインスタンスを初期化します。
@@ -918,6 +925,7 @@ namespace AudioVisualizer.Core.Tests
             /// </summary>
             /// <param name="inputSource">取得対象の入力種別です。</param>
             /// <returns>対応するデバイス一覧です。</returns>
+            /// <exception cref="ArgumentOutOfRangeException"><paramref name="inputSource"/> がサポートされていない値である場合にスローされます。</exception>
             public IReadOnlyList<AudioDeviceInfo> GetDevices(InputSource inputSource)
             {
                 return inputSource switch
@@ -933,6 +941,7 @@ namespace AudioVisualizer.Core.Tests
             /// </summary>
             /// <param name="inputSource">取得対象の入力種別です。</param>
             /// <returns>既定デバイス。存在しない場合は <see langword="null"/>。</returns>
+            /// <exception cref="ArgumentOutOfRangeException"><paramref name="inputSource"/> がサポートされていない値である場合にスローされます。</exception>
             public AudioDeviceInfo? GetDefaultDevice(InputSource inputSource)
             {
                 return inputSource switch
@@ -961,6 +970,7 @@ namespace AudioVisualizer.Core.Tests
             /// </summary>
             /// <param name="inputSource">更新対象の入力種別です。</param>
             /// <param name="deviceInfo">新しい既定デバイスです。</param>
+            /// <exception cref="ArgumentOutOfRangeException"><paramref name="inputSource"/> がサポートされていない値である場合にスローされます。</exception>
             public void SetDefaultDevice(InputSource inputSource, AudioDeviceInfo? deviceInfo)
             {
                 switch (inputSource)
@@ -1077,6 +1087,10 @@ namespace AudioVisualizer.Core.Tests
             /// 取得終了を通知します。
             /// </summary>
             public event EventHandler? RecordingStopped;
+
+            #endregion
+
+            #region 公開メソッド
 
             /// <summary>
             /// 取得側からの終了イベントを発行します。

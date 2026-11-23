@@ -16,7 +16,11 @@ namespace AudioVisualizer.Wpf.Tests
     [Apartment(ApartmentState.STA)]
     public class PeakHoldBarEffectTests
     {
-        /// <summary>同じ時刻の再描画ではピークを減衰させないことを確認します。</summary>
+        #region 公開メソッド
+
+        /// <summary>
+        /// 同じ時刻の再描画ではピークを減衰させないことを確認します。
+        /// </summary>
         [Test]
         public void PeakAtSameTimestamp_DoesNotDecayAgain()
         {
@@ -32,8 +36,6 @@ namespace AudioVisualizer.Wpf.Tests
             Assert.That(first.PeakMarkers[0].Height, Is.EqualTo(0.8).Within(1e-9));
             Assert.That(repeated.PeakMarkers[0].Height, Is.EqualTo(first.PeakMarkers[0].Height));
         }
-
-        #region 公開メソッド
 
         /// <summary>
         /// PeakHoldBarEffect がバー本体とピーク保持線を生成することを確認します。
@@ -434,7 +436,7 @@ namespace AudioVisualizer.Wpf.Tests
 
             #endregion
 
-            #region 公開メソッド
+            #region イベントハンドラ
 
             /// <summary>
             /// フレーム生成イベントです。
@@ -444,6 +446,10 @@ namespace AudioVisualizer.Wpf.Tests
                 add => m_FrameProduced += value;
                 remove => m_FrameProduced -= value;
             }
+
+            #endregion
+
+            #region 公開メソッド
 
             /// <summary>
             /// 入力開始を模擬します。
@@ -481,7 +487,7 @@ namespace AudioVisualizer.Wpf.Tests
         /// </summary>
         private sealed class TestableAudioVisualizerControl : AudioVisualizerControl
         {
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="TestableAudioVisualizerControl"/> クラスの新しいインスタンスを初期化します。
@@ -554,7 +560,7 @@ namespace AudioVisualizer.Wpf.Tests
 
             #endregion
 
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// 返却する 2 種類のレンダーデータを指定して初期化します。

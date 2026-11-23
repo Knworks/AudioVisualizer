@@ -246,7 +246,7 @@ namespace AudioVisualizer.Core.Tests
 
             #endregion
 
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="FakeAudioPlatformDeviceEnumerator"/> クラスの新しいインスタンスを初期化します。
@@ -276,6 +276,7 @@ namespace AudioVisualizer.Core.Tests
             /// </summary>
             /// <param name="inputSource">取得対象の入力種別です。</param>
             /// <returns>対応するデバイス一覧です。</returns>
+            /// <exception cref="ArgumentOutOfRangeException"><paramref name="inputSource"/> がサポートされていない値である場合にスローされます。</exception>
             public IReadOnlyList<AudioDeviceSnapshot> GetDevices(InputSource inputSource)
             {
                 return inputSource switch
@@ -291,6 +292,7 @@ namespace AudioVisualizer.Core.Tests
             /// </summary>
             /// <param name="inputSource">取得対象の入力種別です。</param>
             /// <returns>既定デバイス。存在しない場合は <see langword="null"/>。</returns>
+            /// <exception cref="ArgumentOutOfRangeException"><paramref name="inputSource"/> がサポートされていない値である場合にスローされます。</exception>
             public AudioDeviceSnapshot? GetDefaultDevice(InputSource inputSource)
             {
                 return inputSource switch

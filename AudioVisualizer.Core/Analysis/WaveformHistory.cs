@@ -5,10 +5,35 @@ namespace AudioVisualizer.Core.Analysis
     /// </summary>
     internal sealed class WaveformHistory
     {
+        #region 定数
+
+        /// <summary>
+        /// 描画する波形の時間窓の長さ。単位は秒です。
+        /// </summary>
         private const double WindowSeconds = 0.012;
+
+        #endregion
+
+        #region フィールド
+
+        /// <summary>
+        /// 現在の波形履歴のサンプルレート。
+        /// </summary>
         private int m_SampleRate;
+
+        /// <summary>
+        /// 現在の波形履歴のチャンネル数。
+        /// </summary>
         private int m_Channels;
+
+        /// <summary>
+        /// 直近の時間窓に収まる正規化済み PCM。
+        /// </summary>
         private double[] m_Samples = Array.Empty<double>();
+
+        #endregion
+
+        #region 公開メソッド
 
         /// <summary>
         /// 新しい PCM を追加し、固定した時間幅で描画する波形を返します。
@@ -64,5 +89,7 @@ namespace AudioVisualizer.Core.Analysis
 
             return m_Samples;
         }
+
+        #endregion
     }
 }

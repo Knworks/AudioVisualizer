@@ -73,7 +73,7 @@ namespace AudioVisualizer.Wpf.Effects
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// 間引き前の最大値と最小値を、時間順に上下の輪郭として描画します。

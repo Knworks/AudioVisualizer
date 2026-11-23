@@ -3,11 +3,18 @@ using AudioVisualizer.Core.Models;
 
 namespace AudioVisualizer.Core.Tests
 {
-    /// <summary>公開データが無効な値を境界で拒否することを検証します。</summary>
+    /// <summary>
+    /// 公開データが無効な値を境界で拒否することを検証します。
+    /// </summary>
     [TestFixture]
     public class PublicInputValidationTests
     {
-        /// <summary>有限値が必要な設定と正規化座標を検証します。</summary>
+        #region 公開メソッド
+
+        /// <summary>
+        /// 有限値が必要な設定と正規化座標を検証します。
+        /// </summary>
+        /// <param name="value">各公開 API へ渡す非有限値。</param>
         [TestCase(double.NaN)]
         [TestCase(double.PositiveInfinity)]
         [TestCase(double.NegativeInfinity)]
@@ -22,7 +29,9 @@ namespace AudioVisualizer.Core.Tests
                 Throws.TypeOf<ArgumentException>());
         }
 
-        /// <summary>解析と描画でバー数の上限を共有することを検証します。</summary>
+        /// <summary>
+        /// 解析と描画でバー数の上限を共有することを検証します。
+        /// </summary>
         [Test]
         public void BarCount_WhenExceedingSharedLimit_IsRejected()
         {
@@ -33,7 +42,9 @@ namespace AudioVisualizer.Core.Tests
                 Throws.TypeOf<ArgumentOutOfRangeException>());
         }
 
-        /// <summary>未定義の入力種別を検証します。</summary>
+        /// <summary>
+        /// 未定義の入力種別を検証します。
+        /// </summary>
         [Test]
         public void InputSource_WhenUndefined_IsRejected()
         {
@@ -43,7 +54,9 @@ namespace AudioVisualizer.Core.Tests
                 Throws.TypeOf<ArgumentOutOfRangeException>());
         }
 
-        /// <summary>描画用コレクションの null 要素を検証します。</summary>
+        /// <summary>
+        /// 描画用コレクションの null 要素を検証します。
+        /// </summary>
         [Test]
         public void RenderData_WhenCollectionContainsNull_IsRejected()
         {
@@ -53,5 +66,7 @@ namespace AudioVisualizer.Core.Tests
             Assert.That(() => new PeakHoldBarRenderData("test", DateTimeOffset.UtcNow, Array.Empty<BarRenderItem>(), new PeakMarkerItem[] { null! }),
                 Throws.TypeOf<ArgumentException>());
         }
+
+        #endregion
     }
 }

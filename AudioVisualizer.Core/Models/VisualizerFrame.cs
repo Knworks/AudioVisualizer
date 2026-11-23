@@ -44,7 +44,7 @@ namespace AudioVisualizer.Core.Models
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="VisualizerFrame"/> クラスの新しいインスタンスを初期化します。
@@ -55,7 +55,8 @@ namespace AudioVisualizer.Core.Models
         /// <param name="timestamp">フレームが生成された時刻です。</param>
         /// <exception cref="ArgumentNullException"><paramref name="spectrumValues"/> が <see langword="null"/> の場合にスローされます。</exception>
         /// <exception cref="ArgumentNullException"><paramref name="waveformValues"/> が <see langword="null"/> の場合にスローされます。</exception>
-        /// <exception cref="ArgumentOutOfRangeException"><paramref name="peakLevel"/> が負数の場合にスローされます。</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="peakLevel"/> が有限な非負値でない場合にスローされます。</exception>
+        /// <exception cref="ArgumentException"><paramref name="spectrumValues"/> または <paramref name="waveformValues"/> に有限値でない要素が含まれる場合にスローされます。</exception>
         public VisualizerFrame(IEnumerable<double> spectrumValues, IEnumerable<double> waveformValues, double peakLevel, DateTimeOffset timestamp)
             : this(spectrumValues, waveformValues, peakLevel, timestamp, Array.Empty<(double, double)>(), null)
         {
@@ -70,6 +71,9 @@ namespace AudioVisualizer.Core.Models
         /// <param name="timestamp">フレームの生成時刻です。</param>
         /// <param name="waveformRanges">波形の区間ごとの振幅範囲です。</param>
         /// <param name="frequencyBandLevels">FFTから求めた固定周波数帯域別の最大レベルです。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="spectrumValues"/> または <paramref name="waveformValues"/> が <see langword="null"/> である場合にスローされます。</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="peakLevel"/> が有限な非負値でない場合にスローされます。</exception>
+        /// <exception cref="ArgumentException"><paramref name="spectrumValues"/> または <paramref name="waveformValues"/> に有限値でない要素が含まれる場合にスローされます。</exception>
         internal VisualizerFrame(
             IEnumerable<double> spectrumValues,
             IEnumerable<double> waveformValues,
@@ -119,6 +123,9 @@ namespace AudioVisualizer.Core.Models
         /// <param name="spectrumValues">フレームに含まれるスペクトラム値です。</param>
         /// <param name="peakLevel">フレームのピークレベルです。</param>
         /// <param name="timestamp">フレームが生成された時刻です。</param>
+        /// <exception cref="ArgumentException"><paramref name="spectrumValues"/> に有限値でない要素が含まれる場合にスローされます。</exception>
+        /// <exception cref="ArgumentNullException"><paramref name="spectrumValues"/> が <see langword="null"/> である場合にスローされます。</exception>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="peakLevel"/> が有限な非負値でない場合にスローされます。</exception>
         public VisualizerFrame(IEnumerable<double> spectrumValues, double peakLevel, DateTimeOffset timestamp)
             : this(spectrumValues, Array.Empty<double>(), peakLevel, timestamp)
         {

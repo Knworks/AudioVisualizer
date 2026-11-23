@@ -14,7 +14,7 @@ namespace AudioVisualizer.Core.Effects
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="BandLevelMeterRenderData"/> クラスの新しいインスタンスを初期化します。
@@ -23,6 +23,7 @@ namespace AudioVisualizer.Core.Effects
         /// <param name="timestamp">レンダーデータの生成時刻です。</param>
         /// <param name="bands">描画対象の帯域一覧です。</param>
         /// <exception cref="ArgumentNullException"><paramref name="bands"/> が <see langword="null"/> の場合にスローされます。</exception>
+        /// <exception cref="ArgumentException"><paramref name="bands"/> に <see langword="null"/> の要素が含まれる場合にスローされます。</exception>
         public BandLevelMeterRenderData(string effectId, DateTimeOffset timestamp, IEnumerable<BandLevelMeterItem> bands)
             : base(effectId, timestamp)
         {

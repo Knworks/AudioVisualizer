@@ -17,7 +17,9 @@ namespace AudioVisualizer.Wpf.Tests
     {
         #region 公開メソッド
 
-        /// <summary>描画後も呼び出し元のブラシを更新できることを確認します。</summary>
+        /// <summary>
+        /// 描画後も呼び出し元のブラシを更新できることを確認します。
+        /// </summary>
         [Test]
         public void Render_WithMutableBrush_DoesNotFreezeBrush()
         {
@@ -265,7 +267,7 @@ namespace AudioVisualizer.Wpf.Tests
         /// </summary>
         private sealed class FakeRenderData : VisualizerRenderData
         {
-            #region 構築 / 消滅
+            #region 構築・消滅
 
             /// <summary>
             /// <see cref="FakeRenderData"/> クラスの新しいインスタンスを初期化します。

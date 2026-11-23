@@ -8,7 +8,11 @@ namespace AudioVisualizer.Core.Tests
     [TestFixture]
     public class PolylineRenderDataTests
     {
-        /// <summary>元の配列と公開コレクションの両方から点列を変更できないことを確認します。</summary>
+        #region 公開メソッド
+
+        /// <summary>
+        /// 元の配列と公開コレクションの両方から点列を変更できないことを確認します。
+        /// </summary>
         [Test]
         public void Points_AfterConstruction_CannotBeModified()
         {
@@ -22,8 +26,6 @@ namespace AudioVisualizer.Core.Tests
                 Throws.TypeOf<NotSupportedException>());
             Assert.That(data.Points[0], Is.SameAs(original));
         }
-
-        #region 公開メソッド
 
         /// <summary>
         /// PolylineRenderData が正規化点列を保持することを確認します。

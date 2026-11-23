@@ -8,10 +8,14 @@ namespace AudioVisualizer.Core.Audio
     /// </summary>
     public sealed class VisualizerFrameEventArgs : EventArgs
     {
+        #region フィールド
+
         /// <summary>
-        /// フレームの取得セッションがまだ有効かを判定します。
+        /// 通知元の取得セッションがまだ有効かどうかを判定する処理。
         /// </summary>
         private readonly Func<bool>? m_IsCurrent;
+
+        #endregion
 
         #region プロパティ
 
@@ -27,7 +31,7 @@ namespace AudioVisualizer.Core.Audio
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="VisualizerFrameEventArgs"/> クラスの新しいインスタンスを初期化します。
@@ -44,6 +48,7 @@ namespace AudioVisualizer.Core.Audio
         /// </summary>
         /// <param name="frame">通知対象のフレームです。</param>
         /// <param name="isCurrent">通知元の取得セッションが有効かを判定する処理です。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="frame"/> が <see langword="null"/> である場合にスローされます。</exception>
         internal VisualizerFrameEventArgs(VisualizerFrame frame, Func<bool>? isCurrent)
         {
             Frame = frame ?? throw new ArgumentNullException(nameof(frame));

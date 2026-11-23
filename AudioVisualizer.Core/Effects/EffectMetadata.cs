@@ -44,7 +44,7 @@ namespace AudioVisualizer.Core.Effects
 
         #endregion
 
-        #region 構築 / 消滅
+        #region 構築・消滅
 
         /// <summary>
         /// <see cref="EffectMetadata"/> クラスの新しいインスタンスを初期化します。

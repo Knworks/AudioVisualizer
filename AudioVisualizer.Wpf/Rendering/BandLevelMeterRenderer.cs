@@ -39,6 +39,7 @@ namespace AudioVisualizer.Wpf.Rendering
         /// <param name="renderSize">描画領域サイズです。</param>
         /// <param name="fillBrush">メーター描画に使用するブラシです。</param>
         /// <param name="pixelsPerDip">描画先のDPI倍率です。</param>
+        /// <exception cref="ArgumentNullException"><paramref name="drawingContext"/> または <paramref name="fillBrush"/> が <see langword="null"/> である場合にスローされます。</exception>
         public void Render(DrawingContext drawingContext, VisualizerRenderData? renderData, Size renderSize, Brush fillBrush, double pixelsPerDip = 1)
         {
             ArgumentNullException.ThrowIfNull(drawingContext);
@@ -99,7 +100,7 @@ namespace AudioVisualizer.Wpf.Rendering
 
         #endregion
 
-        #region 内部処理
+        #region 内部メソッド
 
         /// <summary>
         /// 固定帯域メーターレンダーデータからメーター矩形一覧を生成します。
@@ -107,6 +108,7 @@ namespace AudioVisualizer.Wpf.Rendering
         /// <param name="renderData">固定帯域メーターレンダーデータです。</param>
         /// <param name="renderSize">描画領域サイズです。</param>
         /// <returns>メーター描画に使用する矩形一覧です。</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="renderData"/> が <see langword="null"/> である場合にスローされます。</exception>
         internal IReadOnlyList<Rect> CreateMeterRectangles(BandLevelMeterRenderData renderData, Size renderSize)
         {
             ArgumentNullException.ThrowIfNull(renderData);
